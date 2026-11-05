@@ -7,6 +7,8 @@ django-storages の STORAGES 構成を扱う。R2 が無い環境（テスト等
 import os
 import sys
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import BASE_DIR, DEBUG, TESTING
 
 # テスト実行時は R2 認証があってもローカルストレージを使う。
@@ -17,6 +19,9 @@ _IS_TEST = 'test' in sys.argv or TESTING
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_PRIVATE_STORAGE_BUCKET_NAME = os.getenv('AWS_PRIVATE_STORAGE_BUCKET_NAME', 'vrc-ta-hub-private')
+if AWS_PRIVATE_STORAGE_BUCKET_NAME == AWS_STORAGE_BUCKET_NAME:
+    raise ImproperlyConfigured('非公開ファイルのバケットは公開バケットと分けてください。')
 AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
 AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
 AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')
@@ -48,6 +53,25 @@ else:
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
     }
 
+if AWS_STORAGE_BUCKET_NAME and not _IS_TEST:
+    slide_source_storage = {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'OPTIONS': {
+            'access_key': AWS_ACCESS_KEY_ID,
+            'secret_key': AWS_SECRET_ACCESS_KEY,
+            'bucket_name': AWS_PRIVATE_STORAGE_BUCKET_NAME,
+            'endpoint_url': AWS_S3_ENDPOINT_URL,
+            'custom_domain': None,
+            'querystring_auth': True,
+            'file_overwrite': False,
+        },
+    }
+else:
+    slide_source_storage = {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        'OPTIONS': {'location': BASE_DIR / 'private_media'},
+    }
+
 if DEBUG:
     # 静的ファイルはローカル配信（開発時の利便性）
     staticfiles_storage = {
@@ -68,5 +92,6 @@ else:
 
 STORAGES = {
     'default': default_storage,
+    'slide_source': slide_source_storage,
     'staticfiles': staticfiles_storage,
 }

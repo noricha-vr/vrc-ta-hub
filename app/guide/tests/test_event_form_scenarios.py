@@ -75,9 +75,9 @@ class EventFormScenarioTargetsTest(TestCase):
                        '[aria-label="撮影"]', '.form-check:has(#id_detail_type_0)',
                        '.form-check:has(#id_detail_type_1)', '.form-check:has(#id_detail_type_2)',
                        '#detail-form button[type="submit"]')
-                unique(soup, '[data-field="recording_policy"]')
+                unique(soup, '[data-field="recording_policy"]', '[data-field="slide_entry"]', '#id_slide_file', '#id_slide_url')
                 for field in ('theme', 'speaker', 'start_time', 'duration',
-                              'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents'):
+                              'thumbnail_image', 'youtube_url', 'h1', 'contents'):
                     unique(soup, f'[data-field="{field}"]', f'#id_{field}')
                 content = soup.select_one('#detail-form .admin-card:has(#id_theme)')
                 unique(content, '#id_start_time', '#id_duration')

@@ -871,7 +871,7 @@ class SlideLinkTest(TestCase):
     def test_slide_url_article_keeps_slide_link(self, _mock_get_transcript, mock_openai_class):
         """スライドの URL がある記事では、その URL のリンクを書かせて残す."""
         slide_url = "https://example.com/slide.pdf"
-        text = f"## まとめ\n\n楽しかったです。\n\n[発表スライド（PDF）]({slide_url})\n\n[一覧](/event/list/)"
+        text = f"## まとめ\n\n楽しかったです。\n\n[発表スライド]({slide_url})\n\n[一覧](/event/list/)"
         mock_client = self._patch_openrouter(text)
         mock_openai_class.return_value = mock_client
         detail = make_event_detail(
@@ -881,7 +881,7 @@ class SlideLinkTest(TestCase):
 
         output = generate_blog(detail, model="test-model")
 
-        self.assertIn(f"[発表スライド（PDF）]({slide_url})", self._prompt(mock_client))
+        self.assertIn(f"[発表スライド]({slide_url})", self._prompt(mock_client))
         self.assertEqual(output.text, text)
 
     def test_detail_page_hides_slide_link_left_in_old_article(self):

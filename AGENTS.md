@@ -106,6 +106,7 @@ docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
 - `GEMINI_API_KEY`: Gemini API キー（コンテンツ自動生成）
 - `GEMINI_MODEL`: 使用するGeminiモデル（デフォルト: google/gemini-2.5-flash-lite-preview-06-17）
 - `OPENROUTER_API_KEY`: OpenRouter API キー（AI バックアップ）
+- `AWS_PRIVATE_STORAGE_BUCKET_NAME`: 記事入力用 PDF の非公開バケット（既定 `vrc-ta-hub-private`）。公開用とは別に保管します
 - `REQUEST_TOKEN`: バッチ処理認証用トークン
 - `DISCORD_CLIENT_ID`: Discord OAuth 用クライアント ID
 - `DISCORD_CLIENT_SECRET`: Discord OAuth 用シークレット

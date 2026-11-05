@@ -275,13 +275,12 @@ class EventDetailLayoutTests(TestCase):
         _, soup = self.page()
         actions = soup.select('.ed-actions a')
         self.assertEqual([a.get_text(strip=True) for a in actions],
-                         ['発表スライドを開く', 'スライドの PDF を開く', 'Discord で動画を見る'])
+                         ['発表スライドを開く ↗', 'Discord で動画を見る'])
         for action in actions:
             self.assertEqual(action['target'], '_blank')
             self.assertEqual(set(action['rel']), {'noopener', 'noreferrer'})
         self.assertEqual(actions[0]['href'], self.detail.slide_url)
-        self.assertEqual(actions[1]['href'], self.detail.slide_file.url)
-        self.assertEqual(actions[2]['href'], self.detail.youtube_url)
+        self.assertEqual(actions[1]['href'], self.detail.youtube_url)
         self.assertIsNone(soup.select_one('.ed-media'))
         self.assertIsNone(soup.iframe)
 

@@ -96,7 +96,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
     class Meta:
         model = EventDetail
         fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'x_account',
-                  'recording_policy', 'article_consent', 'additional_info', 'slide_file',
+                  'recording_policy', 'article_consent', 'additional_info', 'slide_file', 'slide_source_file',
                   'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
@@ -125,8 +125,8 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             'h1': '※ 空のときはテーマが使われます。',
             'duration': '単位は分',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
-            'slide_file': '※ 記事生成に使うPDFです。まずここにスライドPDFをアップロードしてください（最大30MB）。',
-            'slide_url': '※ 任意。記事生成後、公開用の外部スライドURLがある場合に貼り付けてください。URL入力のみでは記事は生成されません。',
+            'slide_file': '最大 30MB。',
+            'slide_url': 'Speaker Deck は PDF を読み込んで記事に使います（PDF は公開せず、1 枚目だけサムネイルにします）。SlideShare などは読み込めないので、記事に使う PDF をアップロードしてください。',
             'thumbnail_image': (
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'

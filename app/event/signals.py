@@ -32,7 +32,7 @@ from event.youtube_urls import youtube_video_id
 # status / detail_type / deleted_at は、却下からの承認・種別の変更・論理削除からの復元で後から対象になるため。
 # h1 / contents は、記事を空にした時に作り直すため（h1 は関連一覧のキャッシュの判定にも使う）
 WATCHED_FIELDS = frozenset({
-    'slide_file', 'youtube_url', 'article_consent', 'status', 'detail_type', 'deleted_at', 'h1', 'contents',
+    'slide_file', 'slide_source_file', 'youtube_url', 'article_consent', 'status', 'detail_type', 'deleted_at', 'h1', 'contents',
     'article_source_video_id', 'speaker', 'theme', 'thumbnail_image', 'event',
 })
 # これらの列を含む保存の時に、動画と記事の告知を試みる
@@ -125,7 +125,7 @@ def _was_auto_generation_target(old: dict) -> bool:
         article_consent=old.get('article_consent'),
         status=old.get('status'),
         deleted_at=None,  # 旧値は論理削除されていない行からだけ読む
-        has_slide=bool(old.get('slide_file')),
+        has_slide=bool(old.get('slide_source_file') or old.get('slide_file')),
         youtube_url=old.get('youtube_url'),
     )
 
@@ -135,8 +135,8 @@ def _article_inputs_changed(instance: EventDetail, old: dict) -> bool:
 
     動画は URL ではなく動画 ID で比べる（再生位置 ?t= の付け替えや Discord のリンクでは作り直さない）。
     """
-    slide_name = instance.slide_file.name if instance.slide_file else ''
-    if slide_name and slide_name != (old.get('slide_file') or ''):
+    slide_name = instance.article_pdf.name if instance.article_pdf else ''
+    if slide_name and slide_name != (old.get('slide_source_file') or old.get('slide_file') or ''):
         return True
     video_id = instance.video_id
     return bool(video_id) and video_id != youtube_video_id(old.get('youtube_url'))
