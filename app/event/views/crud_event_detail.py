@@ -59,7 +59,7 @@ def _should_generate_on_save(form) -> bool:
         form.cleaned_data.get('generate_blog_article', False)
         and instance.detail_type == 'LT'
         and not instance.is_article_ng
-        and not instance.slide_generate_requested
+        and not instance.slide_generate_waiting
         and (instance.article_pdf or instance.youtube_url)
     )
 
@@ -113,7 +113,7 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
                     },
                 )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
-        elif form.instance.slide_generate_requested:
+        elif form.instance.slide_generate_waiting:
             messages.info(self.request, ARTICLE_AFTER_FETCH_MESSAGE)
 
         return response
@@ -171,7 +171,7 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
                     },
                 )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
-        elif form.instance.slide_generate_requested:
+        elif form.instance.slide_generate_waiting:
             messages.info(self.request, ARTICLE_AFTER_FETCH_MESSAGE)
         elif form.instance.can_auto_generate_article and form.instance.article_generation_requested_at:
             # 記事化 OK の発表は自動生成のキューが作る（保存時には作らない）

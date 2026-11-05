@@ -866,6 +866,13 @@ class EventDetail(models.Model):
         )
 
     @property
+    def slide_generate_waiting(self) -> bool:
+        """生成の依頼が PDF の読み込みを待っているか。読み込めなかった後は待たない。"""
+        return self.slide_generate_requested and self.slide_fetch_status in (
+            self.SlideFetchStatus.PENDING, self.SlideFetchStatus.FETCHING,
+        )
+
+    @property
     def can_generate_in_queue(self) -> bool:
         """キューが記事を作ってよいか。頼まれた発表は、記事化が未回答でも保存時の生成と同じく作る。"""
         if not self.slide_generate_requested or self.is_article_ng:

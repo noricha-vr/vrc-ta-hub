@@ -73,7 +73,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
             # チェックボックスで明示的に頼まれた時は、記事化 OK に変えた送信でもここで作る
             # （手動の記事はキューが作らないため）。保存すると生成待ちの印は外れ、キューとは重ならない
             self._generate_now(instance)
-        elif instance.slide_generate_requested:
+        elif instance.slide_generate_waiting:
             messages.success(self.request, f'{UPDATED_MESSAGE}{ARTICLE_AFTER_FETCH_MESSAGE}')
         elif instance.can_auto_generate_article:
             # 記事化 OK の発表はキュー（Cloud Scheduler）が作る
@@ -91,7 +91,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         return bool(
             form.cleaned_data.get('generate_blog_article', False)
             and not instance.is_article_ng
-            and not instance.slide_generate_requested
+            and not instance.slide_generate_waiting
             and (instance.article_pdf or instance.youtube_url)
         )
 

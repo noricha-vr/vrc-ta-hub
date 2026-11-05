@@ -385,6 +385,15 @@ class SlideFetchQueueTests(SlideSourceTestCase):
         self.assertEqual(self.detail.slide_fetch_status, 'failed')
         self.assertIsNotNone(self.detail.article_generation_requested_at)
 
+    def test_video_added_after_failed_fetch_generates_on_save(self):
+        self.requested_detail()
+        with patch('event.services.slide_source.fetch_slide_pdf', side_effect=SlideFetchError('no_pdf_link')):
+            process_slide_fetch_queue()
+        form = self.form(youtube_url='https://www.youtube.com/watch?v=dQw4w9WgXcQ', generate_blog_article='on')
+        self.save_form(form)
+        self.assertTrue(_should_generate_on_save(form))
+        self.assertTrue(LTApplicationEditView._should_generate_now(form))
+
     def test_failed_fetch_without_other_inputs_does_not_queue(self):
         self.requested_detail()
         with patch('event.services.slide_source.fetch_slide_pdf', side_effect=SlideFetchError('no_pdf_link')):
