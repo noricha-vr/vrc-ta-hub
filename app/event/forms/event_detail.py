@@ -71,7 +71,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
         widget=forms.Textarea(attrs={
             'class': 'form-control', 'rows': 6, 'aria-describedby': 'id_additional_info_help',
         }),
-        help_text='追加で伝えたい情報があれば入力してください。',
+        help_text='追加で伝えたい情報があれば入力してください。公開されるので、連絡先などは書かないでください。',
     )
     h1 = forms.CharField(
         label='タイトル(H1)',
