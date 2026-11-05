@@ -71,7 +71,7 @@ def manage(capture):
     region(capture, [field('theme'), field('speaker')], marks=['#id_theme', '#id_speaker'])
     region(capture, [field('h1'), field('contents')], marks=['#id_h1', '#id_contents'])
     region(capture, [field('slide_entry'), field('youtube_url')],
-           marks=['#id_slide_entry_0', '#id_slide_entry_1', '#id_youtube_url'])
+           marks=['label:has(#id_slide_entry_0)', 'label:has(#id_slide_entry_1)', '#id_youtube_url'])
     region(capture, [field('recording_policy'), field('article_consent')])
     region(capture, ['#application-form [data-admin-action-bar]'],
            marks=['#application-form button[type=submit]'])

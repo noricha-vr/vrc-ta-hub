@@ -62,9 +62,9 @@ Speaker Deck のリンクは PDF を読み込んで記事に使います。
 開催前の編集画面では「詳細設定を表示」を押します。
 「資料」のカードへ進みます。
 
-![編集フォームの「スライド」を①、「YouTube URL」を②の赤枠で示した画面](images/lt/auto-generate-02.webp)
+![「PDF をアップロード」を選んだ編集フォームで、PDF の選択欄を①、「YouTube URL」を②の赤枠で示した画面](images/lt/auto-generate-02.webp)
 
-「PDF をアップロード」を選び、「スライドの PDF」で PDF を選びます。
+「PDF をアップロード」を選び、① の「スライドの PDF」で PDF を選びます。
 Speaker Deck を使う時は「リンクから読み込む」を選びます。
 「スライドのリンク」に発表ページの URL を貼り付けます。
 動画を使う場合は ② の「YouTube URL」に貼り付けます。
