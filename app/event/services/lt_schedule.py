@@ -4,6 +4,18 @@ from collections.abc import Iterable
 from datetime import datetime, time, timedelta
 
 
+def next_lt_start_time(event, *, exclude_detail_pk=None) -> time:
+    """同じ開催回の申請中・承認済みの発表に続く開始時刻を返す。"""
+    slots = event.details.filter(detail_type='LT', status__in=['pending', 'approved'])
+    if exclude_detail_pk is not None:
+        slots = slots.exclude(pk=exclude_detail_pk)
+    return _calc_next_lt_start_time(
+        event.start_time,
+        slots.values_list('start_time', 'duration'),
+        event.community.lt_start_offset_minutes or 0,
+    )
+
+
 def _calc_lt_start_time(event_start_time: time, offset_minutes: int) -> time:
     """集会の start_time に offset(分) を加算した time を返す。
 

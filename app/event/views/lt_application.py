@@ -16,7 +16,7 @@ from community.models import Community
 from event.forms import LTApplicationForm, LTApplicationReviewForm
 from event.models import Event, EventDetail
 from event.services.application_review import ApplicationAlreadyReviewed, review_application
-from event.services.lt_schedule import _calc_next_lt_start_time
+from event.services.lt_schedule import _calc_next_lt_start_time, next_lt_start_time
 from vket.application_link import application_warnings
 from ta_hub.og import accepts_public_application, application_metadata
 
@@ -82,21 +82,12 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
 
     def form_valid(self, form):
         event = form.cleaned_data['event']
-        offset = self.community.lt_start_offset_minutes or 0
         speaker = form.cleaned_data['speaker']
         x_account = form.cleaned_data.get('x_account', '')
 
         with transaction.atomic():
             event = Event.objects.select_for_update().get(pk=event.pk)
-            lt_start = _calc_next_lt_start_time(
-                event.start_time,
-                EventDetail.objects.filter(
-                    event=event,
-                    detail_type='LT',
-                    status__in=['pending', 'approved'],
-                ).values_list('start_time', 'duration'),
-                offset,
-            )
+            lt_start = next_lt_start_time(event)
 
             # speaker / x_account を user 側にも反映（LT 申込フォームをプロフィール更新の経路として扱う）
             user = self.request.user

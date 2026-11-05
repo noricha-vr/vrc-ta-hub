@@ -26,6 +26,8 @@ from .mixins import (
     article_consent_widget,
     recording_policy_widget,
     configure_article_generation_field,
+    configure_additional_info_field,
+    validate_additional_info,
 )
 
 
@@ -192,19 +194,7 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
                 'pk', flat=True
             ).first()
 
-            # テンプレートが設定されている場合は初期値として編集可能にする
-            if self.community.lt_application_template:
-                self.fields['additional_info'].initial = self.community.lt_application_template
-            additional_info_guidance = (
-                '開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄に'
-                'ご記入ください。主催者が承認時に調整します。'
-            )
-            if self.community.lt_application_template:
-                self.fields['additional_info'].help_text = additional_info_guidance
-            else:
-                self.fields['additional_info'].help_text = (
-                    f'追加で伝えたい情報があれば入力してください。{additional_info_guidance}'
-                )
+            configure_additional_info_field(self.fields['additional_info'], self.community)
 
             if not self.remove_recording_policy_unless_allowed(self.community):
                 self.fields['recording_policy'].initial = self.community.default_recording_policy
@@ -232,19 +222,7 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
         return normalize_x_account(self.cleaned_data.get('x_account', ''))
 
     def clean_additional_info(self):
-        """追加情報のバリデーション"""
-        additional_info = self.cleaned_data.get('additional_info', '')
-
-        if not self.community or not self.community.lt_application_template:
-            return additional_info
-
-        template = self.community.lt_application_template
-
-        # テンプレートと同一内容のチェック
-        if additional_info.strip() == template.strip():
-            raise ValidationError('テンプレートの各項目を入力してください')
-
-        return additional_info
+        return validate_additional_info(self.cleaned_data.get('additional_info', ''), self.community)
 
 
 class EventScheduleChoiceField(forms.ModelChoiceField):
