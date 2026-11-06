@@ -18,13 +18,13 @@ class SitemapView(TemplateView):
         communities = Community.objects.filter(status='approved').order_by('-pk')
         context['communities'] = communities
         context['vket_collaborations'] = VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT)
-        # ガイドのトップは /guide/ で出す。/guide/index/（はじめに）は別内容のページだが、載せるかは判断待ち
         context['news_posts'] = Post.objects.filter(is_published=True).order_by('-published_at', '-created_at')
         records = load_records()
+        # /guide/（入口）と /guide/index/（はじめに）は別内容のページなので、どちらも載せる
         context['guide_top_lastmod'] = latest_lastmod(records)
         context['guide_pages'] = [
             {'path': item.path, 'lastmod': lastmod_for(item.path, records)}
-            for item in get_flat_nav_items(load_navigation()) if item.path != 'index'
+            for item in get_flat_nav_items(load_navigation())
         ]
         context['base_url'] = f'https://{self.request.get_host()}/'
         return context

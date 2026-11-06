@@ -225,11 +225,15 @@ class SitemapGuideTests(TestCase):
         paths = [urlparse(loc.text).path for loc in root.findall('sm:url/sm:loc', SITEMAP_NS)]
         guide_paths = [path for path in paths if path.startswith('/guide/')]
         expected = ['/guide/'] + [
-            f'/guide/{item.path}/' for item in get_flat_nav_items(load_navigation()) if item.path != 'index'
+            f'/guide/{item.path}/' for item in get_flat_nav_items(load_navigation())
         ]
         self.assertGreater(len(expected), 40)
         self.assertEqual(guide_paths, expected)
-        self.assertNotIn('/guide/index/', paths)
+        # 「はじめに」は /guide/ とは別内容のページ。sitemap に載り、lastmod が付く
+        self.assertEqual(paths.count('/guide/index/'), 1)
+        for url in root.findall('sm:url', SITEMAP_NS):
+            if urlparse(url.find('sm:loc', SITEMAP_NS).text).path == '/guide/index/':
+                self.assertIsNotNone(url.find('sm:lastmod', SITEMAP_NS))
 
 
 class SitemapNewsAndStaticPagesTests(TestCase):
