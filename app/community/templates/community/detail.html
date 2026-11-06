@@ -16,6 +16,28 @@
     {% endif %}
 {% endblock %}
 
+{% block extra_css %}
+<style>
+/* 今日の行の水色の上でもリンクが読める濃さにする */
+.table-info a{color:#0a58ca}
+.ed-rel-card .ed-thumb{overflow:hidden;border-bottom:1px solid #dee2e6}
+.ed-rel-card .ed-thumb img{transition:transform .3s ease}
+.ed-rel-card:hover .ed-thumb img{transform:scale(1.04)}
+.ed-rel-card .stretched-link:focus-visible::after{outline:2px solid var(--custom-primary);outline-offset:-2px}
+.ed-rel-title{font-size:1rem;font-weight:700;line-height:1.6;margin:0 0 .5rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ed-rel-meta{font-size:.875rem;color:#6c757d;margin:0}
+.ed-titlecard{display:flex;flex-direction:column;justify-content:center;gap:.5rem;padding:1.25rem 1.5rem;background:#e7f1ff;color:var(--custom-primary-dark)}
+.ed-titlecard-label{display:inline-flex;align-items:center;gap:.4rem;font-size:.8125rem;font-weight:500;color:#495057}
+.ed-titlecard-theme{margin:0;font-size:1.125rem;font-weight:700;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+/* 枠が低くなる幅では題が切れないようにする */
+@media (max-width:359.98px),(min-width:768px) and (max-width:991.98px){
+.ed-titlecard{padding:.75rem 1rem;gap:0}
+.ed-titlecard-label{display:none}
+.ed-titlecard-theme{font-size:1rem}
+}
+</style>
+{% endblock %}
+
 {% block main %}
     <div class="container mt-4">
         <!-- メインコンテンツカード -->
@@ -274,7 +296,7 @@
                         <tbody>
 
                         {% for event_dict in scheduled_events %}
-                            <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
+                            <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-info"{% endif %}>
                                 <td>{{ event_dict.event.date|date:"Y年n月j日 (D)" }}</td>
                                 <td>
                                     {{ event_dict.event.start_time|date:"H:i" }} -
@@ -303,54 +325,15 @@
         </div>
         {% endif %}
 
-        {% if past_events %}
+        {% if past_presentations %}
         <div class="card my-5 shadow community-table-card">
             <div class="card-body">
-                <h2 class="fs-3 fw-bold my-5 text-center">
-                    {{ community.name }}の発表履歴
-                </h2>
-                <div class="table-responsive">
-                    <table class="table table-hover table-nowrap">
-                        <thead class="table-light">
-                        <tr>
-                            <th scope="col" style="min-width: 142px">日付</th>
-                            <th scope="col" style="min-width: 115px">時間</th>
-                            <th scope="col" style="min-width: 140px">発表者</th>
-                            <th scope="col">テーマ</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-
-                        {% for event_dict in past_events %}
-                            <tr {% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
-                                <td>{{ event_dict.event.date|date:"Y年n月j日" }}</td>
-                                <td>
-                                    {{ event_dict.event.start_time|date:"H:i" }} -
-                                    {{ event_dict.event.end_time|date:"H:i" }}
-                                </td>
-                                <td>
-                                    {% for detail in event_dict.details %}
-                                        <div class="mb-1">
-                                            {{ detail.speaker }}
-                                        </div>
-                                    {% endfor %}
-                                </td>
-                                <td>
-                                    {% for detail in event_dict.details %}
-                                        <div class="mb-1">
-                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
-                                        </div>
-                                    {% endfor %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                    <div class="text-center">
-                        <a href="{% url 'event:detail_history' %}?community_name={{ community.name|urlencode }}"
-                           class=" btn btn-primary">
-                            もっと見る</a>
-                    </div>
+                <h2 class="fs-3 fw-bold my-5 text-center">{{ community.name }}の発表履歴</h2>
+                <div class="row row-cols-1 row-cols-md-3 g-4">
+                    {% for detail in past_presentations %}{% include 'community/includes/past_presentation_card.html' with detail=detail only %}{% endfor %}
+                </div>
+                <div class="text-center mt-4">
+                    <a href="{% url 'event:detail_history' %}?community_name={{ community.name|urlencode }}" class="btn btn-primary">もっと見る</a>
                 </div>
             </div>
         </div>
