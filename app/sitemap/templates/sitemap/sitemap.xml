@@ -19,6 +19,21 @@
     <url>
         <loc>{{ base_url }}event/detail/history/</loc>
     </url>
+    <url>
+        <loc>{{ base_url }}community/archive/</loc>
+    </url>
+    <url>
+        <loc>{{ base_url }}community/criteria/</loc>
+    </url>
+    <url>
+        <loc>{{ base_url }}privacy/</loc>
+    </url>
+    <url>
+        <loc>{{ base_url }}terms/</loc>
+    </url>
+    <url>
+        <loc>{{ base_url }}news/</loc>
+    </url>
 
     <url>
         <loc>{{ base_url|slice:":-1" }}{% url 'vket:list' %}</loc>
@@ -36,6 +51,13 @@
         <url>
             <loc>{{ base_url|slice:":-1" }}{{ collaboration.get_absolute_url }}</loc>
             <lastmod>{{ collaboration.updated_at|date:"Y-m-d" }}</lastmod>
+        </url>
+    {% endfor %}
+
+    {% for post in news_posts %}
+        <url>
+            <loc>{{ base_url }}news/{{ post.slug }}/</loc>
+            <lastmod>{{ post.updated_at|date:"Y-m-d" }}</lastmod>
         </url>
     {% endfor %}
 
