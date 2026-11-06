@@ -121,3 +121,8 @@ description: 120 文字以内の説明    # 検索結果と OG 画像に使う
 - テスト: `docker compose exec vrc-ta-hub python manage.py test guide`（リンク切れ・画像切れ・alt の空・目次と実ファイルの食い違いを検出する）
 - 画面での確認: ローカルの `/guide/` を PC 幅とスマホ幅で見る
 - 画像は本番では Cloudflare R2 から配信され、デプロイでは上がらない。**画像を足した PR はマージ前に** `DEBUG=False` の collectstatic で R2 に上げる（`.claude/rules/staticfiles-deployment.md`）
+
+## 更新日(sitemap.xml の lastmod)
+
+- ガイドの md を変えたら、`cd app && python ../scripts/update_guide_lastmod.py` を実行して `docs/guide/_lastmod.json` をコミットする。本文が変わったページだけ日付が今日になる
+- 本番イメージには `.git` が無くファイルの更新時刻も全ページ同じになるため、本文のハッシュで更新を判定している。忘れると `guide` のテストが落ちる
