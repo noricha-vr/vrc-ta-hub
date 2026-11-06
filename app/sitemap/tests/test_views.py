@@ -230,3 +230,41 @@ class SitemapGuideTests(TestCase):
         self.assertGreater(len(expected), 40)
         self.assertEqual(guide_paths, expected)
         self.assertNotIn('/guide/index/', paths)
+
+
+class SitemapNewsAndStaticPagesTests(TestCase):
+    """お知らせ・規約などの公開ページが載り、未公開記事は載らないこと(#910)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from news.models import Category, Post
+
+        category, _ = Category.objects.get_or_create(slug="update", defaults={"name": "更新", "order": 1})
+        cls.published = Post.objects.create(
+            title="公開記事", slug="published-post", category=category,
+            body_markdown="本文", is_published=True,
+        )
+        cls.draft = Post.objects.create(
+            title="下書き", slug="draft-post", category=category,
+            body_markdown="本文", is_published=False,
+        )
+
+    def _paths(self):
+        response = self.client.get(reverse("sitemap:sitemap"))
+        root = ET.fromstring(response.content)
+        return [urlparse(loc.text).path for loc in root.findall("sm:url/sm:loc", SITEMAP_NS)]
+
+    def test_static_public_pages_are_listed(self):
+        paths = self._paths()
+        for expected in ("/news/", "/privacy/", "/terms/", "/community/archive/", "/community/criteria/"):
+            with self.subTest(path=expected):
+                self.assertIn(expected, paths)
+
+    def test_only_published_news_posts_are_listed(self):
+        paths = self._paths()
+        self.assertIn("/news/published-post/", paths)
+        self.assertNotIn("/news/draft-post/", paths)
+
+    def test_news_category_and_paging_urls_are_not_listed(self):
+        for path in self._paths():
+            self.assertFalse(path.startswith("/news/category/"), path)
