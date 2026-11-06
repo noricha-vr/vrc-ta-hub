@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from community.models import Community, CommunityMember
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import Event, EventDetail
+from tests.factories import make_community, make_community_member, make_event, make_event_detail, make_user
 from twitter.models import TweetQueue
 from vket.models import VketCollaboration, VketParticipation
 
@@ -119,7 +120,7 @@ class EventDetailFormCleanTest(TestCase):
                         with self.subTest(form=form_class, editing=editing, field=field, value=value):
                             data = {
                                 'detail_type': 'LT', 'theme': 'テーマ', 'speaker': '発表者',
-                                'start_time': '22:00', 'duration': 30,
+                                'start_time': '22:00', 'duration': 30, 'article_consent': 'ok',
                             }
                             if value is None:
                                 data.pop(field)
@@ -139,7 +140,7 @@ class EventDetailFormCleanTest(TestCase):
         queue_count = TweetQueue.objects.count()
         response = self.client.post(
             reverse('event:detail_create', kwargs={'event_pk': self.event.pk}),
-            {'detail_type': 'LT', 'start_time': '22:00', 'duration': 30},
+            {'detail_type': 'LT', 'start_time': '22:00', 'duration': 30, 'article_consent': 'ok'},
         )
         self.assertEqual(response.status_code, 200)
         self.assertIn('theme', response.context['form'].errors)
@@ -544,3 +545,197 @@ class GenerateBlogArticleCheckboxDefaultTest(TestCase):
 
         self.assertTrue(event_detail_form.fields['generate_blog_article'].initial)
         self.assertTrue(lt_form.initial['generate_blog_article'])
+
+
+class EventDetailCreateDefaultsTest(TestCase):
+    """主催者の新規登録を申請と同じ初期値・入力部品にそろえる。"""
+
+    def setUp(self):
+        self.user = make_user(
+            user_name='organizer', email='organizer@example.com',
+            display_name='主催者', x_account='old_handle',
+        )
+        self.community = make_community(
+            name='対象の集会', owner=self.user, start_time=time(22),
+            lt_start_offset_minutes=15, default_lt_duration=25,
+            lt_application_template='発表の概要：', recording_allowed=True,
+        )
+        self.event = make_event(self.community, start_time=time(22))
+        self.request = RequestFactory().get('/')
+        self.request.user = self.user
+
+    def _form(self, data=None, **kwargs):
+        return EventDetailForm(
+            data=data, instance=kwargs.pop('instance', EventDetail(event=self.event)),
+            request=self.request, **kwargs,
+        )
+
+    def _data(self, **kwargs):
+        return {
+            'detail_type': 'LT', 'theme': '発表テーマ', 'speaker': self.user.display_label,
+            'start_time': '22:15', 'duration': 25, 'article_consent': 'ok',
+            'x_account': 'https://x.com/new_handle', 'additional_info': '発表の概要：実装について',
+            'generate_blog_article': False, **kwargs,
+        }
+
+    def _detail(self, **kwargs):
+        return make_event_detail(
+            self.event, theme='既存の発表', speaker='発表者',
+            start_time=time(22, 15), duration=30, **kwargs,
+        )
+
+    def test_initial_time_includes_offset_and_duration_uses_community(self):
+        form = self._form()
+        self.assertEqual(form.fields['start_time'].initial, time(22, 15))
+        self.assertEqual(form.fields['duration'].initial, 25)
+        self.assertEqual(form['start_time'].value(), time(22, 15))
+        self.assertEqual(form['duration'].value(), 25)
+        self.assertIn('変更できます', form.fields['start_time'].help_text)
+        self.assertFalse(form.fields['start_time'].disabled)
+        self.assertFalse(form.fields['duration'].disabled)
+
+    def test_initial_time_follows_approved_and_pending_presentations_only(self):
+        for status in ('approved', 'pending'):
+            with self.subTest(status=status):
+                detail = self._detail(detail_type='LT', status=status)
+                self.assertEqual(self._form()['start_time'].value(), time(22, 45))
+                detail.delete()
+        self._detail(detail_type='LT', status='rejected')
+        self._detail(detail_type='SPECIAL', status='approved')
+        self.assertEqual(self._form()['start_time'].value(), time(22, 15))
+
+    def test_initial_time_uses_event_community_instead_of_first_membership(self):
+        other = make_community(name='別の集会', start_time=time(20), lt_start_offset_minutes=45)
+        CommunityMember.objects.filter(community=self.community, user=self.user).delete()
+        make_community_member(other, self.user, role=CommunityMember.Role.OWNER)
+        make_community_member(self.community, self.user, role=CommunityMember.Role.OWNER)
+        self.assertEqual(self._form()['start_time'].value(), time(22, 15))
+
+    def test_no_event_keeps_membership_fallback(self):
+        form = self._form(instance=EventDetail())
+        self.assertEqual(form.fields['start_time'].initial, time(22))
+        self.assertEqual(form.fields['duration'].initial, 30)
+
+    def test_initial_speaker_x_account_template_and_article_consent(self):
+        form = self._form()
+        self.assertEqual(form['speaker'].value(), self.user.display_label)
+        self.assertEqual(form['x_account'].value(), 'old_handle')
+        self.assertEqual(form['additional_info'].value(), self.community.lt_application_template)
+        self.assertEqual(form['article_consent'].value(), EventDetail.ArticleConsent.OK)
+        self.assertEqual(form.fields['speaker'].label, '発表者名')
+
+    def test_new_blog_uses_event_start_instead_of_next_presentation_time(self):
+        self._detail(detail_type='LT', status='approved')
+        form = self._form(self._data(detail_type='BLOG'))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['start_time'], self.event.start_time)
+
+    @patch('event.services.media_service.ensure_pdf_thumbnail')
+    def test_own_presentation_saves_applicant_and_x_without_changing_display_name(self, mock_thumbnail):
+        form = self._form(self._data(speaker=f'  {self.user.display_label}  '))
+        self.assertTrue(form.is_valid(), form.errors)
+        detail = form.save()
+        detail.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertEqual(detail.applicant_id, self.user.pk)
+        self.assertEqual(detail.speaker, self.user.display_label)
+        self.assertEqual(self.user.x_account, 'new_handle')
+        self.assertEqual(self.user.display_name, '主催者')
+        self.assertEqual(detail.additional_info, '発表の概要：実装について')
+        self.assertEqual(detail.article_consent, EventDetail.ArticleConsent.OK)
+
+    @patch('event.services.media_service.ensure_pdf_thumbnail')
+    def test_proxy_presentation_does_not_update_user_or_set_applicant(self, mock_thumbnail):
+        form = self._form(self._data(speaker='別の発表者'))
+        self.assertTrue(form.is_valid(), form.errors)
+        detail = form.save()
+        detail.refresh_from_db()
+        self.user.refresh_from_db()
+        self.assertIsNone(detail.applicant_id)
+        self.assertEqual(self.user.x_account, 'old_handle')
+        self.assertEqual(self.user.display_name, '主催者')
+
+    def test_x_account_is_normalized_and_validated(self):
+        form = self._form(self._data(x_account='@valid_handle'))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['x_account'], 'valid_handle')
+        form = self._form(self._data(x_account='invalid handle'))
+        self.assertFalse(form.is_valid())
+        self.assertIn('x_account', form.errors)
+
+    def test_new_presentation_requires_article_consent(self):
+        from event.forms.mixins import ARTICLE_CONSENT_REQUIRED_MESSAGE
+
+        for value in (None, ''):
+            with self.subTest(value=value):
+                data = self._data(article_consent=value)
+                if value is None:
+                    data.pop('article_consent')
+                form = self._form(data)
+                self.assertFalse(form.is_valid())
+                self.assertEqual(form.errors['article_consent'], [ARTICLE_CONSENT_REQUIRED_MESSAGE])
+
+    @patch('event.services.media_service.ensure_pdf_thumbnail')
+    def test_special_and_blog_ignore_new_presentation_fields(self, mock_thumbnail):
+        for detail_type in ('SPECIAL', 'BLOG'):
+            for consent in ('', 'invalid', 'ok'):
+                with self.subTest(detail_type=detail_type, consent=consent):
+                    form = self._form(self._data(
+                        detail_type=detail_type, article_consent=consent,
+                        x_account='invalid handle', additional_info=self.community.lt_application_template,
+                    ))
+                    self.assertTrue(form.is_valid(), form.errors)
+                    detail = form.save()
+                    self.assertEqual(
+                        detail.article_consent, EventDetail._meta.get_field('article_consent').get_default(),
+                    )
+                    self.assertEqual(detail.additional_info, '')
+                    self.assertIsNone(detail.applicant_id)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.x_account, 'old_handle')
+
+    def test_unchanged_additional_info_template_is_rejected_by_both_forms(self):
+        from event.forms import LTApplicationForm
+
+        form = self._form(self._data(additional_info=f'  {self.community.lt_application_template}  '))
+        application = LTApplicationForm(
+            data={**self._data(), 'event': self.event.pk, 'additional_info': self.community.lt_application_template},
+            community=self.community, user=self.user,
+        )
+        for candidate in (form, application):
+            with self.subTest(form=type(candidate).__name__):
+                self.assertFalse(candidate.is_valid())
+                self.assertEqual(candidate.errors['additional_info'], ['テンプレートの各項目を入力してください'])
+
+    def test_edit_excludes_new_fields_and_preserves_existing_values(self):
+        detail = self._detail(detail_type='LT', article_consent='ng', additional_info='登録済みの情報')
+        form = self._form(self._data(article_consent='ok'), instance=detail)
+        for name in ('x_account', 'article_consent', 'additional_info'):
+            self.assertNotIn(name, form.fields)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.instance.article_consent, 'ng')
+        self.assertEqual(form.instance.additional_info, '登録済みの情報')
+        self.assertEqual(form.fields['start_time'].help_text, '')
+
+    def test_application_and_create_render_shared_fields_and_cards(self):
+        from django.urls import reverse
+        from allauth.socialaccount.models import SocialAccount
+
+        SocialAccount.objects.create(user=self.user, provider='discord', uid='presenter-add-organizer')
+        self.client.force_login(self.user)
+        for url in (
+            reverse('event:detail_create', kwargs={'event_pk': self.event.pk}),
+            reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk}),
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                for template in (
+                    'event/includes/presentation_field.html',
+                    'event/includes/presentation_recording_card.html',
+                    'event/includes/presentation_additional_info_card.html',
+                ):
+                    self.assertTemplateUsed(response, template)
+                for name in ('theme', 'speaker', 'x_account', 'recording_policy', 'article_consent', 'additional_info'):
+                    self.assertContains(response, f'data-field="{name}"', count=1)
+                self.assertContains(response, '<section class="admin-card" data-detail-card>', count=2)

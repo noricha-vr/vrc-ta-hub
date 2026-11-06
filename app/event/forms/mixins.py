@@ -3,7 +3,7 @@
 EventDetailForm と LTApplicationEditForm でスライドPDF・サムネ画像の
 検証ロジックと保存後処理が完全に重複していたため抽出。
 撮影の選択肢（recording_policy）は申請フォームを含む 3 フォームで共通に扱う。
-記事化の同意（article_consent）は発表者の申請・編集フォームだけで選ぶ（主催者は表示のみ）。
+記事化の同意（article_consent）は申請・新規登録と発表者の編集で選ぶ（主催者の編集は表示のみ）。
 """
 
 from functools import partial
@@ -46,6 +46,26 @@ ARTICLE_CONSENT_CHOICES = [
     (EventDetail.ArticleConsent.OK.value, 'OK（スライド画像も載せる）'),
     (EventDetail.ArticleConsent.NG.value, 'NG（記事にしない）'),
 ]
+
+
+def configure_additional_info_field(field, community) -> None:
+    """申請フォームの追加情報にテンプレートと案内を設定する。"""
+    field.initial = community.lt_application_template
+    guidance = (
+        '開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄に'
+        'ご記入ください。主催者が承認時に調整します。'
+    )
+    field.help_text = guidance if community.lt_application_template else (
+        f'追加で伝えたい情報があれば入力してください。{guidance}'
+    )
+
+
+def validate_additional_info(value, community):
+    """未記入のままのテンプレートを受け付けない。"""
+    template = community.lt_application_template if community else ''
+    if template and value.strip() == template.strip():
+        raise forms.ValidationError('テンプレートの各項目を入力してください')
+    return value
 
 
 def recording_policy_widget() -> forms.RadioSelect:

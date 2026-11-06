@@ -1,0 +1,6 @@
+{% if form.additional_info %}
+<section class="admin-card" data-detail-card>
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='追加情報' only %}
+    {% include 'event/includes/presentation_field.html' with field=form.additional_info icon='bi-card-text' only %}
+</section>
+{% endif %}
