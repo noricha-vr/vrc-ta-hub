@@ -40,10 +40,12 @@
     </url>
     <url>
         <loc>{{ base_url }}guide/</loc>
+        {% if guide_top_lastmod %}<lastmod>{{ guide_top_lastmod }}</lastmod>{% endif %}
     </url>
-    {% for path in guide_paths %}
+    {% for page in guide_pages %}
         <url>
-            <loc>{{ base_url }}guide/{{ path }}/</loc>
+            <loc>{{ base_url }}guide/{{ page.path }}/</loc>
+            {% if page.lastmod %}<lastmod>{{ page.lastmod }}</lastmod>{% endif %}
         </url>
     {% endfor %}
 

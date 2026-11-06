@@ -268,3 +268,18 @@ class SitemapNewsAndStaticPagesTests(TestCase):
     def test_news_category_and_paging_urls_are_not_listed(self):
         for path in self._paths():
             self.assertFalse(path.startswith("/news/category/"), path)
+
+
+class SitemapGuideLastmodTests(TestCase):
+    def test_guide_urls_have_lastmod_and_dates_differ(self):
+        response = self.client.get(reverse("sitemap:sitemap"))
+        root = ET.fromstring(response.content)
+        lastmods = {}
+        for url in root.findall("sm:url", SITEMAP_NS):
+            path = urlparse(url.find("sm:loc", SITEMAP_NS).text).path
+            if path.startswith("/guide/"):
+                node = url.find("sm:lastmod", SITEMAP_NS)
+                self.assertIsNotNone(node, path)
+                lastmods[path] = node.text
+        self.assertGreater(len(lastmods), 40)
+        self.assertGreater(len(set(lastmods.values())), 1)
