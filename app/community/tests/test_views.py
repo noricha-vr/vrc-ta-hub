@@ -1,3 +1,5 @@
+import logging
+import re
 import shutil
 import tempfile
 from datetime import date, timedelta, time
@@ -11,10 +13,13 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.utils import timezone
+from django.utils.html import strip_tags
 
 from community.views.public import CommunityListView
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from tests.factories import make_community, make_event, make_event_detail
 from url_filters import get_filtered_url
 
 CustomUser = get_user_model()
@@ -514,7 +519,7 @@ class CommunityDetailViewBlogSpecialSectionTest(TestCase):
         self.assertNotContains(response, '記事・特別企画')
 
     def test_blog_excluded_from_lt_table(self):
-        """BLOGタイプはLT向けの発表履歴テーブルに表示されない"""
+        """BLOGタイプは発表履歴カードに表示されない"""
         EventDetail.objects.create(
             event=self.past_event,
             detail_type='BLOG',
@@ -523,11 +528,214 @@ class CommunityDetailViewBlogSpecialSectionTest(TestCase):
             theme='ブログ記事タイトル',
         )
         response = self.client.get(self.url)
-        # past_events コンテキスト内にBLOGが含まれない
-        past_events = response.context['past_events']
-        for event_dict in past_events:
-            for detail in event_dict['details']:
-                self.assertNotEqual(detail.detail_type, 'BLOG')
+        self.assertEqual(list(response.context['past_presentations']), [])
+
+
+@override_settings(LANGUAGE_CODE='ja')
+class CommunityPastPresentationCardsTest(TestCase):
+    """発表履歴は承認済みの発表単位で、開催日時付きのカードを表示する。"""
+
+    def setUp(self):
+        self.community = make_community(
+            name='カード表示集会', poster_image='poster/community-only.jpg',
+        )
+        self.event = make_event(
+            self.community, event_date=date(2020, 1, 2),
+            start_time=time(20, 15), duration=90,
+        )
+        self.url = reverse('community:detail', args=[self.community.pk])
+
+    def make_presentation(self, event=None, **extra):
+        extra.setdefault('status', 'approved')
+        return make_event_detail(event or self.event, **extra)
+
+    def cards(self, response):
+        self.assertEqual(response.status_code, 200)
+        return re.findall(
+            r'<article class="[^"]*ed-rel-card">.*?</article>',
+            response.content.decode(), re.DOTALL,
+        )
+
+    def test_two_presentations_in_one_event_have_separate_cards(self):
+        first = self.make_presentation(theme='前半の発表', start_time=time(20, 15))
+        second = self.make_presentation(theme='後半の発表', start_time=time(21, 0))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(list(response.context['past_presentations']), [second, first])
+        cards = self.cards(response)
+        self.assertEqual(len(cards), 2)
+        for card, detail in zip(cards, [second, first]):
+            self.assertIn(detail.theme, card)
+            self.assertIn(reverse('event:detail', args=[detail.pk]), card)
+        self.assertContains(response, 'row row-cols-1 row-cols-md-3 g-4')
+        self.assertNotIn('past_events', response.context)
+
+    def test_only_latest_six_presentations_are_shown(self):
+        details = []
+        for offset in range(8):
+            event = make_event(
+                self.community, event_date=date(2020, 1, 3) + timedelta(days=offset),
+            )
+            details.append(self.make_presentation(event, theme=f'履歴の発表{offset}'))
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(list(response.context['past_presentations']), details[:1:-1])
+        self.assertEqual(len(self.cards(response)), 6)
+        for detail in details[:2]:
+            self.assertNotContains(response, detail.theme)
+
+    def test_order_is_event_date_then_event_time_then_presentation_time(self):
+        old = self.make_presentation(theme='以前の日付', start_time=time(23, 0))
+        early_event = make_event(
+            self.community, event_date=date(2020, 1, 3), start_time=time(18, 0),
+        )
+        late_event = make_event(
+            self.community, event_date=date(2020, 1, 3), start_time=time(21, 0),
+        )
+        early = self.make_presentation(early_event, theme='同日の早い回')
+        late_first = self.make_presentation(
+            late_event, theme='遅い回の前半', start_time=time(21, 0),
+        )
+        late_last = self.make_presentation(
+            late_event, theme='遅い回の後半', start_time=time(21, 30),
+        )
+
+        response = self.client.get(self.url)
+
+        expected = [late_last, late_first, early, old]
+        self.assertEqual(list(response.context['past_presentations']), expected)
+        for card, detail in zip(self.cards(response), expected):
+            self.assertIn(detail.theme, card)
+
+    def test_non_public_non_presentation_and_empty_theme_are_excluded(self):
+        visible = self.make_presentation(theme='表示する発表')
+        self.make_presentation(theme='ブログ', detail_type='BLOG')
+        self.make_presentation(theme='特別企画', detail_type='SPECIAL')
+        self.make_presentation(theme='承認待ち', status='pending')
+        self.make_presentation(theme='却下済み', status='rejected')
+        deleted = self.make_presentation(theme='削除済み')
+        deleted.delete()
+        self.make_presentation(theme='')
+        future = make_event(self.community, event_date=date.today() + timedelta(days=7))
+        self.make_presentation(future, theme='開催予定')
+        other_event = make_event(make_community(name='別の集会'), event_date=self.event.date)
+        self.make_presentation(other_event, theme='別の集会の発表')
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(list(response.context['past_presentations']), [visible])
+        self.assertEqual(len(self.cards(response)), 1)
+
+    def test_every_card_shows_weekday_and_event_start_and_end_times(self):
+        for index in range(2):
+            self.make_presentation(
+                theme=f'日時確認{index}', start_time=time(21, index * 15), duration=15,
+            )
+
+        cards = self.cards(self.client.get(self.url))
+
+        self.assertEqual(len(cards), 2)
+        for card in cards:
+            self.assertIn('2020年1月2日 (木)', card)
+            self.assertIn('20:15 - 21:45', card)
+
+    def test_thumbnail_image_takes_priority_over_video_thumbnail(self):
+        detail = self.make_presentation(
+            theme='画像付き発表', thumbnail_image='thumbnails/presentation.jpg',
+            youtube_url='https://www.youtube.com/watch?v=abcdefghijk',
+        )
+
+        card, = self.cards(self.client.get(self.url))
+
+        self.assertIn('<img src="', card)
+        self.assertIn('thumbnails/presentation.jpg', card)
+        self.assertIn('loading="lazy" decoding="async"', card)
+        self.assertIn('class="ed-rel-title"', card)
+        self.assertIn(reverse('event:detail', args=[detail.pk]), card)
+        self.assertNotIn('mqdefault.jpg', card)
+        self.assertNotIn('class="ed-titlecard"', card)
+
+    def test_youtube_url_only_shows_video_thumbnail(self):
+        self.make_presentation(youtube_url='https://youtu.be/abcdefghijk')
+
+        card, = self.cards(self.client.get(self.url))
+
+        self.assertIn('<img src="https://img.youtube.com/vi/abcdefghijk/mqdefault.jpg"', card)
+        self.assertIn('class="ed-rel-title"', card)
+        self.assertNotIn('class="ed-titlecard"', card)
+
+    def test_without_thumbnail_title_appears_once_with_accessible_body_link(self):
+        detail = self.make_presentation(theme='画像のない発表', speaker='発表者名')
+
+        card, = self.cards(self.client.get(self.url))
+
+        self.assertIn('class="ed-titlecard"', card)
+        self.assertEqual(strip_tags(card).count(detail.theme), 1)
+        body = card.split('<div class="card-body">', 1)[1]
+        self.assertIn(
+            f'<a class="stretched-link" href="{reverse("event:detail", args=[detail.pk])}" '
+            f'aria-label="{detail.theme}"></a>', body,
+        )
+        self.assertIn(detail.speaker, card)
+        self.assertNotIn('class="ed-rel-title"', card)
+        self.assertNotIn('<img', card)
+        self.assertNotIn(self.community.poster_image.url, card)
+        self.assertNotIn('poster/community-only.jpg', card)
+
+    def test_more_link_keeps_community_history_filter(self):
+        self.make_presentation()
+
+        response = self.client.get(self.url)
+
+        history_url = reverse('event:detail_history')
+        links = re.findall(r'href="([^"]+)"[^>]*>もっと見る</a>', response.content.decode())
+        self.assertEqual(len(links), 1)
+        self.assertEqual(urlsplit(links[0]).path, history_url)
+        self.assertEqual(parse_qs(urlsplit(links[0]).query), {'community_name': [self.community.name]})
+
+    def test_today_row_uses_info_color_instead_of_danger(self):
+        """開催日程の今日の行は、危険色の赤ではなく水色で示す"""
+        make_event(self.community, event_date=timezone.localdate())
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, 'class="table-info"')
+        self.assertNotContains(response, 'table-danger')
+
+    def test_history_section_hidden_without_presentations(self):
+        response = self.client.get(self.url)
+
+        self.assertNotContains(response, f'{self.community.name}の発表履歴')
+        self.assertEqual(self.cards(response), [])
+
+    def test_six_cards_do_not_add_queries_per_presentation(self):
+        # DEBUGログのContext reprによる関連取得を除き、実際の取得・描画を測る。
+        template_logger = logging.getLogger('django.template')
+        original_level = template_logger.level
+        template_logger.setLevel(logging.INFO)
+        self.addCleanup(template_logger.setLevel, original_level)
+        self.make_presentation(theme='最初の発表')
+        self.client.get(self.url)
+        with CaptureQueriesContext(connection) as one_card_queries:
+            one_card_response = self.client.get(self.url)
+        self.assertEqual(len(self.cards(one_card_response)), 1)
+
+        for offset in range(5):
+            event = make_event(
+                self.community, event_date=date(2020, 1, 3) + timedelta(days=offset),
+            )
+            self.make_presentation(event, theme=f'追加の発表{offset}')
+
+        with CaptureQueriesContext(connection) as six_card_queries:
+            six_card_response = self.client.get(self.url)
+
+        self.assertEqual(len(self.cards(six_card_response)), 6)
+        self.assertEqual(
+            len(six_card_queries), len(one_card_queries),
+            '\n'.join(query['sql'] for query in six_card_queries.captured_queries),
+        )
 
 
 class CommunityDetailViewLtApplicationSectionTest(TestCase):

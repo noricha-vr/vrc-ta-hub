@@ -202,19 +202,22 @@ class CommunityDetailView(DetailView):
         )
 
         now = timezone.now()
+        context['today'] = timezone.localdate().isoformat()
 
         # 予定されているイベント scheduled events
         scheduled_events = Event.objects.filter(
             community=community, date__gte=now).prefetch_related('details').order_by('date', 'start_time')[:4]
         context['scheduled_events'] = self.get_event_details(scheduled_events)
 
-        # 過去のイベントを取得。ただし、event_detailが存在するもののみ
-        past_events = Event.objects.filter(
-            community=community, date__lt=now
-        ).filter(
-            Q(details__theme__isnull=False) | Q(details__theme__gt='')
-        ).prefetch_related('details').order_by('-date', '-start_time')[:6]
-        context['past_events'] = self.get_event_details(past_events)
+        # 承認済みの発表を、イベント単位ではなく発表単位で最新6件取得
+        context['past_presentations'] = EventDetail.objects.filter(
+            event__community=community,
+            event__date__lt=now,
+            status='approved',
+            detail_type='LT',
+        ).exclude(theme='').select_related('event').order_by(
+            '-event__date', '-event__start_time', '-start_time'
+        )[:6]
 
         # BLOG・特別企画の記事を取得
         blog_special_details = EventDetail.objects.filter(
