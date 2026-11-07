@@ -120,6 +120,7 @@ class IndexView(TemplateView):
             community_count=Count('participations__community', distinct=True, filter=Q(
                 participations__lifecycle=VketParticipation.Lifecycle.ACTIVE,
                 participations__community__status='approved',
+                participations__community__is_listed=True,
                 participations__published_event__isnull=False,
             )),
         ).order_by('-period_start', '-pk')

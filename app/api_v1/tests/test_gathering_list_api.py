@@ -133,6 +133,18 @@ class GatheringListAPITest(TestCase):
         self.assertIsNone(payload[2]['グループID'])
         self.assertFalse(payload[2]['ポスター転載可'])
 
+    def test_gathering_list_excludes_unlisted_community(self):
+        self.sunday_community.is_listed = False
+        self.sunday_community.save(update_fields=['is_listed'])
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [item['イベント名'] for item in response.json()]
+        self.assertNotIn(self.sunday_community.name, names)
+        self.assertIn(self.monday_community.name, names)
+        self.assertTrue(all('is_listed' not in item for item in response.json()))
+
     def test_gathering_list_uses_existing_sample_json_genre_priority(self):
         response = self.client.get(self.url)
 

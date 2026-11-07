@@ -15,7 +15,7 @@ class SitemapView(TemplateView):
         context = super().get_context_data(**kwargs)
         event_details = EventDetail.objects.filter(status='approved').order_by('-pk')
         context['event_details'] = event_details
-        communities = Community.objects.filter(status='approved').order_by('-pk')
+        communities = Community.objects.filter(status='approved', is_listed=True).order_by('-pk')
         context['communities'] = communities
         context['vket_collaborations'] = VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT)
         context['news_posts'] = Post.objects.filter(is_published=True).order_by('-published_at', '-created_at')

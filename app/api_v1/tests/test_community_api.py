@@ -72,6 +72,26 @@ class CommunityAPITest(TestCase):
         names = [c['name'] for c in response.data]
         self.assertIn('技術集会A', names)
 
+    def test_unlisted_community_is_excluded_from_list(self):
+        self.approved_with_tags.is_listed = False
+        self.approved_with_tags.save(update_fields=['is_listed'])
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn(self.approved_with_tags.pk, [item['id'] for item in response.data])
+
+    def test_unlisted_community_detail_returns_404(self):
+        url = reverse('community-detail', args=[self.approved_with_tags.pk])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn('is_listed', response.data)
+
+        self.approved_with_tags.is_listed = False
+        self.approved_with_tags.save(update_fields=['is_listed'])
+
+        self.assertEqual(self.client.get(url).status_code, status.HTTP_404_NOT_FOUND)
+
     def test_approved_no_tags_is_excluded(self):
         """tags空のapprovedコミュニティがAPIに含まれない"""
         response = self.client.get(self.list_url)

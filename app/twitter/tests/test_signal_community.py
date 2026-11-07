@@ -11,6 +11,24 @@ from twitter.tests._auto_tweet_test_base import AutoTweetTestBase
 class CommunityApprovalSignalTest(AutoTweetTestBase):
     """Community 承認時のシグナルテスト"""
 
+    @patch('twitter.services.tweet_generation.start_tweet_generation')
+    def test_unlisted_community_approval_does_not_create_queue(self, mock_start):
+        self.community.is_listed = False
+        self.community.status = 'approved'
+        self.community.save()
+
+        self.assertFalse(TweetQueue.objects.filter(community=self.community, tweet_type='new_community').exists())
+        mock_start.assert_not_called()
+
+    @patch('twitter.services.tweet_generation.start_tweet_generation')
+    def test_new_unlisted_approved_community_does_not_create_queue(self, mock_start):
+        from tests.factories import make_community
+
+        community = make_community(is_listed=False)
+
+        self.assertFalse(TweetQueue.objects.filter(community=community, tweet_type='new_community').exists())
+        mock_start.assert_not_called()
+
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_community_approval_creates_queue(self, mock_thread_cls):
         """Community が pending -> approved に変更されたらキューが generating で作成される"""

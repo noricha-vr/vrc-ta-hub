@@ -70,6 +70,16 @@ class SitemapViewTestCase(TestCase):
         community_names = [c.name for c in communities]
         self.assertNotIn("未承認集会", community_names)
 
+    def test_sitemap_excludes_unlisted_community_but_keeps_its_presentation(self):
+        self.community.is_listed = False
+        self.community.save(update_fields=['is_listed'])
+
+        response = self.client.get(reverse('sitemap:sitemap'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.community, response.context['communities'])
+        self.assertIn(self.event_detail, response.context['event_details'])
+
     def test_sitemap_contains_approved_event_details(self):
         """承認済みイベント詳細がサイトマップに含まれる"""
         response = self.client.get(reverse("sitemap:sitemap"))
