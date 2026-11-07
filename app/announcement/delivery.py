@@ -28,7 +28,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from .discord_client import MAY_HAVE_ARRIVED_GUIDE, SendResult, send_announcement
-from .models import LAST_ERROR_MAX_LENGTH, DiscordScheduledMessage
+from .models import LAST_ERROR_MAX_LENGTH, DiscordScheduledMessage, mention_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +170,7 @@ def _deliver_claimed(message_id: int, lease_token: str, now: datetime, summary: 
         has_mention = message.mention in (
             DiscordScheduledMessage.Mention.EVERYONE, DiscordScheduledMessage.Mention.HERE,
         )
-        content = f'@{message.mention}\n{message.body}' if has_mention else message.body
+        content = mention_prefix(message.mention) + message.body
         result = send_announcement(content, mention_everyone=has_mention)
     except Exception as error:
         _recover_while_sending(message_id, lease_token, error, now, summary)

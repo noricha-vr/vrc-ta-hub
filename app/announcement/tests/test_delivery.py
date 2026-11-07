@@ -18,7 +18,7 @@ from announcement.delivery import (
     process_due_messages,
 )
 from announcement.discord_client import SendResult
-from announcement.models import DiscordScheduledMessage
+from announcement.models import VKET_COLLAB_ROLE_ID, DiscordScheduledMessage
 
 from ._helpers import (
     FAKE_DISCORD_MESSAGE_ID,
@@ -409,6 +409,28 @@ class RetryAndFailureTests(TestCase):
 
 @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
 class MentionControlTests(TestCase):
+    @patch('announcement.delivery.send_announcement')
+    def test_vket_role_is_prepended_without_allowing_mass_mentions(self, mock_send):
+        mock_send.return_value = SendResult(ok=True, message_id=FAKE_DISCORD_MESSAGE_ID)
+        message = make_message(body='本文', scheduled_at=NOW - timedelta(minutes=1), mention='vketrole')
+
+        process_due_messages(now=NOW)
+
+        mock_send.assert_called_once_with(f'<@&{VKET_COLLAB_ROLE_ID}>\n本文', mention_everyone=False)
+        message.refresh_from_db()
+        self.assertEqual(message.status, Status.SENT)
+
+    @patch(POST_PATH)
+    def test_vket_role_payload_allows_only_roles_and_users(self, mock_post):
+        mock_post.return_value = discord_response()
+        make_message(body='本文', scheduled_at=NOW - timedelta(minutes=1), mention='vketrole')
+
+        process_due_messages(now=NOW)
+
+        payload = mock_post.call_args.kwargs['json']
+        self.assertEqual(payload['content'], f'<@&{VKET_COLLAB_ROLE_ID}>\n本文')
+        self.assertEqual(payload['allowed_mentions']['parse'], ['roles', 'users'])
+
     @patch(POST_PATH)
     def test_selected_mention_is_prepended_and_allowed(self, mock_post):
         mock_post.return_value = discord_response()
@@ -445,7 +467,10 @@ class MentionControlTests(TestCase):
     @patch(POST_PATH)
     def test_content_at_limit_includes_mention_line(self, mock_post):
         mock_post.return_value = discord_response()
-        for mention, prefix in (('everyone', '@everyone\n'), ('here', '@here\n'), ('none', '')):
+        for mention, prefix in (
+            ('everyone', '@everyone\n'), ('here', '@here\n'),
+            ('vketrole', f'<@&{VKET_COLLAB_ROLE_ID}>\n'), ('none', ''),
+        ):
             with self.subTest(mention=mention):
                 mock_post.reset_mock()
                 body = 'あ' * (2000 - len(prefix))

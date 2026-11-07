@@ -8,8 +8,36 @@
 {% block extra_css %}
     {{ block.super }}
     <style>
-        .hub-admin .announce-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-        .hub-admin .announce-card-link { color: inherit; text-decoration: none; display: block; }
+        .hub-admin .announce-table { table-layout: fixed; width: 100%; margin-bottom: 0; }
+        .hub-admin .announce-table th, .hub-admin .announce-table td { padding: .85rem .65rem; vertical-align: middle; }
+        /* タイトルを主役にし、残りの列は中身の幅で固定して折り返さない */
+        .hub-admin .announce-date { width: 11.5rem; font-size: .875rem; white-space: nowrap; }
+        .hub-admin .announce-mention { width: 17rem; }
+        .hub-admin .announce-status { width: 6.5rem; white-space: nowrap; }
+        .hub-admin .announce-title { display: block; color: var(--bs-body-color); text-decoration: none; border-radius: .2rem; }
+        .hub-admin .announce-title:hover { color: var(--admin-primary); text-decoration: underline; }
+        .hub-admin .announce-title:focus-visible { outline: 3px solid var(--admin-primary); outline-offset: 3px; }
+        .hub-admin .announce-mention .badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+        .hub-admin .announce-history > td { color: var(--admin-muted); }
+        .hub-admin .announce-history .announce-title { color: var(--admin-muted); font-weight: normal; }
+        .hub-admin .announce-history .badge { opacity: .6; }
+        .hub-admin .announce-failed > td:first-child { box-shadow: inset 3px 0 #b95757; }
+        .hub-admin .announce-group-divider > th { background: var(--bs-tertiary-bg); color: var(--admin-muted); padding-top: 1rem; }
+        @media (max-width: 767px) {
+            .hub-admin .announce-table, .hub-admin .announce-table tbody { display: block; }
+            .hub-admin .announce-table thead { display: none; }
+            .hub-admin .announce-table .announce-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; padding: 1rem .5rem; border-bottom: 1px solid var(--admin-border); }
+            .hub-admin .announce-table .announce-row > td { width: auto; min-width: 0; padding: 0; border: 0; }
+            .hub-admin .announce-row .announce-date { grid-area: 1 / 1; }
+            .hub-admin .announce-row .announce-status { grid-area: 1 / 2; text-align: right; }
+            .hub-admin .announce-row .announce-title-cell { grid-area: 2 / 1 / 3 / 3; }
+            /* スマホは列が 1 本なので、タイトルを 2 行まで見せる */
+            .hub-admin .announce-row .announce-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+            .hub-admin .announce-row .announce-mention { grid-area: 3 / 1 / 4 / 3; }
+            .hub-admin .announce-failed { box-shadow: inset 3px 0 #b95757; }
+            .hub-admin .announce-failed > td:first-child { box-shadow: none; }
+            .hub-admin .announce-group-divider, .hub-admin .announce-group-divider > th { display: block; }
+        }
     </style>
 {% endblock %}
 {% block admin_breadcrumbs %}{% include 'announcement/discord/_breadcrumbs.html' with current='list' %}{% endblock %}
@@ -33,25 +61,43 @@
             {% endif %}
             <span class="admin-muted ms-auto">全 {{ paginator.count }} 件</span>
         </div>
-        {% include 'ta_hub/admin/includes/section_heading.html' with title='予約と送信履歴' only %}
-        {% for message in scheduled_messages %}
-            <article class="admin-card" data-testid="announce-item">
-                <a href="{% url 'announcement:discord_detail' message.pk %}" class="announce-card-link">
-                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                        {% include 'announcement/discord/_status.html' with message=message only %}
-                        <span class="fw-bold">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }}</span>
-                        {% include 'announcement/discord/_mention_badge.html' %}
-                    </div>
-                    {% if message.subject %}
-                        <div class="fw-semibold text-truncate mb-1" data-testid="announce-subject">{{ message.subject }}</div>
-                    {% endif %}
-                    {% if message.excerpt %}
-                        <div class="announce-excerpt text-body-secondary small" data-testid="announce-excerpt">{{ message.excerpt|truncatechars:140 }}</div>
-                    {% endif %}
-                    <span class="small text-primary">予約の詳細を見る</span>
-                </a>
-            </article>
-        {% endfor %}
+        <section class="admin-card" aria-labelledby="announce-list-heading">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='予約と送信履歴' heading_id='announce-list-heading' only %}
+            <table class="table table-hover announce-table">
+                <caption class="visually-hidden">Discord 告知の予約と送信履歴（送信日時は日本時間）</caption>
+                <thead>
+                    <tr>
+                        <th scope="col" class="announce-date">送信日時</th>
+                        <th scope="col" class="announce-title-cell">タイトル</th>
+                        <th scope="col" class="announce-mention">メンション先</th>
+                        <th scope="col" class="announce-status">状態</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for message in scheduled_messages %}
+                        {% ifchanged message.is_history %}
+                            {% if message.is_history %}
+                                <tr class="announce-group-divider" data-testid="announce-group-divider">
+                                    <th colspan="4" scope="rowgroup">送信済み・取り消し</th>
+                                </tr>
+                            {% endif %}
+                        {% endifchanged %}
+                        <tr class="announce-row{% if message.is_history %} announce-history{% elif message.status == 'failed' %} announce-failed{% endif %}" data-testid="announce-row">
+                            <td class="announce-date fw-semibold">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }}</td>
+                            <td class="announce-title-cell">
+                                {% with subject=message.subject %}
+                                    <a href="{% url 'announcement:discord_detail' message.pk %}" class="announce-title fw-semibold text-truncate" title="{{ subject|default:'（タイトルなし）' }}" data-testid="announce-title">{{ subject|default:'（タイトルなし）' }}</a>
+                                {% endwith %}
+                            </td>
+                            <td class="announce-mention" data-testid="announce-mention">
+                                {% include 'announcement/discord/_mention_badge.html' with message=message show_none=True only %}
+                            </td>
+                            <td class="announce-status">{% include 'announcement/discord/_status.html' with message=message only %}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
         {% if page_obj.has_other_pages %}{% include 'ta_hub/pagination.html' %}{% endif %}
     {% else %}
         <div data-testid="announce-empty">

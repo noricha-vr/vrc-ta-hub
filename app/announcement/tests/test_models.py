@@ -48,7 +48,8 @@ class MentionFieldTests(TestCase):
 
     def test_choice_labels(self):
         self.assertEqual(DiscordScheduledMessage.Mention.choices, [
-            ('everyone', '@everyone（全員）'), ('here', '@here（オンラインの人）'), ('none', 'なし'),
+            ('everyone', '@everyone（全員）'), ('here', '@here（オンラインの人）'),
+            ('vketrole', 'Vketコラボ参加集会主催者・スタッフ'), ('none', 'なし'),
         ])
 
 
@@ -61,6 +62,22 @@ class LegacyColumnTests(TestCase):
 
 
 class SubjectAndExcerptTests(TestCase):
+    def test_subject_skips_lines_containing_only_mentions(self):
+        for mentions in ('<@&123>', '<@456>', '<@!789>', ' <@&123>  <@456>\t<@!789> '):
+            with self.subTest(mentions=mentions):
+                message = DiscordScheduledMessage(body=f'\n{mentions}\n\n## **参加のお知らせ**\n本文')
+                self.assertEqual(message.subject, '参加のお知らせ')
+
+    def test_mentions_only_body_has_no_subject(self):
+        message = DiscordScheduledMessage(body=' <@&123>\n<@456> <@!789>\n\t')
+
+        self.assertEqual(message.subject, '')
+
+    def test_inline_mentions_are_shown_without_ids(self):
+        message = DiscordScheduledMessage(body='次回は <@&123> <@!456> と開催します')
+
+        self.assertEqual(message.subject, '次回は @ロール @ユーザー と開催します')
+
     def test_subject_is_first_non_empty_line_without_markup(self):
         message = DiscordScheduledMessage(body='\n## **件名**です\n本文1\n\n- 項目')
 
