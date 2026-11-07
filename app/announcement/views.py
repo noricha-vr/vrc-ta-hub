@@ -43,15 +43,16 @@ class ScheduledMessageListView(StaffRequiredMixin, ListView):
     paginate_by = LIST_PAGINATE_BY
 
     def get_queryset(self):
-        # 予約中を送信日時の近い順に上へ。送信済み・失敗・取り消しは、その下に新しい順で並べる
-        is_not_scheduled = Case(
-            When(status=Status.SCHEDULED, then=Value(0)), default=Value(1), output_field=IntegerField(),
+        # 対応が要る失敗を先頭に、次に予約中を近い順、送信済み・取り消しを新しい順で並べる
+        status_priority = Case(
+            When(status=Status.FAILED, then=Value(0)),
+            When(status=Status.SCHEDULED, then=Value(1)), default=Value(2), output_field=IntegerField(),
         )
         scheduled_at_while_scheduled = Case(
             When(status=Status.SCHEDULED, then=F('scheduled_at')), output_field=DateTimeField(),
         )
         return DiscordScheduledMessage.objects.select_related('created_by').order_by(
-            is_not_scheduled, scheduled_at_while_scheduled.asc(), F('scheduled_at').desc(), '-pk',
+            status_priority, scheduled_at_while_scheduled.asc(), F('scheduled_at').desc(), '-pk',
         )
 
     def get_context_data(self, **kwargs):

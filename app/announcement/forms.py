@@ -6,7 +6,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from .models import DISCORD_CONTENT_MAX_LENGTH, DiscordScheduledMessage, contains_mass_mention
+from .models import DISCORD_CONTENT_MAX_LENGTH, DiscordScheduledMessage, contains_mass_mention, mention_prefix
 
 JST = ZoneInfo('Asia/Tokyo')
 DATETIME_LOCAL_FORMAT = '%Y-%m-%dT%H:%M'
@@ -118,9 +118,7 @@ class DiscordScheduledMessageForm(forms.ModelForm):
         if contains_mass_mention(body):
             self.add_error('body', MASS_MENTION_BODY_ERROR)
         mention = cleaned_data.get('mention')
-        prefix = f'@{mention}\n' if mention in (
-            DiscordScheduledMessage.Mention.EVERYONE, DiscordScheduledMessage.Mention.HERE,
-        ) else ''
+        prefix = mention_prefix(mention)
         if len(prefix + body) > DISCORD_CONTENT_MAX_LENGTH:
             self.add_error('body', f'メンション行を含めて {DISCORD_CONTENT_MAX_LENGTH} 文字以内で入力してください。')
         return cleaned_data

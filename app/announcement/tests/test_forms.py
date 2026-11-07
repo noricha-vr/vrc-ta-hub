@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from announcement.forms import DiscordScheduledMessageForm
 from announcement.forms import MASS_MENTION_BODY_ERROR
-from announcement.models import DISCORD_CONTENT_MAX_LENGTH, DiscordScheduledMessage
+from announcement.models import DISCORD_CONTENT_MAX_LENGTH, VKET_COLLAB_ROLE_ID, DiscordScheduledMessage
 
 from ._helpers import jst, make_message
 
@@ -188,7 +188,10 @@ class MentionChoiceTests(TestCase):
                 self.assertIn('mention', form.errors)
 
     def test_limit_includes_mention_line(self):
-        for mention, prefix in (('everyone', '@everyone\n'), ('here', '@here\n'), ('none', '')):
+        for mention, prefix in (
+            ('everyone', '@everyone\n'), ('here', '@here\n'),
+            ('vketrole', f'<@&{VKET_COLLAB_ROLE_ID}>\n'), ('none', ''),
+        ):
             for character in ('あ', '😀'):
                 with self.subTest(mention=mention, character=character):
                     limit = DISCORD_CONTENT_MAX_LENGTH - len(prefix)

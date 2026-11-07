@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 from datetime import timedelta, timezone as dt_timezone
+from unittest.mock import patch
 
+from bs4 import BeautifulSoup
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from announcement.models import DiscordScheduledMessage
+from announcement.models import VKET_COLLAB_ROLE_ID, DiscordScheduledMessage
 from tests.factories import make_user
 
 from ._helpers import jst, make_message
@@ -370,7 +372,7 @@ class CancelAndResendViewTests(StaffTestCase):
 
 
 class ListViewTests(StaffTestCase):
-    def test_scheduled_messages_come_first_in_send_order(self):
+    def test_failed_then_scheduled_in_send_order_then_history_newest_first(self):
         later = make_message(body='予約 後', scheduled_at=jst(2026, 12, 3, 20))
         sooner = make_message(body='予約 先', scheduled_at=jst(2026, 12, 2, 20))
         sent_new = make_message(body='送信済み 新', status=Status.SENT, scheduled_at=jst(2026, 11, 30, 20))
@@ -381,8 +383,21 @@ class ListViewTests(StaffTestCase):
 
         self.assertEqual(
             [message.pk for message in response.context['scheduled_messages']],
-            [sooner.pk, later.pk, sent_new.pk, canceled.pk, failed_old.pk],
+            [failed_old.pk, sooner.pk, later.pk, sent_new.pk, canceled.pk],
         )
+        soup = BeautifulSoup(response.content, 'html.parser')
+        rows = soup.select('tbody tr')
+        self.assertEqual(
+            [row.select_one('[data-testid="announce-title"]').get_text(strip=True)
+             if row.select_one('[data-testid="announce-title"]') else row.get_text(strip=True) for row in rows],
+            ['失敗 古', '予約 先', '予約 後', '送信済み・取り消し', '送信済み 新', '取り消し'],
+        )
+        self.assertIn('announce-failed', rows[0]['class'])
+        self.assertIn('announce-history', rows[4]['class'])
+        self.assertIn('announce-history', rows[5]['class'])
+        self.assertEqual(len(soup.select('table')), 1)
+        self.assertEqual([th.get_text(strip=True) for th in soup.select('thead th')],
+                         ['送信日時', 'タイトル', 'メンション先', '状態'])
         self.assertContains(response, '2026/12/02（水）20:00')
         self.assertContains(response, '予約中 2 件')
         self.assertContains(response, '失敗 1 件')
@@ -395,17 +410,100 @@ class ListViewTests(StaffTestCase):
 
         self.assertContains(response, '@everyone（全員）')
         self.assertContains(response, '@here（オンラインの人）')
+        self.assertContains(response, DiscordScheduledMessage.Mention.VKET_ROLE.label)
+        self.assertNotContains(response, VKET_COLLAB_ROLE_ID)
         self.assertContains(response, 'text-bg-warning', count=1)
         self.assertContains(response, 'bg-warning-subtle', count=1)
 
-    def test_first_line_is_subject_and_rest_is_excerpt(self):
-        make_message(body='## 【明日締切】参加表明\n\n締切は**明日**です。\n### 申込み\n- こちらから')
+    def test_title_links_to_detail_and_excerpt_is_not_shown(self):
+        message = make_message(body='## 【明日締切】参加表明\n\n締切は**明日**です。\n### 申込み\n- こちらから')
 
         response = self.client.get(reverse('announcement:discord_list'))
 
-        self.assertContains(response, '<div class="fw-semibold text-truncate mb-1" data-testid="announce-subject">【明日締切】参加表明</div>', html=True)
-        self.assertContains(response, '締切は明日です。 申込み こちらから')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        title = soup.select_one('a[data-testid="announce-title"]')
+        self.assertEqual(title['href'], self.detail_url(message))
+        self.assertEqual(title.get_text(), '【明日締切】参加表明')
+        self.assertEqual(title['title'], '【明日締切】参加表明')
+        self.assertIn('text-truncate', title['class'])
+        self.assertNotContains(response, '締切は明日です。')
         self.assertNotContains(response, '## 【明日締切】')
+        self.assertNotContains(response, '予約の詳細を見る')
+        self.assertNotContains(response, 'announce-excerpt')
+
+    def test_body_mentions_use_names_without_exposing_ids(self):
+        message = make_message(body=f'<@&{VKET_COLLAB_ROLE_ID}>\n<@&123> <@456> <@!789>\n参加のお知らせ')
+
+        response = self.client.get(reverse('announcement:discord_list'))
+
+        self.assertContains(response, DiscordScheduledMessage.Mention.VKET_ROLE.label)
+        self.assertContains(response, '@ロール')
+        self.assertContains(response, '@ユーザー', count=1)
+        self.assertNotContains(response, VKET_COLLAB_ROLE_ID)
+        for token in ('&lt;@&amp;123&gt;', '&lt;@456&gt;', '&lt;@!789&gt;'):
+            self.assertNotContains(response, token)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        self.assertEqual(soup.select_one('[data-testid="announce-title"]').get_text(), '参加のお知らせ')
+        self.assertEqual(soup.select_one('[data-testid="announce-title"]')['href'], self.detail_url(message))
+
+    def test_mentions_only_message_still_has_detail_link(self):
+        message = make_message(body=f'<@&{VKET_COLLAB_ROLE_ID}>')
+
+        response = self.client.get(reverse('announcement:discord_list'))
+
+        self.assertContains(response, '（タイトルなし）')
+        self.assertContains(response, self.detail_url(message))
+        self.assertNotContains(response, VKET_COLLAB_ROLE_ID)
+
+    def test_long_title_is_kept_in_title_attribute_and_html_is_escaped(self):
+        subject = '長いタイトル' * 50 + '<script>alert(1)</script>'
+        make_message(body=subject)
+
+        response = self.client.get(reverse('announcement:discord_list'))
+
+        soup = BeautifulSoup(response.content, 'html.parser')
+        title = soup.select_one('[data-testid="announce-title"]')
+        self.assertEqual(title['title'], subject)
+        self.assertEqual(title.get_text(), subject)
+        self.assertNotContains(response, '<script>alert(1)</script>')
+
+    def test_history_divider_follows_group_change_on_each_page(self):
+        make_message(body='予約', scheduled_at=jst(2026, 12, 3, 20))
+        for day in (1, 2, 3):
+            make_message(body=f'履歴{day}', status=Status.SENT, scheduled_at=jst(2026, 11, day, 20))
+
+        with patch('announcement.views.ScheduledMessageListView.paginate_by', 2):
+            for page in (1, 2):
+                with self.subTest(page=page):
+                    response = self.client.get(reverse('announcement:discord_list'), {'page': page})
+                    self.assertContains(response, 'data-testid="announce-row"', count=2)
+                    self.assertContains(response, 'data-testid="announce-group-divider"', count=1)
+                    self.assertContains(response, 'page=')
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    self.assertEqual(soup.select_one('tbody tr').get('data-testid'),
+                                     'announce-row' if page == 1 else 'announce-group-divider')
+
+    def test_active_only_page_does_not_show_history_divider(self):
+        make_message(status=Status.FAILED)
+        make_message()
+
+        response = self.client.get(reverse('announcement:discord_list'))
+
+        self.assertNotContains(response, 'data-testid="announce-group-divider"')
+
+    def test_list_query_count_does_not_grow_with_rows(self):
+        make_message(created_by=self.staff)
+        url = reverse('announcement:discord_list')
+        # セッションや共通ナビの初回読み込みを済ませて比較する
+        self.client.get(url)
+        with CaptureQueriesContext(connection) as one:
+            self.client.get(url)
+        for _ in range(4):
+            make_message(created_by=self.staff)
+        with CaptureQueriesContext(connection) as many:
+            self.client.get(url)
+
+        self.assertEqual(len(one), len(many))
 
     def test_empty_state(self):
         response = self.client.get(reverse('announcement:discord_list'))
