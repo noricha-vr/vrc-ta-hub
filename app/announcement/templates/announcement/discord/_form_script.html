@@ -7,11 +7,12 @@
     const mention = document.querySelector('[data-role="discord-mention"]');
     // 上限はサーバーの検証と同じ値。textarea の maxlength は UTF-16 単位で数えるので使わない
     const maxLength = Number(body.dataset.maxLength);
+    // 送信時に先頭へ付くメンション行の長さ（選択肢ごと。サーバーの mention_prefix から作る）
+    const prefixLengths = JSON.parse(mention?.dataset.prefixLengths || '{}');
     const update = () => {
         // サーバーと同じく、前後の空白を除いた文字（コードポイント）の数で数える
-        const selected = mention?.value;
-        const prefix = ['everyone', 'here'].includes(selected) ? `@${selected}\n` : '';
-        const length = [...prefix + body.value.trim().replace(/\r\n?/g, '\n')].length;
+        const prefixLength = prefixLengths[mention?.value] || 0;
+        const length = prefixLength + [...body.value.trim().replace(/\r\n?/g, '\n')].length;
         count.textContent = length;
         counter.classList.toggle('text-danger', maxLength > 0 && length > maxLength);
     };

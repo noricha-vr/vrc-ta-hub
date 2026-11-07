@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from announcement.forms import DiscordScheduledMessageForm
 from announcement.forms import MASS_MENTION_BODY_ERROR
-from announcement.models import DISCORD_CONTENT_MAX_LENGTH, DiscordScheduledMessage
+from announcement.models import DISCORD_CONTENT_MAX_LENGTH, VKET_COLLAB_ROLE_ID, DiscordScheduledMessage
 
 from ._helpers import jst, make_message
 
@@ -188,7 +188,10 @@ class MentionChoiceTests(TestCase):
                 self.assertIn('mention', form.errors)
 
     def test_limit_includes_mention_line(self):
-        for mention, prefix in (('everyone', '@everyone\n'), ('here', '@here\n'), ('none', '')):
+        for mention, prefix in (
+            ('everyone', '@everyone\n'), ('here', '@here\n'),
+            ('vketrole', f'<@&{VKET_COLLAB_ROLE_ID}>\n'), ('none', ''),
+        ):
             for character in ('あ', '😀'):
                 with self.subTest(mention=mention, character=character):
                     limit = DISCORD_CONTENT_MAX_LENGTH - len(prefix)
@@ -205,3 +208,17 @@ class MentionChoiceTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(len('@everyone\n' + form.cleaned_data['body']), 2000)
         self.assertFalse(_form(body=body + 'あ', mention='everyone').is_valid())
+
+
+class MentionPrefixLengthAttrTests(TestCase):
+    def test_counter_gets_the_same_prefix_lengths_as_the_server(self):
+        """文字数カウンターが、送信時に付く先頭行をサーバーと同じ長さで数える。"""
+        import json
+
+        attrs = DiscordScheduledMessageForm().fields['mention'].widget.attrs
+        self.assertEqual(json.loads(attrs['data-prefix-lengths']), {
+            'everyone': len('@everyone\n'),
+            'here': len('@here\n'),
+            'vketrole': len(f'<@&{VKET_COLLAB_ROLE_ID}>\n'),
+            'none': 0,
+        })
