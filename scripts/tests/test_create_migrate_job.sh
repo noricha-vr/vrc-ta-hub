@@ -83,6 +83,10 @@ if os.environ["MOCK_CASE"] == "asymmetric":
     # Job にない保持項目は足さず、サービスにない保持項目も残す。
     job_env = [entry for entry in job_env if entry["name"] != "DB_USER"]
     service_env = [entry for entry in service_env if entry["name"] != "DB_HOST"]
+elif os.environ["MOCK_CASE"] == "nosecret":
+    # 保持した平文がサービスのシークレットをすべて置き換え、引き継ぐ参照が 0 件になる。
+    service_env = [entry for entry in service_env if entry["name"] != "SHARED_SECRET"]
+    job_env[1] = plain("DB_PASSWORD", "job-db-password")
 elif os.environ["MOCK_CASE"] == "custom":
     # 任意の保持対象と、サービスの平文から Job のシークレット参照への切替。
     service_env[0] = plain("DB_USER", "svc-db-user")
@@ -137,6 +141,14 @@ elif case == "custom":
         "DB_HOST=svc-db-host-secret:latest",
     })
     expected_log = "Kept from job: DB_USER APP_LABEL"
+elif case == "nosecret":
+    expected_plain.update({
+        "DB_USER": "job-db-user",
+        "DB_PASSWORD": "job-db-password",
+        "DB_HOST": "job-db-host.example.invalid",
+    })
+    expected_secrets = set()
+    expected_log = "Kept from job: DB_USER DB_PASSWORD DB_HOST"
 else:
     expected_plain["DB_HOST"] = "job-db-host.example.invalid"
     expected_secrets.add("DB_PASSWORD=job-db-password-secret:7")
@@ -160,8 +172,12 @@ else:
     # 平文が無くなった更新は、空ファイルを渡さず既存の平文を消す。
     assert not env_file_args and "--clear-env-vars" in args, "Expected --clear-env-vars"
 secret_args = [arg for arg in args if arg.startswith("--set-secrets=")]
-assert len(secret_args) == 1, "Expected full secret replacement"
-assert set(secret_args[0].removeprefix("--set-secrets=").split(",")) == expected_secrets, "Secret references differ"
+if expected_secrets:
+    assert len(secret_args) == 1 and "--clear-secrets" not in args, "Expected full secret replacement"
+    assert set(secret_args[0].removeprefix("--set-secrets=").split(",")) == expected_secrets, "Secret references differ"
+else:
+    # 引き継ぐ参照が 0 件の更新は、Job に残る古い参照を消す。
+    assert not secret_args and "--clear-secrets" in args, "Expected --clear-secrets"
 assert not any(arg.startswith(("--update-env-vars=", "--update-secrets=")) for arg in args)
 if expected_log:
     assert [line for line in logs.splitlines() if line.startswith("Kept from job:")] == [expected_log]
@@ -187,5 +203,6 @@ run_case create
 # ケース 3: 明示した空文字列では、更新時もサービスの値に置き換える。
 KEEP_JOB_ENV="" run_case disabled
 run_case asymmetric
+run_case nosecret
 KEEP_JOB_ENV="DB_USER APP_LABEL" run_case custom
 printf 'PASS: no plaintext values in gcloud arguments or logs (all cases)\n'

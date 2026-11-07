@@ -155,8 +155,11 @@ if [[ -s "$ENV_VARS_FILE" ]]; then
 elif [[ "$ACTION" == "update" ]]; then
   GCLOUD_ARGS+=(--clear-env-vars)
 fi
+# シークレット参照も同じく、0 件の更新では既存の参照を消す（残すと対象外の資格情報が Job に渡る）。
 if [[ -n "$SET_SECRETS" ]]; then
   GCLOUD_ARGS+=(--set-secrets="$SET_SECRETS")
+elif [[ "$ACTION" == "update" ]]; then
+  GCLOUD_ARGS+=(--clear-secrets)
 fi
 if [[ -n "$SERVICE_ACCOUNT" ]]; then
   GCLOUD_ARGS+=(--service-account="$SERVICE_ACCOUNT")
