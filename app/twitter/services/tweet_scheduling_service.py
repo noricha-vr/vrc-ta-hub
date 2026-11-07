@@ -16,7 +16,11 @@ from twitter.notifications import notify_tweet_post_failure
 from twitter.tweet_generator import get_generator, get_tweet_image_url
 from twitter.x_api import PostTweetResult
 
-from .announcement_eligibility import event_date_skip_reason
+from .announcement_eligibility import (
+    UNLISTED_COMMUNITY_SKIP_MESSAGE,
+    event_date_skip_reason,
+    unlisted_community_skip_reason,
+)
 from .media_service import upload_media_to_x
 from .misskey_service import process_pending_notes
 from .x_api_service import post_tweet_to_x
@@ -249,6 +253,19 @@ def _process_scheduled_tweets_for_x(
     )
     posted_attempted = False
     for queue_item in ready_items:
+        if unlisted_community_skip_reason(queue_item):
+            queue_item.status = 'skipped'
+            queue_item.error_message = UNLISTED_COMMUNITY_SKIP_MESSAGE
+            run_with_db_reconnect(
+                lambda: queue_item.save(update_fields=['status', 'error_message']),
+                context=f"post_scheduled_tweets_skip_unlisted queue={queue_item.pk}",
+            )
+            results.append({
+                "id": queue_item.pk, "status": "skipped", "reason": "unlisted_community",
+            })
+            logger.info("Skipped new community tweet of unlisted community for queue %d", queue_item.pk)
+            continue
+
         skip_reason = event_date_skip_reason(queue_item)
         if queue_item.tweet_type in ('lt', 'special'):
             if skip_reason == 'same_day_integrated':
