@@ -6,8 +6,8 @@ from .forms import CommunityForm
 @admin.register(Community)
 class CommunityAdmin(admin.ModelAdmin):
     form = CommunityForm
-    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags', 'status', 'get_closed_status', 'get_report_count')
-    list_filter = ('weekdays', 'frequency', 'tags', 'status', 'end_at')  # end_atをフィルタに追加
+    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags', 'status', 'is_listed', 'get_closed_status', 'get_report_count')
+    list_filter = ('weekdays', 'frequency', 'tags', 'status', 'is_listed', 'end_at')  # end_atをフィルタに追加
     search_fields = ('name', 'organizers')
     
     def get_closed_status(self, obj):

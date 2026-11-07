@@ -308,6 +308,7 @@ class CommunityViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet
     queryset = Community.objects.filter(
         end_at__isnull=True,
         status='approved',
+        is_listed=True,
     ).exclude(
         tags=[]
     ).order_by('-pk')
@@ -331,6 +332,7 @@ class CommunityViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet
         communities = Community.objects.filter(
             end_at__isnull=True,
             status='approved',
+            is_listed=True,
         )
         communities = [
             community

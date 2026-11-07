@@ -19,6 +19,7 @@ from django.utils import timezone
 
 from community.models import Community
 from event.models import Event, EventDetail
+from tests.factories import make_community, make_event, make_event_detail
 from vket.models import VketCollaboration, VketParticipation
 
 
@@ -83,6 +84,27 @@ class CollaborationDetailQueryCountTests(TestCase):
             community=community,
             published_event=event,
         )
+
+    def test_unlisted_community_event_and_presentation_remain_public(self):
+        community = make_community(is_listed=False)
+        event = make_event(community, event_date=self.collaboration.period_start + timedelta(days=1))
+        detail = make_event_detail(event, status='approved', theme='非掲載集会の発表')
+        VketParticipation.objects.create(
+            collaboration=self.collaboration, community=community, published_event=event,
+        )
+
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        entry = response.context['grouped_entries'][0]['entries'][0]
+        self.assertEqual(entry['event'], event)
+        self.assertEqual(entry['lt_details'], [detail])
+        blocks = [
+            block for week in response.context['vket_timetable']['weeks']
+            for day in week['days'] for block in day['blocks']
+        ]
+        self.assertEqual([block['event_id'] for block in blocks], [event.pk])
+        self.assertContains(response, detail.theme)
 
     def _measure_get(self, client: Client) -> int:
         """detail ページを 1 回 GET し、その間の SQL 発行数を返す."""
