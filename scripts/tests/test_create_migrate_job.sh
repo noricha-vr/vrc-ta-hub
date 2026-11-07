@@ -29,6 +29,8 @@ case "$*" in
     printf '%s\n' "$@" > "$MOCK_DIR/args"
     for arg in "$@"; do
       if [[ "$arg" == --env-vars-file=* ]]; then
+        # 本物の gcloud は空の env-vars-file を「map-like data でない」として拒否する。
+        [[ -s "${arg#--env-vars-file=}" ]] || exit 2
         cp "${arg#--env-vars-file=}" "$MOCK_DIR/env"
       fi
     done
@@ -144,13 +146,19 @@ else:
     else:
         assert case == "asymmetric"
         expected_log = "Kept from job: DB_PASSWORD DB_HOST"
-# JSON 文字列でクォートされた YAML を読み、改行・引用符を含む値も比較する。
-actual_plain = {}
-for line in (root / "env").read_text().splitlines():
-    if line:
-        name, value = line.split(": ", 1)
-        actual_plain[json.loads(name)] = json.loads(value)
-assert actual_plain == expected_plain, "Plain environment differs"
+env_file_args = [arg for arg in args if arg.startswith("--env-vars-file=")]
+if expected_plain:
+    assert len(env_file_args) == 1 and "--clear-env-vars" not in args
+    # JSON 文字列でクォートされた YAML を読み、改行・引用符を含む値も比較する。
+    actual_plain = {}
+    for line in (root / "env").read_text().splitlines():
+        if line:
+            name, value = line.split(": ", 1)
+            actual_plain[json.loads(name)] = json.loads(value)
+    assert actual_plain == expected_plain, "Plain environment differs"
+else:
+    # 平文が無くなった更新は、空ファイルを渡さず既存の平文を消す。
+    assert not env_file_args and "--clear-env-vars" in args, "Expected --clear-env-vars"
 secret_args = [arg for arg in args if arg.startswith("--set-secrets=")]
 assert len(secret_args) == 1, "Expected full secret replacement"
 assert set(secret_args[0].removeprefix("--set-secrets=").split(",")) == expected_secrets, "Secret references differ"
@@ -166,8 +174,8 @@ for entry in service + job:
         assert entry["value"] not in calls + logs, "Plain value leaked"
         for line in entry["value"].splitlines():
             assert line not in calls + logs, "Plain value line leaked"
-env_path = next(arg.removeprefix("--env-vars-file=") for arg in args if arg.startswith("--env-vars-file="))
-assert not Path(env_path).exists(), "Temporary environment file was not removed"
+for arg in env_file_args:
+    assert not Path(arg.removeprefix("--env-vars-file=")).exists(), "Temporary environment file was not removed"
 PY
   printf 'PASS: create_migrate_job %s\n' "$MOCK_CASE"
 }

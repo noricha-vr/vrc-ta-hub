@@ -127,8 +127,10 @@ for entry in env:
         # （JSON は YAML 1.2 のサブセットなので安全に読める）。
         plain.append("{}: {}".format(json.dumps(name), json.dumps(entry["value"])))
 
+# 平文が無い時は空のままにする（空の env-vars-file は gcloud が受け付けない）。
 with open(os.environ["ENV_VARS_FILE"], "w", encoding="utf-8") as f:
-    f.write("\n".join(plain) + "\n")
+    if plain:
+        f.write("\n".join(plain) + "\n")
 
 print(",".join(secrets))
 PY
@@ -145,9 +147,14 @@ GCLOUD_ARGS=(
   --tasks=1
   --max-retries="$MAX_RETRIES"
   --task-timeout="$TASK_TIMEOUT"
-  --env-vars-file="$ENV_VARS_FILE"
 )
 
+# 平文が 1 件も無ければ、更新時は既存の平文を消す（全部シークレット参照に切り替わった時）。
+if [[ -s "$ENV_VARS_FILE" ]]; then
+  GCLOUD_ARGS+=(--env-vars-file="$ENV_VARS_FILE")
+elif [[ "$ACTION" == "update" ]]; then
+  GCLOUD_ARGS+=(--clear-env-vars)
+fi
 if [[ -n "$SET_SECRETS" ]]; then
   GCLOUD_ARGS+=(--set-secrets="$SET_SECRETS")
 fi
