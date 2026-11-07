@@ -36,9 +36,8 @@ updates:
   - package-ecosystem: "docker"        # ベースイメージ（Dockerfile の FROM）。CI 緑なら自動マージし、本番はカナリアで出す
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "06:00"
       timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 1
     labels: ["dependencies"]
