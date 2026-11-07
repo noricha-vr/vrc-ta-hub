@@ -208,3 +208,17 @@ class MentionChoiceTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(len('@everyone\n' + form.cleaned_data['body']), 2000)
         self.assertFalse(_form(body=body + 'あ', mention='everyone').is_valid())
+
+
+class MentionPrefixLengthAttrTests(TestCase):
+    def test_counter_gets_the_same_prefix_lengths_as_the_server(self):
+        """文字数カウンターが、送信時に付く先頭行をサーバーと同じ長さで数える。"""
+        import json
+
+        attrs = DiscordScheduledMessageForm().fields['mention'].widget.attrs
+        self.assertEqual(json.loads(attrs['data-prefix-lengths']), {
+            'everyone': len('@everyone\n'),
+            'here': len('@here\n'),
+            'vketrole': len(f'<@&{VKET_COLLAB_ROLE_ID}>\n'),
+            'none': 0,
+        })

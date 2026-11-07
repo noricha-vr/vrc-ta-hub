@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from zoneinfo import ZoneInfo
 
 from django import forms
@@ -76,7 +77,13 @@ class DiscordScheduledMessageForm(forms.ModelForm):
         fields = ['body', 'scheduled_at', 'mention']
         labels = {'mention': 'メンション'}
         widgets = {
-            'mention': forms.Select(attrs={'class': 'form-select', 'data-role': 'discord-mention'}),
+            'mention': forms.Select(attrs={
+                'class': 'form-select', 'data-role': 'discord-mention',
+                # 文字数カウンターが、送信時に付く先頭行の分もサーバーと同じに数えるための長さ
+                'data-prefix-lengths': json.dumps(
+                    {value: len(mention_prefix(value)) for value in DiscordScheduledMessage.Mention.values},
+                ),
+            }),
         }
 
     def __init__(self, *args, now=None, **kwargs):
