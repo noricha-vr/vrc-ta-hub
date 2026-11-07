@@ -70,6 +70,9 @@ def _queue_new_community_tweet(instance, created):
     from twitter.models import TweetQueue
     from event.models import Event
 
+    if not instance.is_listed:
+        return
+
     old_status = getattr(instance, "_old_status", None)
     if instance.status != "approved" or old_status == "approved":
         return

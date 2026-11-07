@@ -64,6 +64,13 @@ class Community(models.Model):
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
     tags = models.JSONField('タグ', max_length=10, default=list)
     status = models.CharField('承認状態', max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
+    # db_default は migration 適用後の旧リビジョンからの INSERT を通すため
+    is_listed = models.BooleanField(
+        '集会一覧に掲載する',
+        default=True,
+        db_default=True,
+        help_text='オフにすると集会一覧・閉鎖集会一覧・集会 API・サイトマップに出さず、新集会の自動投稿もしない。開催回は通常どおり表示する',
+    )
     allow_poster_repost = models.BooleanField(
         '集会を紹介するためのポスター転載を許可する',
         default=False,

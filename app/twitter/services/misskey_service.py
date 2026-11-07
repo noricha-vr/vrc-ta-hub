@@ -12,7 +12,11 @@ from twitter.models import MisskeyNote
 from twitter.notifications import notify_misskey_post_failure
 from twitter.x_api import _failure_result
 
-from .announcement_eligibility import event_date_skip_reason
+from .announcement_eligibility import (
+    UNLISTED_COMMUNITY_SKIP_MESSAGE,
+    event_date_skip_reason,
+    unlisted_community_skip_reason,
+)
 
 logger = structlog.get_logger(__name__)
 MAX_ATTEMPTS = 3
@@ -76,6 +80,12 @@ def _claim_next_note(current):
             if queue_item.scheduled_at < expiry_threshold or queue_item.status == 'skipped':
                 note.status = 'skipped'
                 note.error_message = '予約期限切れまたは告知対象外のため投稿をスキップ'
+                note.save(update_fields=['status', 'error_message', 'updated_at'])
+                _log_post(note)
+                continue
+            if unlisted_community_skip_reason(queue_item):
+                note.status = 'skipped'
+                note.error_message = UNLISTED_COMMUNITY_SKIP_MESSAGE
                 note.save(update_fields=['status', 'error_message', 'updated_at'])
                 _log_post(note)
                 continue

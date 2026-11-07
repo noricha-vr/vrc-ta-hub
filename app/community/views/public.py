@@ -104,6 +104,7 @@ class CommunityListView(ListView):
         # 承認済みでアクティブな集会（終了日がない）、かつポスター画像がある
         queryset = queryset.filter(
             status='approved',
+            is_listed=True,
             end_at__isnull=True,
             poster_image__isnull=False
         ).exclude(poster_image='')
@@ -353,6 +354,7 @@ class ArchivedCommunityListView(ListView):
         # 承認済みで閉鎖された集会のみ表示
         queryset = queryset.filter(
             status='approved',
+            is_listed=True,
             end_at__isnull=False
         ).order_by('-end_at')
 

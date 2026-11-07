@@ -373,6 +373,37 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.note_post.assert_not_called()
         self.x_post.assert_not_called()
 
+    def test_new_community_queue_is_skipped_after_community_is_unlisted(self):
+        """承認時に積んだ新集会告知は、後で非掲載にすると X にも Misskey にも出さない。"""
+        queue = self.queue()
+        type(self.community).objects.filter(pk=self.community.pk).update(is_listed=False)
+        self.process()
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, 'skipped')
+        self.assertFalse(MisskeyNote.objects.exists())
+        self.x_post.assert_not_called()
+        self.note_post.assert_not_called()
+
+    def test_pending_note_is_skipped_after_community_is_unlisted(self):
+        """X の投稿後に残った Misskey の配信も、非掲載にした時点で止める。"""
+        note = MisskeyNote.objects.create(tweet_queue=self.queue(status='posted'))
+        type(self.community).objects.filter(pk=self.community.pk).update(is_listed=False)
+        self.process()
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'skipped')
+        self.note_post.assert_not_called()
+
+    def test_unlisted_rule_does_not_skip_other_announcements(self):
+        """非掲載の集会でも、開催回の当日リマインドは今までどおり出す。"""
+        type(self.community).objects.filter(pk=self.community.pk).update(is_listed=False)
+        self.event.date = timezone.localdate(self.current)
+        self.event.save(update_fields=['date'])
+        queue = self.queue(tweet_type='daily_reminder')
+        self.process()
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, 'posted')
+        self.x_post.assert_called_once()
+
     def test_existing_pending_for_x_skipped_queue_is_skipped(self):
         note = MisskeyNote.objects.create(tweet_queue=self.queue(status='skipped'))
         self.process()
