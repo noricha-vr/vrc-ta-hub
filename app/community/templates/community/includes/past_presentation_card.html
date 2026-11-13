@@ -1,0 +1,26 @@
+{% load image_tags %}
+<div class="col">
+    <article class="card h-100 border-0 shadow-sm shadow-hover overflow-hidden ed-rel-card">
+        <div class="ratio ratio-16x9 ed-thumb">
+            {% if detail.thumbnail_image %}
+                <img src="{{ detail.thumbnail_image.url|cf_resize:'400' }}" class="w-100 h-100 object-fit-cover" alt="{{ detail.theme }}のサムネイル" loading="lazy" decoding="async">
+            {% elif detail.video_id %}
+                <img src="https://img.youtube.com/vi/{{ detail.video_id }}/mqdefault.jpg" class="w-100 h-100 object-fit-cover" alt="{{ detail.theme }}のサムネイル" loading="lazy" decoding="async">
+            {% else %}
+                <div class="ed-titlecard">
+                    <span class="ed-titlecard-label"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="1.5"></rect><path d="M12 16v4M8 20h8"></path></svg>発表タイトル</span>
+                    <h3 class="ed-titlecard-theme">{{ detail.theme }}</h3>
+                </div>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if detail.thumbnail_image or detail.video_id %}
+                <h3 class="ed-rel-title"><a class="stretched-link text-body text-decoration-none" href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a></h3>
+            {% else %}
+                <a class="stretched-link" href="{% url 'event:detail' detail.pk %}" aria-label="{{ detail.theme }}"></a>
+            {% endif %}
+            <p class="ed-rel-meta mb-1"><span class="text-nowrap">{{ detail.event.date|date:"Y年n月j日 (D)" }}</span> <span class="text-nowrap">{{ detail.event.start_time|date:"H:i" }} - {{ detail.event.end_time|date:"H:i" }}</span></p>
+            {% if detail.speaker %}<p class="ed-rel-meta text-truncate">{{ detail.speaker }}</p>{% endif %}
+        </div>
+    </article>
+</div>

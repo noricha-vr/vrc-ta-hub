@@ -287,11 +287,11 @@
                 {% if event_detail.slide_url or event_detail.slide_file or is_discord %}
                     <div class="ed-actions d-flex flex-wrap align-items-center gap-2 mb-5{% if not event_detail.thumbnail_image and not video_id %} ed-actions-no-media{% endif %}">
                         {% if event_detail.slide_url %}
-                            <a class="btn btn-outline-primary d-inline-flex align-items-center gap-2" href="{{ event_detail.slide_url }}" target="_blank" rel="noopener noreferrer">
-                                {% include 'event/includes/_slide_icon.html' %}発表スライドを開く
+                            <a class="btn btn-outline-primary d-inline-flex align-items-center gap-2" href="{{ event_detail.slide_url }}" data-slide-link data-slide-service="{{ event_detail.slide_service|default:'other' }}" target="_blank" rel="noopener noreferrer">
+                                {% include 'event/includes/_slide_icon.html' %}{% if event_detail.slide_service_label %}{{ event_detail.slide_service_label }} でスライドを見る ↗{% else %}発表スライドを開く ↗{% endif %}
                             </a>
                         {% endif %}
-                        {% if event_detail.slide_file %}
+                        {% if event_detail.slide_file and not event_detail.slide_url %}
                             <a class="btn btn-outline-primary d-inline-flex align-items-center gap-2" href="{{ event_detail.slide_file.url }}" target="_blank" rel="noopener noreferrer">
                                 {% include 'event/includes/_slide_icon.html' %}スライドの PDF を開く
                             </a>

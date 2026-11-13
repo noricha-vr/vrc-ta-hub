@@ -70,8 +70,8 @@ def manage(capture):
     capture.goto(url)
     region(capture, [field('theme'), field('speaker')], marks=['#id_theme', '#id_speaker'])
     region(capture, [field('h1'), field('contents')], marks=['#id_h1', '#id_contents'])
-    region(capture, [field('slide_file'), field('slide_url'), field('youtube_url')],
-           marks=['#id_slide_file', '#id_slide_url', '#id_youtube_url'])
+    region(capture, [field('slide_entry'), field('youtube_url')],
+           marks=['label:has(#id_slide_entry_0)', 'label:has(#id_slide_entry_1)', '#id_youtube_url'])
     region(capture, [field('recording_policy'), field('article_consent')])
     region(capture, ['#application-form [data-admin-action-bar]'],
            marks=['#application-form button[type=submit]'])
@@ -85,7 +85,8 @@ def slide_video(capture):
     capture.annotate('#export', 2)
     capture.shot(selector='.diagram')
     capture.goto(edit_url(capture))
-    region(capture, [field('slide_file')], marks=['#id_slide_file'])
+    capture.page.locator('#id_slide_entry_0').check()
+    region(capture, [field('slide_entry')], marks=['#id_slide_file'])
     region(capture, ['#application-form [data-admin-action-bar]'],
            marks=['#application-form button[type=submit]'])
     for name, selectors in [

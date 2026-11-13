@@ -14,6 +14,27 @@ DISCORD_CONTENT_MAX_LENGTH = 2000
 MASS_MENTION_TOKENS = ('@everyone', '@here')
 # エラーの要約の最大長（画面と DB に残す分）
 LAST_ERROR_MAX_LENGTH = 500
+# Vket コラボに参加する集会の主催者・スタッフ
+VKET_COLLAB_ROLE_ID = '1375733480981266432'
+_DISCORD_MENTION = re.compile(r'<(@&|@!|@)(\d+)>')
+
+
+def mention_prefix(mention: str) -> str:
+    """選択した通知先を、送信する本文の先頭行にする。"""
+    if mention == DiscordScheduledMessage.Mention.VKET_ROLE:
+        return f'<@&{VKET_COLLAB_ROLE_ID}>\n'
+    if mention in (DiscordScheduledMessage.Mention.EVERYONE, DiscordScheduledMessage.Mention.HERE):
+        return f'@{mention}\n'
+    return ''
+
+
+def _mention_label(match: re.Match) -> str:
+    """一覧では Discord の ID を出さず、通知先の名前を見せる。"""
+    if match[1] == '@&':
+        if match[2] == VKET_COLLAB_ROLE_ID:
+            return DiscordScheduledMessage.Mention.VKET_ROLE.label
+        return '@ロール'
+    return '@ユーザー'
 
 
 def contains_mass_mention(body: str) -> bool:
@@ -63,6 +84,7 @@ class DiscordScheduledMessage(models.Model):
     class Mention(models.TextChoices):
         EVERYONE = 'everyone', '@everyone（全員）'
         HERE = 'here', '@here（オンラインの人）'
+        VKET_ROLE = 'vketrole', 'Vketコラボ参加集会主催者・スタッフ'
         NONE = 'none', 'なし'
 
     body = models.TextField(
@@ -120,11 +142,23 @@ class DiscordScheduledMessage(models.Model):
 
     @property
     def subject(self) -> str:
-        """一覧で件名として見せる、本文の最初の空でない行（記号を外したもの）。"""
+        """メンションだけの行を飛ばし、最初の意味のある行を件名にする。"""
         for line in self.body.splitlines():
-            if line.strip():
-                return _plain_line(line)
+            if _DISCORD_MENTION.sub('', line).strip():
+                text = _plain_line(line)
+                if text:
+                    return _DISCORD_MENTION.sub(_mention_label, text)
         return ''
+
+    @property
+    def body_mention_labels(self) -> list[str]:
+        """本文に直接書かれた通知先を、同じ表示名は一度だけ並べる。"""
+        return list(dict.fromkeys(_mention_label(match) for match in _DISCORD_MENTION.finditer(self.body)))
+
+    @property
+    def is_history(self) -> bool:
+        """送信済み・取り消しを、これから送る予約と分ける。"""
+        return self.status in (self.Status.SENT, self.Status.CANCELED)
 
     @property
     def excerpt(self) -> str:

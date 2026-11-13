@@ -12,7 +12,7 @@
         </div>
         {{ form.body }}
         {% for error in form.body.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-        <div class="form-text">ロールとユーザーのメンションは、そのまま通知されます。@everyone と @here は本文に書かず、下の「メンション」で選びます。</div>
+        <div class="form-text">Vketコラボのロール・@everyone・@here は下の「メンション」で選びます。本文に直接書いたロールとユーザーのメンションも通知されます。</div>
     </div>
     {% include 'ta_hub/admin/includes/form_field.html' with field=form.mention only %}
 </section>

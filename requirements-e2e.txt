@@ -456,7 +456,7 @@ sqlparse==0.6.0
     # via
     #   -c requirements.txt
     #   django
-structlog==25.1.0
+structlog==26.1.0
     # via
     #   -c requirements.txt
     #   -r requirements.in

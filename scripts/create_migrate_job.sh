@@ -6,6 +6,7 @@
 #
 # 稼働中の Cloud Run サービスからイメージ・環境変数・シークレット・SA を引き継ぐため、
 # サービス側の設定を変えても Job 定義がずれない（値をこのファイルにハードコードしない）。
+# 既存 Job の DB 接続（KEEP_JOB_ENV）は、平文・シークレット参照の形を含めて残す。
 #
 # 使い方:
 #   ./scripts/create_migrate_job.sh                 # 稼働中リビジョンのイメージで作成/更新
@@ -27,6 +28,8 @@ PROJECT_ID="${PROJECT_ID:-vrc-ta-hub}"
 REGION="${REGION:-asia-northeast1}"
 SERVICE_NAME="${SERVICE_NAME:-vrc-ta-hub}"
 JOB_NAME="${JOB_NAME:-vrc-ta-hub-migrate}"
+# 空文字列の指定では保持せず、すべてサービスから引き継ぐ。
+KEEP_JOB_ENV="${KEEP_JOB_ENV-DB_USER DB_PASSWORD DB_HOST}"
 
 # Job のデフォルト引数は「全アプリの migrate」。個別 migration を当てる時は
 # `gcloud run jobs update ... --args=...` で差し替えて実行し、終わったら戻す
@@ -66,23 +69,51 @@ SERVICE_ACCOUNT="$(describe_service 'value(spec.template.spec.serviceAccountName
 # ヒアドキュメントとパイプ入力が衝突して JSON が届かない。
 ENV_VARS_FILE="$(mktemp)"
 SERVICE_ENV_FILE="$(mktemp)"
-trap 'rm -f "$ENV_VARS_FILE" "$SERVICE_ENV_FILE"' EXIT
-chmod 600 "$ENV_VARS_FILE" "$SERVICE_ENV_FILE"
+JOB_ENV_FILE="$(mktemp)"
+trap 'rm -f "$ENV_VARS_FILE" "$SERVICE_ENV_FILE" "$JOB_ENV_FILE"' EXIT
+chmod 600 "$ENV_VARS_FILE" "$SERVICE_ENV_FILE" "$JOB_ENV_FILE"
 
 describe_service 'json(spec.template.spec.containers[0].env)' > "$SERVICE_ENV_FILE" \
   || die "Could not read env from Cloud Run service $SERVICE_NAME."
 
+if gcloud run jobs describe "$JOB_NAME" --project="$PROJECT_ID" --region="$REGION" \
+  --format='json(spec.template.spec.template.spec.containers[0].env)' > "$JOB_ENV_FILE" 2>/dev/null; then
+  ACTION="update"
+else
+  ACTION="create"
+fi
+
 # env は plain 値と secret 参照が混在する。plain は値を含むので --env-vars-file（一時ファイル）へ、
 # secret 参照は値を含まないので "ENV=SECRET:VERSION" の文字列として stdout へ出す。
 SET_SECRETS="$(
-  ENV_VARS_FILE="$ENV_VARS_FILE" SERVICE_ENV_FILE="$SERVICE_ENV_FILE" python3 - <<'PY'
+  ENV_VARS_FILE="$ENV_VARS_FILE" SERVICE_ENV_FILE="$SERVICE_ENV_FILE" \
+    JOB_ENV_FILE="$JOB_ENV_FILE" ACTION="$ACTION" KEEP_JOB_ENV="$KEEP_JOB_ENV" python3 - <<'PY'
 import json
 import os
+import sys
 
 with open(os.environ["SERVICE_ENV_FILE"], encoding="utf-8") as src:
     doc = json.load(src) or {}
 containers = doc.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
 env = (containers[0].get("env") if containers else None) or []
+
+keep = os.environ["KEEP_JOB_ENV"].split()
+if os.environ["ACTION"] == "update" and keep:
+    with open(os.environ["JOB_ENV_FILE"], encoding="utf-8") as src:
+        job = json.load(src) or {}
+    containers = (
+        job.get("spec", {}).get("template", {}).get("spec", {})
+        .get("template", {}).get("spec", {}).get("containers", [])
+    )
+    job_env = (containers[0].get("env") if containers else None) or []
+    # サービス側の同名項目は除き、Job にある項目だけを元の形で残す。
+    env = [entry for entry in env if entry["name"] not in keep]
+    kept = [entry for entry in job_env if entry["name"] in keep]
+    env.extend(kept)
+    kept_names = {entry["name"] for entry in kept}
+    if kept_names:
+        names = dict.fromkeys(name for name in keep if name in kept_names)
+        print("Kept from job: " + " ".join(names), file=sys.stderr)
 
 plain = []
 secrets = []
@@ -96,18 +127,14 @@ for entry in env:
         # （JSON は YAML 1.2 のサブセットなので安全に読める）。
         plain.append("{}: {}".format(json.dumps(name), json.dumps(entry["value"])))
 
+# 平文が無い時は空のままにする（空の env-vars-file は gcloud が受け付けない）。
 with open(os.environ["ENV_VARS_FILE"], "w", encoding="utf-8") as f:
-    f.write("\n".join(plain) + "\n")
+    if plain:
+        f.write("\n".join(plain) + "\n")
 
 print(",".join(secrets))
 PY
 )"
-
-if gcloud run jobs describe "$JOB_NAME" --project="$PROJECT_ID" --region="$REGION" >/dev/null 2>&1; then
-  ACTION="update"
-else
-  ACTION="create"
-fi
 
 # イメージの CMD は supervisord（Dockerfile 参照）なので --command で python を明示する。
 GCLOUD_ARGS=(
@@ -120,11 +147,19 @@ GCLOUD_ARGS=(
   --tasks=1
   --max-retries="$MAX_RETRIES"
   --task-timeout="$TASK_TIMEOUT"
-  --env-vars-file="$ENV_VARS_FILE"
 )
 
+# 平文が 1 件も無ければ、更新時は既存の平文を消す（全部シークレット参照に切り替わった時）。
+if [[ -s "$ENV_VARS_FILE" ]]; then
+  GCLOUD_ARGS+=(--env-vars-file="$ENV_VARS_FILE")
+elif [[ "$ACTION" == "update" ]]; then
+  GCLOUD_ARGS+=(--clear-env-vars)
+fi
+# シークレット参照も同じく、0 件の更新では既存の参照を消す（残すと対象外の資格情報が Job に渡る）。
 if [[ -n "$SET_SECRETS" ]]; then
   GCLOUD_ARGS+=(--set-secrets="$SET_SECRETS")
+elif [[ "$ACTION" == "update" ]]; then
+  GCLOUD_ARGS+=(--clear-secrets)
 fi
 if [[ -n "$SERVICE_ACCOUNT" ]]; then
   GCLOUD_ARGS+=(--service-account="$SERVICE_ACCOUNT")

@@ -412,3 +412,42 @@ class GuideViewsTest(TestCase):
         self.assertContains(response, "Add to VCC")
         self.assertContains(response, "promotion/asset-09.webp")
         self.assertContains(response, "promotion/asset-09-sp.webp")
+
+
+class GuideLastmodTests(TestCase):
+    """sitemap.xml の lastmod に使う docs/guide/_lastmod.json が本文と合っていること"""
+
+    def test_records_match_current_content(self):
+        from guide.lastmod import content_hash, load_records, public_pages
+
+        records = load_records()
+        pages = public_pages()
+        self.assertEqual(set(records), set(pages))
+        stale = [path for path, file in pages.items() if records[path]['hash'] != content_hash(file)]
+        self.assertEqual(
+            stale, [],
+            'ガイド本文が変わっています。cd app && python ../scripts/update_guide_lastmod.py を実行して _lastmod.json をコミットしてください',
+        )
+
+    def test_refresh_changes_date_only_for_edited_pages(self):
+        import shutil
+        import tempfile
+        from datetime import date
+        from pathlib import Path
+
+        from guide.lastmod import lastmod_file, refresh
+        from guide.views import GUIDE_ROOT
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'guide'
+            shutil.copytree(GUIDE_ROOT, root)
+            before = refresh(root, today=date(2026, 1, 1), initial_dates={})
+            self.assertTrue(lastmod_file(root).is_file())
+            target = root / 'glossary.md'
+            target.write_text(target.read_text(encoding='utf-8') + '\n追記\n', encoding='utf-8')
+            after = refresh(root, today=date(2026, 2, 2))
+            self.assertEqual(after['glossary']['date'], '2026-02-02')
+            others = [p for p in after if p != 'glossary']
+            self.assertTrue(others)
+            for path in others:
+                self.assertEqual(after[path], before[path], path)

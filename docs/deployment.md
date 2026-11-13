@@ -26,6 +26,10 @@ Cloud Run Job `vrc-ta-hub-migrate` を人間の判断で実行して適用する
 
 Jobが存在しない場合は先に作成する。稼働中のCloud Runサービスからイメージ・
 環境変数・シークレット・サービスアカウントを引き継ぐ冪等スクリプトを使う。
+既存JobのDB接続は、`KEEP_JOB_ENV`（既定 `DB_USER DB_PASSWORD DB_HOST`）に指定した項目を
+平文・シークレット参照の形を含めて残す。Jobにない項目は追加しない。
+`KEEP_JOB_ENV` は空白区切りの環境変数で変更でき、空文字列ならすべてサービスから引き継ぐ。
+Jobの新規作成時はサービスの設定をそのまま使う。
 
 ```bash
 ./scripts/create_migrate_job.sh

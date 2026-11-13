@@ -220,6 +220,18 @@ class VketAchievementsDatabaseTest(TestCase):
 
         self.assertEqual(achievements[0]['stats']['communities'], 1)
 
+    def test_unlisted_community_is_not_counted(self):
+        self._post()
+        collaboration = self._collaboration()
+        self._participation(collaboration)
+        unlisted = self._participation(collaboration)
+        unlisted.community.is_listed = False
+        unlisted.community.save(update_fields=['is_listed'])
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        self.assertEqual(achievements[0]['stats']['communities'], 1)
+
     def test_newer_collaborations_come_first_and_cross_year_period_includes_year(self):
         self._post()
         self._collaboration()

@@ -290,7 +290,7 @@ soupsieve==2.10
     # via beautifulsoup4
 sqlparse==0.6.0
     # via django
-structlog==25.1.0
+structlog==26.1.0
     # via -r requirements.in
 tenacity==9.1.4
     # via

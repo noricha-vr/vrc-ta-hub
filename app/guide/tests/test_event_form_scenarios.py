@@ -75,14 +75,21 @@ class EventFormScenarioTargetsTest(TestCase):
                        '[aria-label="撮影"]', '.form-check:has(#id_detail_type_0)',
                        '.form-check:has(#id_detail_type_1)', '.form-check:has(#id_detail_type_2)',
                        '#detail-form button[type="submit"]')
-                unique(soup, '[data-field="recording_policy"]')
+                unique(soup, '[data-field="recording_policy"]', '[data-field="slide_entry"]', '#id_slide_file', '#id_slide_url')
                 for field in ('theme', 'speaker', 'start_time', 'duration',
-                              'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents'):
+                              'thumbnail_image', 'youtube_url', 'h1', 'contents'):
                     unique(soup, f'[data-field="{field}"]', f'#id_{field}')
                 content = soup.select_one('#detail-form .admin-card:has(#id_theme)')
-                unique(content, '[aria-label="撮影"]')
+                unique(content, '#id_start_time', '#id_duration')
+                recording = soup.select_one('#detail-form .admin-card:has([data-field="recording_policy"])')
+                unique(recording, '[aria-label="撮影"]')
+                headings = ['発表内容', '撮影・記事化']
+                if path.endswith('/create/'):
+                    headings.append('追加情報')
+                    unique(soup, '[data-field="x_account"]', '[data-field="article_consent"]',
+                           '[data-field="additional_info"]')
                 self.assertEqual([h.get_text(strip=True) for h in soup.select('#detail-form h2')],
-                                 ['内容', '日時', '資料', '記事'])
+                                 [*headings, '資料', '記事'])
                 self.assertEqual(soup.select_one('#detail-form button[type="submit"] [data-submit-default]')
                                  .get_text(strip=True), '保存')
         unique(soup, '#article-consent-status')

@@ -189,7 +189,7 @@ class EventDetailFormRecordingPolicyTest(TestCase):
         self.client.force_login(self.owner)
 
     def _data(self, theme, **extra):
-        data = {'detail_type': 'LT', 'theme': theme, 'speaker': '発表者', 'start_time': '22:30', 'duration': 30}
+        data = {'detail_type': 'LT', 'theme': theme, 'speaker': '発表者', 'start_time': '22:30', 'duration': 30, 'article_consent': 'ok'}
         data.update(extra)
         return data
 
@@ -287,7 +287,7 @@ class OrganizerRecordingNotAllowedTest(TestCase):
     def _data(self, **extra):
         return {
             'detail_type': 'LT', 'theme': '主催者の発表', 'speaker': '発表者',
-            'start_time': '22:30', 'duration': 30, **extra,
+            'start_time': '22:30', 'duration': 30, 'article_consent': 'ok', **extra,
         }
 
     def test_create_and_edit_pages_hide_choices_and_link_to_settings(self):

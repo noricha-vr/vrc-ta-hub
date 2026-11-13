@@ -268,7 +268,7 @@ class EventDetailView(DetailView):
             'can_generate_article': (
                 article_visible
                 and event_detail.detail_type == 'LT'
-                and bool(event_detail.youtube_url or event_detail.slide_file)
+                and bool(event_detail.youtube_url or event_detail.article_pdf)
             ),
         }
 

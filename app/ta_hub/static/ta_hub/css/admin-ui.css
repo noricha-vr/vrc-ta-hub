@@ -170,3 +170,18 @@
 .hub-admin .vket-banner-actions { width: 100%; }
 .hub-admin .vket-banner-btn { flex: 1 1 auto; }
 }
+
+/* スライド登録の入口 */
+.hub-admin .slide-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr)); gap: .6rem; }
+.hub-admin .slide-choice { display: flex; gap: .6rem; align-items: flex-start; border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .75rem .85rem; cursor: pointer; min-width: 0; background: #fff; }
+.hub-admin .slide-choice:hover { background: var(--admin-surface-muted); }
+.hub-admin .slide-choice:has(input:checked) { border-color: var(--admin-primary); background: var(--admin-primary-soft); }
+.hub-admin .slide-choice:has(input:focus-visible) { outline: 2px solid var(--admin-primary); outline-offset: 2px; }
+.hub-admin .slide-choice input { margin-top: .35rem; flex: none; }
+.hub-admin .slide-choice .title { display: block; font-weight: 700; }
+.hub-admin .slide-choice .sub { display: block; font-size: .875rem; color: var(--admin-muted); }
+.hub-admin .slide-status { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: .6rem; font-size: .875rem; }
+.hub-admin .slide-status .text { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.hub-admin .slide-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+.hub-admin .slide-pdf { margin-top: 1rem; border-top: 1px solid var(--admin-border); padding-top: .75rem; }
+.hub-admin .slide-now { font-size: .875rem; margin-bottom: .4rem; overflow-wrap: anywhere; }

@@ -99,7 +99,7 @@ class AccountScenarioTargetsTest(TestCase):
         self.assertTrue(soup.select('main article.admin-card .bg-warning-subtle'))
         self.unique(approved[0], 'a[href$="/edit/"]')
         soup = self.page(approved[0].select_one('a[href$="/edit/"]')['href'])
-        for name in ('theme', 'speaker', 'h1', 'contents', 'slide_file', 'slide_url', 'youtube_url',
+        for name in ('theme', 'speaker', 'h1', 'contents', 'slide_entry', 'youtube_url',
                      'recording_policy', 'article_consent'):
             self.unique(soup, f'.field-wrapper[data-field="{name}"]')
         headings = [heading.get_text(strip=True) for heading in soup.select('#application-form h2')]

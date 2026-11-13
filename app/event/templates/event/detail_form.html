@@ -27,6 +27,7 @@
 </style>
 {% endblock %}
 {% block admin_attention %}
+{% include 'event/includes/slide_fetch_attention.html' %}
 {% if form.datetime_locked %}<div class="admin-attention" role="alert"><i class="fas fa-lock me-1" aria-hidden="true"></i>{{ form.datetime_lock_message }}</div>{% endif %}
 {% endblock %}
 {% block admin_content %}
@@ -34,14 +35,15 @@
                               enctype="multipart/form-data"
                               data-article-generation-form
                               data-has-existing-slide-url="{% if form.instance.slide_url %}true{% else %}false{% endif %}"
-                              data-has-existing-slide-file="{% if form.instance.slide_file %}true{% else %}false{% endif %}"
+                              data-has-existing-public-pdf="{% if form.instance.slide_file %}true{% else %}false{% endif %}"
+                              data-has-existing-slide-file="{% if form.instance.article_pdf %}true{% else %}false{% endif %}"
                               data-has-existing-youtube-url="{% if form.instance.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
                             {# 画面を開いた時点の記事のハッシュなど（保存時に、その後に作られた記事を消さないため） #}
                             {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
 {% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
 <section class="admin-card">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='内容' only %}
+{% include 'ta_hub/admin/includes/section_heading.html' with title='発表内容' only %}
                             <!-- detail_type フィールドを特別に表示 -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
@@ -63,46 +65,33 @@
                                 {% endif %}
                             </div>
                             
-{% if form.theme and not form.theme.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.theme %}{% endif %}
-{% if form.speaker and not form.speaker.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.speaker %}{% endif %}
-{% if form.recording_policy and not form.recording_policy.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.recording_policy %}{% endif %}
+{% include 'event/includes/presentation_field.html' with field=form.theme icon='bi-chat-left-text' only %}
+{% include 'event/includes/presentation_field.html' with field=form.speaker icon='bi-person' only %}
+<div class="row">
+    <div class="col-md-6">{% include 'event/includes/presentation_field.html' with field=form.start_time icon='bi-clock' only %}</div>
+    <div class="col-md-6">{% include 'event/includes/presentation_field.html' with field=form.duration icon='bi-hourglass-split' only %}</div>
+</div>
+{% include 'event/includes/presentation_field.html' with field=form.x_account icon='bi-twitter-x' only %}
 </section>
-<section class="admin-card" data-detail-card>
-{% include 'ta_hub/admin/includes/section_heading.html' with title='日時' only %}
-{% if form.start_time and not form.start_time.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.start_time %}{% endif %}
-{% if form.duration and not form.duration.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.duration %}{% endif %}
-</section>
+{% include 'event/includes/presentation_recording_card.html' with form=form only %}
+{% include 'event/includes/presentation_additional_info_card.html' with form=form only %}
 <div id="detail-settings-toggle" class="mb-3" style="display: none;">
 <button type="button" class="btn btn-outline-secondary" onclick="toggleDetailSettings()" aria-expanded="false" aria-controls="detail-materials detail-article"><i class="bi bi-gear"></i> 詳細設定を表示</button>
 <small class="admin-muted">スライドやYouTube URLなど</small>
 </div>
 <section class="admin-card" id="detail-materials" data-detail-card>
 {% include 'ta_hub/admin/includes/section_heading.html' with title='資料' only %}
-{% if form.slide_file and not form.slide_file.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.slide_file %}{% endif %}
-{% if form.slide_url and not form.slide_url.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.slide_url %}{% endif %}
+{% include 'event/includes/slide_entry_fields.html' %}
 {% if form.thumbnail_image and not form.thumbnail_image.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.thumbnail_image %}{% endif %}
 {% if form.youtube_url and not form.youtube_url.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.youtube_url %}{% endif %}
 </section>
 <section class="admin-card" id="detail-article">
 {% include 'ta_hub/admin/includes/section_heading.html' with title='記事' only %}
-                            <div class="alert alert-info" role="note">
-                                <strong>記事生成の流れ:</strong>
-                                <ol class="mb-1 ps-3">
-                                    <li>最初にスライドPDFをアップロードします。</li>
-                                    <li>次に記事を生成します。</li>
-                                    <li>その後、公開用のスライドURLがある場合は貼り付けます。</li>
-                                </ol>
-                                スライドURLは任意です。URL入力のみでは記事は生成されません。
-                            </div>
-                            {# 記事化の同意は発表者が申請・編集画面で選ぶ。この画面では表示だけ #}
+<p id="article-auto-generation-note">{{ form.slide_article_note }}</p>
+                            {# 主催者の編集では記事化の同意は表示だけ。新規登録では撮影・記事化カードで選ぶ #}
                             {% if form.instance.pk and form.instance.detail_type == 'LT' %}
                                 <p class="mb-3" id="article-consent-status">
                                     発表の記事化（発表者が選択）: {{ form.instance.get_article_consent_display }}
-                                    {% if form.instance.is_article_ng %}
-                                        <span class="text-muted">（記事の生成と表示はしません）</span>
-                                    {% elif form.article_auto_generation %}
-                                        <span class="text-muted" id="article-auto-generation-note">（スライドPDFか動画を登録すると記事を自動で作ります）</span>
-                                    {% endif %}
                                 </p>
                             {% endif %}
 
@@ -139,7 +128,7 @@
         function toggleDetailSettings() {
             detailSettingsExpanded = !detailSettingsExpanded;
             const button = document.querySelector('#detail-settings-toggle button');
-            const optionalFields = ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'];
+            const optionalFields = ['slide_entry', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'];
             
             optionalFields.forEach(fieldName => {
                 const wrapper = document.querySelector(`.field-wrapper[data-field="${fieldName}"]`);
@@ -178,18 +167,18 @@
             // フィールドの表示設定
             const fieldVisibility = {
                 'LT': {
-                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article', 'recording_policy'],
+                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_entry', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article', 'recording_policy', 'x_account', 'article_consent', 'additional_info'],
                     hide: [],
-                    optional: ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
+                    optional: ['slide_entry', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
                 },
                 'SPECIAL': {
                     show: ['h1', 'thumbnail_image', 'contents', 'start_time'],
-                    hide: ['theme', 'speaker', 'duration', 'recording_policy', 'slide_url', 'slide_file', 'youtube_url'],
+                    hide: ['theme', 'speaker', 'duration', 'recording_policy', 'slide_entry', 'youtube_url', 'x_account', 'article_consent', 'additional_info'],
                     optional: []
                 },
                 'BLOG': {
                     show: ['h1', 'thumbnail_image', 'contents'],
-                    hide: ['theme', 'speaker', 'start_time', 'duration', 'recording_policy', 'slide_url', 'slide_file', 'youtube_url'],
+                    hide: ['theme', 'speaker', 'start_time', 'duration', 'recording_policy', 'slide_entry', 'youtube_url', 'x_account', 'article_consent', 'additional_info'],
                     optional: []
                 }
             };
@@ -209,6 +198,10 @@
                     if (input) input.required = detailType === 'LT';
                 });
                 
+                document.getElementsByName('article_consent').forEach(input => {
+                    input.required = detailType === 'LT';
+                });
+
                 // 詳細設定ボタンの表示/非表示
                 if (detailType === 'LT' && isBeforeEvent) {
                     detailSettingsToggle.style.display = 'block';

@@ -14,6 +14,7 @@ from event.models import EventDetail
 logger = logging.getLogger(__name__)
 
 UPDATED_MESSAGE = '発表申請情報を更新しました。'
+ARTICLE_AFTER_FETCH_MESSAGE = 'PDF を読み込んだら記事を作ります。'
 ARTICLE_QUEUED_MESSAGE = '発表申請情報を更新しました。記事は自動で作成し、できあがったらメールでお知らせします。'
 
 
@@ -72,6 +73,8 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
             # チェックボックスで明示的に頼まれた時は、記事化 OK に変えた送信でもここで作る
             # （手動の記事はキューが作らないため）。保存すると生成待ちの印は外れ、キューとは重ならない
             self._generate_now(instance)
+        elif instance.slide_generate_waiting:
+            messages.success(self.request, f'{UPDATED_MESSAGE}{ARTICLE_AFTER_FETCH_MESSAGE}')
         elif instance.can_auto_generate_article:
             # 記事化 OK の発表はキュー（Cloud Scheduler）が作る
             queued = instance.article_generation_requested_at is not None
@@ -88,7 +91,8 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         return bool(
             form.cleaned_data.get('generate_blog_article', False)
             and not instance.is_article_ng
-            and (instance.slide_file or instance.youtube_url)
+            and not instance.slide_generate_waiting
+            and (instance.article_pdf or instance.youtube_url)
         )
 
     def _generate_now(self, instance):

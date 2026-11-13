@@ -180,7 +180,7 @@
                                         <div class="dropdown">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ detail.theme }}のその他の操作">…</button>
                                             <ul class="dropdown-menu dropdown-menu-end">
-                                                {% if detail.slide_file or detail.youtube_url %}{% if detail.contents == '' %}
+                                                {% if detail.article_pdf or detail.youtube_url %}{% if detail.contents == '' %}
                                                 <li>
                                                     <form method="post" action="{% url 'event:generate_blog' detail.pk %}">
                                                         {% csrf_token %}
@@ -209,7 +209,7 @@
                                     {% if detail.source == 'discord_bot' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='Discord から自動で登録' only %}{% endif %}
                                     {% if detail.youtube_url %}{% include 'ta_hub/admin/includes/status_chip.html' with label='動画' icon='bi bi-play-btn' only %}{% endif %}
                                     {% if detail.slide_url %}{% include 'ta_hub/admin/includes/status_chip.html' with label='スライドURL' icon='bi bi-link-45deg' only %}{% endif %}
-                                    {% if detail.slide_file %}{% include 'ta_hub/admin/includes/status_chip.html' with label='スライド' icon='bi bi-file-text' only %}{% endif %}
+                                    {% if detail.article_pdf %}{% include 'ta_hub/admin/includes/status_chip.html' with label='スライド' icon='bi bi-file-text' only %}{% endif %}
                                     {% if detail.contents %}{% include 'ta_hub/admin/includes/status_chip.html' with label='記事あり' icon='bi bi-pencil-square' only %}{% endif %}
                                 </div>
                                 {% url 'event:detail_delete' detail.pk as delete_url %}

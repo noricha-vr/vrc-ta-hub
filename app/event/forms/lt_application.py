@@ -26,6 +26,8 @@ from .mixins import (
     article_consent_widget,
     recording_policy_widget,
     configure_article_generation_field,
+    configure_additional_info_field,
+    validate_additional_info,
 )
 
 
@@ -44,7 +46,7 @@ class LTApplicationEditForm(
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'recording_policy', 'article_consent', 'slide_file', 'slide_url',
+        fields = ['theme', 'speaker', 'recording_policy', 'article_consent', 'slide_file', 'slide_source_file', 'slide_url',
                   'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
@@ -71,8 +73,8 @@ class LTApplicationEditForm(
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
-            'slide_file': '※ 記事生成に使うPDFです。まずここにスライドPDFをアップロードしてください（最大30MB）。',
-            'slide_url': '※ 任意。記事生成後、公開用の外部スライドURLがある場合に貼り付けてください。URL入力のみでは記事は生成されません。',
+            'slide_file': '最大 30MB。',
+            'slide_url': 'Speaker Deck は PDF を読み込んで記事に使います（PDF は公開せず、1 枚目だけサムネイルにします）。SlideShare などは読み込めないので、記事に使う PDF をアップロードしてください。',
             'thumbnail_image': (
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
@@ -192,19 +194,7 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
                 'pk', flat=True
             ).first()
 
-            # テンプレートが設定されている場合は初期値として編集可能にする
-            if self.community.lt_application_template:
-                self.fields['additional_info'].initial = self.community.lt_application_template
-            additional_info_guidance = (
-                '開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄に'
-                'ご記入ください。主催者が承認時に調整します。'
-            )
-            if self.community.lt_application_template:
-                self.fields['additional_info'].help_text = additional_info_guidance
-            else:
-                self.fields['additional_info'].help_text = (
-                    f'追加で伝えたい情報があれば入力してください。{additional_info_guidance}'
-                )
+            configure_additional_info_field(self.fields['additional_info'], self.community)
 
             if not self.remove_recording_policy_unless_allowed(self.community):
                 self.fields['recording_policy'].initial = self.community.default_recording_policy
@@ -232,19 +222,7 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
         return normalize_x_account(self.cleaned_data.get('x_account', ''))
 
     def clean_additional_info(self):
-        """追加情報のバリデーション"""
-        additional_info = self.cleaned_data.get('additional_info', '')
-
-        if not self.community or not self.community.lt_application_template:
-            return additional_info
-
-        template = self.community.lt_application_template
-
-        # テンプレートと同一内容のチェック
-        if additional_info.strip() == template.strip():
-            raise ValidationError('テンプレートの各項目を入力してください')
-
-        return additional_info
+        return validate_additional_info(self.cleaned_data.get('additional_info', ''), self.community)
 
 
 class EventScheduleChoiceField(forms.ModelChoiceField):

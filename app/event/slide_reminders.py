@@ -49,7 +49,7 @@ class SlideReminderResult:
 
 def has_published_material(event_detail: EventDetail) -> bool:
     """発表資料または動画が公開済みかを返す。"""
-    return bool(event_detail.slide_url or event_detail.slide_file or event_detail.youtube_url)
+    return bool(event_detail.slide_url or event_detail.article_pdf or event_detail.youtube_url)
 
 
 def get_slide_reminder_queryset(now=None) -> QuerySet[EventDetail]:
@@ -66,6 +66,7 @@ def get_slide_reminder_queryset(now=None) -> QuerySet[EventDetail]:
         )
         .filter(Q(slide_url='') | Q(slide_url__isnull=True))
         .filter(Q(slide_file='') | Q(slide_file__isnull=True))
+        .filter(Q(slide_source_file='') | Q(slide_source_file__isnull=True))
         .filter(Q(youtube_url='') | Q(youtube_url__isnull=True))
         .select_related('applicant', 'event', 'event__community', 'material_upload_reminder_log')
         .order_by('event__date', 'pk')

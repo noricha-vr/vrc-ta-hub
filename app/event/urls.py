@@ -27,6 +27,7 @@ from .views import (
     SpeakerLinkUnlinkView,
     sync_calendar_events,
 )
+from .views.slide_source import slide_fetch_retry
 from .views.article_generation import run_article_generation
 from .views.material_upload_reminder import send_material_upload_reminders_view
 from .views.slide_reminder import send_slide_reminders
@@ -54,6 +55,7 @@ urlpatterns = [
     path('speaker-link/token/', SpeakerInviteTokenExchangeView.as_view(), name='speaker_invite_token_exchange'),
     path('event_log/', EventLogRedirectView.as_view(), name='event_log_list'),
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
+    path('detail/<int:pk>/slide-fetch/retry/', slide_fetch_retry, name='slide_fetch_retry'),
     path('article-generation/run/', run_article_generation, name='run_article_generation'),
     path('send-material-upload-reminders/', send_material_upload_reminders_view, name='send_material_upload_reminders'),
     path('send-slide-reminders/', send_slide_reminders, name='send_slide_reminders'),

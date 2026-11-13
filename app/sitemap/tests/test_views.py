@@ -70,6 +70,16 @@ class SitemapViewTestCase(TestCase):
         community_names = [c.name for c in communities]
         self.assertNotIn("未承認集会", community_names)
 
+    def test_sitemap_excludes_unlisted_community_but_keeps_its_presentation(self):
+        self.community.is_listed = False
+        self.community.save(update_fields=['is_listed'])
+
+        response = self.client.get(reverse('sitemap:sitemap'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.community, response.context['communities'])
+        self.assertIn(self.event_detail, response.context['event_details'])
+
     def test_sitemap_contains_approved_event_details(self):
         """承認済みイベント詳細がサイトマップに含まれる"""
         response = self.client.get(reverse("sitemap:sitemap"))
@@ -225,8 +235,65 @@ class SitemapGuideTests(TestCase):
         paths = [urlparse(loc.text).path for loc in root.findall('sm:url/sm:loc', SITEMAP_NS)]
         guide_paths = [path for path in paths if path.startswith('/guide/')]
         expected = ['/guide/'] + [
-            f'/guide/{item.path}/' for item in get_flat_nav_items(load_navigation()) if item.path != 'index'
+            f'/guide/{item.path}/' for item in get_flat_nav_items(load_navigation())
         ]
         self.assertGreater(len(expected), 40)
         self.assertEqual(guide_paths, expected)
-        self.assertNotIn('/guide/index/', paths)
+        # 「はじめに」は /guide/ とは別内容のページ。sitemap に載り、lastmod が付く
+        self.assertEqual(paths.count('/guide/index/'), 1)
+        for url in root.findall('sm:url', SITEMAP_NS):
+            if urlparse(url.find('sm:loc', SITEMAP_NS).text).path == '/guide/index/':
+                self.assertIsNotNone(url.find('sm:lastmod', SITEMAP_NS))
+
+
+class SitemapNewsAndStaticPagesTests(TestCase):
+    """お知らせ・規約などの公開ページが載り、未公開記事は載らないこと(#910)"""
+
+    @classmethod
+    def setUpTestData(cls):
+        from news.models import Category, Post
+
+        category, _ = Category.objects.get_or_create(slug="update", defaults={"name": "更新", "order": 1})
+        cls.published = Post.objects.create(
+            title="公開記事", slug="published-post", category=category,
+            body_markdown="本文", is_published=True,
+        )
+        cls.draft = Post.objects.create(
+            title="下書き", slug="draft-post", category=category,
+            body_markdown="本文", is_published=False,
+        )
+
+    def _paths(self):
+        response = self.client.get(reverse("sitemap:sitemap"))
+        root = ET.fromstring(response.content)
+        return [urlparse(loc.text).path for loc in root.findall("sm:url/sm:loc", SITEMAP_NS)]
+
+    def test_static_public_pages_are_listed(self):
+        paths = self._paths()
+        for expected in ("/news/", "/privacy/", "/terms/", "/community/archive/", "/community/criteria/"):
+            with self.subTest(path=expected):
+                self.assertIn(expected, paths)
+
+    def test_only_published_news_posts_are_listed(self):
+        paths = self._paths()
+        self.assertIn("/news/published-post/", paths)
+        self.assertNotIn("/news/draft-post/", paths)
+
+    def test_news_category_and_paging_urls_are_not_listed(self):
+        for path in self._paths():
+            self.assertFalse(path.startswith("/news/category/"), path)
+
+
+class SitemapGuideLastmodTests(TestCase):
+    def test_guide_urls_have_lastmod_and_dates_differ(self):
+        response = self.client.get(reverse("sitemap:sitemap"))
+        root = ET.fromstring(response.content)
+        lastmods = {}
+        for url in root.findall("sm:url", SITEMAP_NS):
+            path = urlparse(url.find("sm:loc", SITEMAP_NS).text).path
+            if path.startswith("/guide/"):
+                node = url.find("sm:lastmod", SITEMAP_NS)
+                self.assertIsNotNone(node, path)
+                lastmods[path] = node.text
+        self.assertGreater(len(lastmods), 40)
+        self.assertGreater(len(set(lastmods.values())), 1)

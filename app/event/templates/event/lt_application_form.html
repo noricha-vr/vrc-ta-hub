@@ -57,37 +57,8 @@
 
 <section class="admin-card">
 {% include 'ta_hub/admin/includes/section_heading.html' with title='発表内容' only %}
-                            <div class="mb-4">
-                                <label for="id_theme" class="form-label fw-bold">
-                                    <i class="bi bi-chat-left-text me-1"></i>{{ form.theme.label }}
-                                    <span class="text-danger">*</span>
-                                </label>
-                                {{ form.theme }}
-                                {% if form.theme.help_text %}
-                                    <small class="form-text text-muted">{{ form.theme.help_text }}</small>
-                                {% endif %}
-                                {% if form.theme.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.theme.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-                            <div class="mb-4">
-                                <label for="id_speaker" class="form-label fw-bold">
-                                    <i class="bi bi-person me-1"></i>{{ form.speaker.label }}
-                                    <span class="text-danger">*</span>
-                                </label>
-                                {{ form.speaker }}
-                                {% if form.speaker.help_text %}
-                                    <small class="form-text text-muted">{{ form.speaker.help_text }}</small>
-                                {% endif %}
-                                {% if form.speaker.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.speaker.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
+{% include 'event/includes/presentation_field.html' with field=form.theme icon='bi-chat-left-text' only %}
+{% include 'event/includes/presentation_field.html' with field=form.speaker icon='bi-person' only %}
 
                             <div class="mb-4">
                                 <p class="form-label fw-bold mb-1">
@@ -96,81 +67,10 @@
                                 <small class="form-text text-muted">変更したい時は備考欄へ。主催者が調整します。</small>
                             </div>
 
-                            <div class="mb-4">
-                                <label for="id_x_account" class="form-label fw-bold">
-                                    <i class="bi bi-twitter-x me-1"></i>{{ form.x_account.label }}
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text">@</span>
-                                    {{ form.x_account }}
-                                </div>
-                                {% if form.x_account.help_text %}
-                                    <small class="form-text text-muted">{{ form.x_account.help_text }}</small>
-                                {% endif %}
-                                {% if form.x_account.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.x_account.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-
+{% include 'event/includes/presentation_field.html' with field=form.x_account icon='bi-twitter-x' only %}
 </section>
-<section class="admin-card">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='撮影・記事化' only %}
-                            {% if form.recording_policy %}
-                            <div class="mb-4">
-                                <p class="form-label fw-bold mb-1">
-                                    <i class="bi bi-camera-video me-1"></i>{{ form.recording_policy.label }}
-                                </p>
-                                {% include "event/includes/recording_policy_radios.html" with field=form.recording_policy %}
-                                {% if form.recording_policy.help_text %}
-                                    <small class="form-text text-muted">{{ form.recording_policy.help_text }}</small>
-                                {% endif %}
-                                {% if form.recording_policy.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.recording_policy.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-
-                            <div class="mb-4">
-                                <p class="form-label fw-bold mb-1">
-                                    <i class="bi bi-journal-text me-1"></i>{{ form.article_consent.label }}
-                                    <span class="text-danger">*</span>
-                                </p>
-                                {% include "event/includes/recording_policy_radios.html" with field=form.article_consent %}
-                                {% if form.article_consent.help_text %}
-                                    <small class="form-text text-muted">{{ form.article_consent.help_text }}</small>
-                                {% endif %}
-                                {% if form.article_consent.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.article_consent.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-
-</section>
-{% if form.additional_info %}<section class="admin-card">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='追加情報' only %}
-                            {% if form.additional_info %}
-                            <div class="mb-4">
-                                <label for="id_additional_info" class="form-label fw-bold">
-                                    <i class="bi bi-card-text me-1"></i>{{ form.additional_info.label }}
-                                </label>
-                                {{ form.additional_info }}
-                                {% if form.additional_info.help_text %}
-                                    <small id="id_additional_info_help" class="form-text text-muted">{{ form.additional_info.help_text }}</small>
-                                {% endif %}
-                                {% if form.additional_info.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.additional_info.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            {% endif %}
-
-</section>{% endif %}
+{% include 'event/includes/presentation_recording_card.html' with form=form only %}
+{% include 'event/includes/presentation_additional_info_card.html' with form=form only %}
 </form>
 {% endif %}
 {% endblock %}

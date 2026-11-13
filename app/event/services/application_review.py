@@ -9,7 +9,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from event.models import EventDetail
-from event.services.lt_schedule import _calc_next_lt_start_time
+from event.services.lt_schedule import next_lt_start_time
 from vket.application_link import application_warnings, link_approved_application, lock_application_event
 
 logger = logging.getLogger(__name__)
@@ -92,15 +92,7 @@ def _apply_schedule_changes(event_detail, event, start_time, duration) -> list[d
         raise PermissionDenied('他の集会のイベントには変更できません。')
 
     if start_time is None:
-        start_time = _calc_next_lt_start_time(
-            event.start_time,
-            EventDetail.objects.filter(
-                event=event,
-                detail_type='LT',
-                status__in=['pending', 'approved'],
-            ).exclude(pk=event_detail.pk).values_list('start_time', 'duration'),
-            event.community.lt_start_offset_minutes or 0,
-        )
+        start_time = next_lt_start_time(event, exclude_detail_pk=event_detail.pk)
 
     changes = []
     if event.pk != event_detail.event_id:
