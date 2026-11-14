@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-14
+
+### Added
+
+- トップページの Vket コラボ告知に使う、Vket 2026 Winter 技術学術WEEK の告知画像（Vket 公式の告知ポストの画像）を追加しました。表示する期間とリンク先はコラボの `settings_json.top_banner` で指定します。
+
 ## 2026-11-13
 
 ### Security
