@@ -519,6 +519,22 @@ class AnyEntryLinkTests(VketApplyFlowBase):
         self.assertEqual(self.collaboration.settings_json, before)
         self.assertEqual(self.event.duration, 60)
 
+    def test_sync_does_not_adopt_existing_detail_when_event_matches_multiple_collaborations(self):
+        other = VketCollaboration.objects.create(
+            slug='synthetic-other-sync', name='合成コラボ', period_start=self.event.date,
+            period_end=self.event.date, registration_deadline=self.event.date, lt_deadline=self.event.date,
+        )
+        VketParticipation.objects.create(collaboration=other, community=self.community,
+                                         published_event=self.event, progress='applied')
+        with self.assertLogs('vket.application_link', level='WARNING'), self.captureOnCommitCallbacks(execute=True):
+            existing = self.detail()
+        presentation = self.presentation()
+        sync_participation_publication(self.participation)
+        presentation.refresh_from_db()
+        self.assertIsNotNone(presentation.published_event_detail_id)
+        self.assertNotEqual(presentation.published_event_detail_id, existing.pk)
+        self.assertFalse(is_normal_presentation(presentation))
+
 
 class NonVketEventSaveTests(VketApplyFlowBase):
     def test_direct_add_on_unrelated_event_neither_locks_nor_extends(self):

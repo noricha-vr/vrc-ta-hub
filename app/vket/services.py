@@ -12,8 +12,8 @@ from event.models import Event, EventDetail
 from ta_hub.index_cache import clear_index_view_cache
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
 from vket.application_link import (
-    _normalized, application_links, application_event_ids, extend_event, inactive_detail,
-    is_normal_presentation, register_normal_link,
+    _normalized, application_links, application_event_ids, application_participations, extend_event,
+    inactive_detail, is_normal_presentation, register_normal_link,
 )
 
 logger = logging.getLogger(__name__)
@@ -387,7 +387,10 @@ def sync_participation_publication(
             "deleted_at": None,
         }
 
-        if not presentation.published_event_detail_id:
+        # 同じ回が複数コラボに一致する時は、取り込みと同じく既存の詳細を自動で採用しない。
+        if not presentation.published_event_detail_id and list(
+            application_participations(event).values_list('pk', flat=True)
+        ) == [participation.pk]:
             detail = matching_publication_detail(event, presentation)
             if detail is not None:
                 presentation.published_event_detail = detail
