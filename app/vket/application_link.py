@@ -123,13 +123,12 @@ def is_pending_deletion(participation, detail_id):
     return detail_id in pending_presentation_deletions(participation.collaboration, participation.pk)
 
 
-def import_approved_detail(detail_id):
+def import_approved_detail(detail_id, event_id):
     """保存シグナルのコミット後から呼ぶ。失敗は記録だけして保存元へ伝えない。"""
     try:
         link_approved_application(detail_id)
     except Exception:
-        # 保存は確定済み。取り込みは link_unlinked_vket_details でやり直せる。
-        event_id = EventDetail.all_objects.filter(pk=detail_id).values_list('event_id', flat=True).first()
+        # 保存は確定済み。DB 障害でも記録できるよう、ここでは DB を引かない。
         logger.exception('event_detail_vket_import_failed', extra={
             'event_detail_id': detail_id, 'event_id': event_id,
         })
@@ -151,6 +150,10 @@ def link_approved_application(detail, *, notify=True, collaboration_id=None):
             or locked.status != 'approved' or locked.detail_type != 'LT'):
         return
     detail = locked
+    if collaboration_id is not None and (
+            len(participations) != 1 or participations[0].collaboration_id != collaboration_id):
+        # 指定コラボの単独候補でなければ、設定も開催時間も変えない。
+        return
     if len(participations) > 1:
         # 既存の曖昧な回は採用せず、再同期でも公開枠の延長だけを維持する。
         for participation in participations:
@@ -166,8 +169,6 @@ def link_approved_application(detail, *, notify=True, collaboration_id=None):
     if VketPresentation.objects.filter(published_event_detail=detail).exists():
         return
     participation = participations[0] if participations else None
-    if participation and collaboration_id is not None and participation.collaboration_id != collaboration_id:
-        return
     if participation and is_pending_deletion(participation, detail.pk):
         # 取り下げ済みを作り直すと、次の同期が削除を見送ってしまう。
         return

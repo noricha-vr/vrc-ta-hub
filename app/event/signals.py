@@ -219,4 +219,4 @@ def import_approved_detail_to_vket(sender, instance, raw=False, **kwargs):
             or instance.detail_type != 'LT' or instance.status != 'approved' or instance.deleted_at):
         return
     from vket.application_link import import_approved_detail
-    transaction.on_commit(partial(import_approved_detail, instance.pk))
+    transaction.on_commit(partial(import_approved_detail, instance.pk, instance.event_id))

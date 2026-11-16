@@ -68,8 +68,23 @@ class VketApplyFlowBase(TestCase):
         session.save()
 
 
+    def _shown_presentation_ids(self):
+        from vket.application_link import active_presentations
+        participation = VketParticipation.objects.filter(
+            collaboration=self.collaboration, community=self.community,
+        ).first()
+        if participation is None:
+            return []
+        return list(active_presentations(participation.presentations.all())
+                    .order_by('order', 'id').values_list('pk', flat=True))
+
     def _make_formset_data(self, lt_rows, initial_forms=0):
-        """formset用のPOSTデータを辞書で返すヘルパー"""
+        """formset用のPOSTデータを辞書で返すヘルパー
+
+        画面と同じく、今表示される発表の ID を上から順に行へ持たせる。
+        行に presentation_id を書いた時はそれを使う（None で新規の行）。
+        """
+        shown_ids = self._shown_presentation_ids()
         data = {
             'lt-TOTAL_FORMS': str(len(lt_rows)),
             'lt-INITIAL_FORMS': str(initial_forms),
@@ -80,6 +95,8 @@ class VketApplyFlowBase(TestCase):
             data[f'lt-{i}-speaker'] = row.get('speaker', '')
             data[f'lt-{i}-theme'] = row.get('theme', '')
             data[f'lt-{i}-lt_start_time'] = row.get('lt_start_time', '')
+            data[f'lt-{i}-presentation_id'] = row.get(
+                'presentation_id', shown_ids[i] if i < len(shown_ids) else '') or ''
             if row.get('DELETE'):
                 data[f'lt-{i}-DELETE'] = 'on'
         return data

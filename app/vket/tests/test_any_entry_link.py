@@ -279,8 +279,9 @@ class AnyEntryLinkTests(VketApplyFlowBase):
         formset = view._build_formset(collaboration=self.collaboration, participation=self.participation,
             permissions=VketApplyPermissions(can_edit_schedule=True, can_edit_lt=True), user=self.owner)
         self.assertEqual(formset.initial[0]['theme'], visible.theme)
-        view._save_presentations(self.participation, [{'speaker': '合成発表者', 'theme': '更新した合成演題',
-                                                      'lt_start_time': time(22, 30)}])
+        self.assertEqual(formset.initial[0]['presentation_id'], visible.pk)
+        view._save_presentations(self.participation, [{'presentation_id': visible.pk, 'speaker': '合成発表者',
+                                                      'theme': '更新した合成演題', 'lt_start_time': time(22, 30)}])
         visible.refresh_from_db()
         self.assertEqual(visible.theme, '更新した合成演題')
         self.assertEqual(VketPresentation.objects.get(published_event_detail=deleted).theme, deleted.theme)
@@ -460,6 +461,63 @@ class AnyEntryLinkTests(VketApplyFlowBase):
         self.assertIn('theme=合成\\x1b[31m赤\\x07\\u202e演題', text)
         self.assertNotIn('\x1b', text)
         self.assertNotIn('‮', text)
+    def apply_post(self, rows):
+        data = {'requested_date': self.event.date.isoformat(), 'requested_start_time': '22:00',
+                'requested_duration': '60', 'lt_slot_minutes': '30', 'organizer_note': ''}
+        data.update(self._make_formset_data(rows, initial_forms=len(rows)))
+        return self.client.post(reverse('vket:apply', args=[self.collaboration.pk]), data, follow=True)
+
+    def test_apply_stale_delete_row_does_not_delete_other_presentation(self):
+        first = self.detail(theme='合成演題A')
+        a = self.presentation(theme=first.theme, published_event_detail=first, order=0)
+        b = self.presentation(theme='合成演題B', order=1)
+        first.delete()  # 別の画面で A の公開詳細が消えた後、古いフォームで A を消す
+        with self.assertLogs('vket.views.apply', level='WARNING') as logs:
+            response = self.apply_post([
+                {'presentation_id': a.pk, 'speaker': a.speaker, 'theme': a.theme, 'DELETE': True},
+                {'presentation_id': b.pk, 'speaker': b.speaker, 'theme': b.theme},
+            ])
+        self.assertIn('vket_apply_stale_presentation_row', logs.output[0])
+        self.assertTrue(VketPresentation.objects.filter(pk=b.pk).exists())
+        self.assertTrue(VketPresentation.objects.filter(pk=a.pk).exists())
+        self.assertContains(response, '別の画面で変更された発表があります')
+
+    def test_apply_ignores_presentation_id_of_other_participation(self):
+        other = make_community(name='合成の別集会2', owner=self.other_user, status='approved')
+        other_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=other, progress='applied')
+        target = VketPresentation.objects.create(participation=other_participation, speaker='他', theme='他の演題')
+        self.apply_post([{'presentation_id': target.pk, 'speaker': '改ざん', 'theme': '改ざん', 'DELETE': True}])
+        target.refresh_from_db()
+        self.assertEqual(target.theme, '他の演題')
+        self.apply_post([{'presentation_id': target.pk, 'speaker': '改ざん', 'theme': '改ざん'}])
+        target.refresh_from_db()
+        self.assertEqual(target.theme, '他の演題')
+
+    def test_signal_failure_log_does_not_query_db(self):
+        from vket.application_link import import_approved_detail
+        from django.db.utils import OperationalError
+        # DB 障害中でも、失敗の記録が新たな例外を出さない。
+        with patch('vket.application_link.link_approved_application', side_effect=OperationalError('合成障害')), \
+                patch('django.db.backends.utils.CursorWrapper.execute', side_effect=OperationalError('合成障害')), \
+                self.assertLogs('vket.application_link', level='ERROR') as logs:
+            import_approved_detail(10, 20)
+        self.assertEqual((logs.records[0].event_detail_id, logs.records[0].event_id), (10, 20))
+
+    def test_collaboration_id_mismatch_on_ambiguous_changes_nothing(self):
+        other = VketCollaboration.objects.create(
+            slug='synthetic-ambiguous-2', name='合成コラボ', period_start=self.event.date,
+            period_end=self.event.date, registration_deadline=self.event.date, lt_deadline=self.event.date,
+        )
+        VketParticipation.objects.create(collaboration=other, community=self.community,
+                                         published_event=self.event, progress='applied')
+        detail = self.detail(start_time=time(23, 30))
+        before = self.collaboration.settings_json
+        self.assertIsNone(link_approved_application(detail.pk, collaboration_id=self.collaboration.pk))
+        self.collaboration.refresh_from_db()
+        self.event.refresh_from_db()
+        self.assertEqual(self.collaboration.settings_json, before)
+        self.assertEqual(self.event.duration, 60)
 
 
 class NonVketEventSaveTests(VketApplyFlowBase):
