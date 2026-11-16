@@ -117,8 +117,26 @@ def register_normal_link(participation, presentation, detail):
     collaboration.save(update_fields=['settings_json', 'updated_at'])
 
 
+def is_pending_deletion(participation, detail_id):
+    """Vket 側で取り下げ、次の同期で消す予定の詳細か。"""
+    from vket.services import pending_presentation_deletions
+    return detail_id in pending_presentation_deletions(participation.collaboration, participation.pk)
+
+
+def import_approved_detail(detail_id):
+    """保存シグナルのコミット後から呼ぶ。失敗は記録だけして保存元へ伝えない。"""
+    try:
+        link_approved_application(detail_id)
+    except Exception:
+        # 保存は確定済み。取り込みは link_unlinked_vket_details でやり直せる。
+        event_id = EventDetail.all_objects.filter(pk=detail_id).values_list('event_id', flat=True).first()
+        logger.exception('event_detail_vket_import_failed', extra={
+            'event_detail_id': detail_id, 'event_id': event_id,
+        })
+
+
 @transaction.atomic
-def link_approved_application(detail, *, notify=True):
+def link_approved_application(detail, *, notify=True, collaboration_id=None):
     """入口を問わず承認済みの詳細を取り込む。保存のコミット後に呼ぶ。"""
     detail_id = detail.pk if isinstance(detail, EventDetail) else detail
     detail = EventDetail.objects.select_related('event').filter(pk=detail_id).first()
@@ -148,6 +166,11 @@ def link_approved_application(detail, *, notify=True):
     if VketPresentation.objects.filter(published_event_detail=detail).exists():
         return
     participation = participations[0] if participations else None
+    if participation and collaboration_id is not None and participation.collaboration_id != collaboration_id:
+        return
+    if participation and is_pending_deletion(participation, detail.pk):
+        # 取り下げ済みを作り直すと、次の同期が削除を見送ってしまう。
+        return
     if participation:
         from vket.activity import activity_snapshot, notify_activity
         before = activity_snapshot(participation) if notify else None

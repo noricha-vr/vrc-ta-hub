@@ -1,8 +1,12 @@
 """既存の未連携発表を確認し、明示指定時だけ Vket へ取り込む。"""
+import unicodedata
+
 from django.core.management.base import BaseCommand
 
 from event.models import EventDetail
-from vket.application_link import application_participations, link_approved_application, matching_presentation
+from vket.application_link import (
+    application_participations, is_pending_deletion, link_approved_application, matching_presentation,
+)
 
 
 class Command(BaseCommand):
@@ -24,17 +28,30 @@ class Command(BaseCommand):
                 p.collaboration_id == options['collaboration'] for p in participations
             )):
                 continue
+            if any(is_pending_deletion(p, detail.pk) for p in participations):
+                # 取り下げ待ちは次の同期で消えるので候補にしない。
+                continue
             candidates += 1
             matched = matching_presentation(participations[0], detail) if len(participations) == 1 else None
             state = 'ambiguous' if len(participations) > 1 else detail.status
             ambiguous += len(participations) > 1
-            theme = ' '.join(detail.theme.split())[:30]
+            theme = _escape_controls(' '.join(detail.theme.split())[:30])
             self.stdout.write(
                 f'community={event.community_id} event={event.pk} detail={detail.pk} '
                 f'status={state} start={detail.start_time:%H:%M} theme={theme} '
                 f'presentation={matched.pk if matched else "-"}'
             )
             if options['apply'] and len(participations) == 1:
-                linked += link_approved_application(detail.pk, notify=False) is not None
+                linked += link_approved_application(
+                    detail.pk, notify=False, collaboration_id=options['collaboration'],
+                ) is not None
         mode = 'apply' if options['apply'] else 'dry-run'
         self.stdout.write(f'{mode}: candidates={candidates} linked={linked} ambiguous={ambiguous}')
+
+
+def _escape_controls(text):
+    """端末を操作する制御文字（Cc / Cf）を見える表記にする。"""
+    return ''.join(
+        char.encode('unicode_escape').decode('ascii') if unicodedata.category(char) in ('Cc', 'Cf') else char
+        for char in text
+    )

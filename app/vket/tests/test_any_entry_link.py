@@ -10,7 +10,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from event.models import EventDetail
-from tests.factories import make_event, make_event_detail
+from tests.factories import make_community, make_event, make_event_detail
 from user_account.models import APIKey
 from vket.application_link import link_approved_application, is_normal_presentation
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
@@ -388,6 +388,78 @@ class AnyEntryLinkTests(VketApplyFlowBase):
         self.collaboration.refresh_from_db()
         self.assertNotIn('pending_presentation_deletions', self.collaboration.settings_json)
         self.assertIsNotNone(EventDetail.all_objects.get(pk=old.pk).deleted_at)
+
+    def withdrawn_detail(self):
+        detail = self.detail()
+        VketPresentation.objects.all().delete()
+        removed = self.presentation(published_event_detail=detail)
+        delete_requested_presentation(removed)
+        return detail
+
+    def test_pending_deletion_is_not_reimported_on_save(self):
+        detail = self.withdrawn_detail()
+        with self.captureOnCommitCallbacks(execute=True):
+            detail.save()
+        self.assertFalse(VketPresentation.objects.exists())
+        sync_participation_publication(self.participation)
+        self.assertIsNotNone(EventDetail.all_objects.get(pk=detail.pk).deleted_at)
+
+    def test_backfill_skips_pending_deletion(self):
+        detail = self.withdrawn_detail()
+        out = StringIO()
+        call_command('link_unlinked_vket_details', apply=True, stdout=out)
+        self.assertFalse(VketPresentation.objects.exists())
+        self.assertNotIn(f'detail={detail.pk}', out.getvalue())
+
+    def test_signal_import_failure_is_logged_not_raised(self):
+        with patch('vket.application_link.link_approved_application', side_effect=RuntimeError('合成失敗')):
+            with self.assertLogs('vket.application_link', level='ERROR') as logs:
+                with self.captureOnCommitCallbacks(execute=True):
+                    detail = self.detail()
+        self.assertIn('event_detail_vket_import_failed', logs.output[0])
+        self.assertEqual(logs.records[0].event_detail_id, detail.pk)
+        self.assertEqual(logs.records[0].event_id, self.event.pk)
+        self.assertTrue(EventDetail.objects.filter(pk=detail.pk).exists())
+
+    def test_delete_skips_detail_moved_to_other_community(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            detail = self.detail()
+        presentation = self.assert_linked(detail)
+        other = make_community(name='合成の別集会', owner=self.other_user, status='approved')
+        moved_to = make_event(other, event_date=self.event.date, start_time=time(22), duration=60)
+        EventDetail.objects.filter(pk=detail.pk).update(event=moved_to)
+        with self.assertLogs('vket.services', level='WARNING') as logs:
+            response = self.client.post(
+                reverse('vket:presentation_delete', args=[self.collaboration.pk, presentation.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('vket_linked_detail_delete_skipped', logs.output[0])
+        self.assertIsNone(EventDetail.objects.get(pk=detail.pk).deleted_at)
+        self.assertFalse(VketPresentation.objects.exists())
+
+    def test_delete_skips_detail_moved_to_other_event_of_same_community(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            detail = self.detail()
+        presentation = self.assert_linked(detail)
+        moved_to = make_event(self.community, event_date=self.collaboration.period_end + timedelta(days=30),
+                              start_time=time(22), duration=60)
+        EventDetail.objects.filter(pk=detail.pk).update(event=moved_to)
+        delete_requested_presentation(VketPresentation.objects.get(pk=presentation.pk))
+        self.assertIsNone(EventDetail.objects.get(pk=detail.pk).deleted_at)
+
+    def test_link_respects_collaboration_id(self):
+        detail = self.detail()
+        self.assertIsNone(link_approved_application(detail.pk, collaboration_id=self.collaboration.pk + 100))
+        self.assertFalse(VketPresentation.objects.exists())
+        self.assertIsNotNone(link_approved_application(detail.pk, collaboration_id=self.collaboration.pk))
+
+    def test_backfill_escapes_control_characters(self):
+        self.detail(theme='合成\x1b[31m赤\x07‮演題')
+        out = StringIO()
+        call_command('link_unlinked_vket_details', stdout=out)
+        text = out.getvalue()
+        self.assertIn('theme=合成\\x1b[31m赤\\x07\\u202e演題', text)
+        self.assertNotIn('\x1b', text)
+        self.assertNotIn('‮', text)
 
 
 class NonVketEventSaveTests(VketApplyFlowBase):

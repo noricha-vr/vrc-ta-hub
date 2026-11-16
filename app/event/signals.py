@@ -218,5 +218,5 @@ def import_approved_detail_to_vket(sender, instance, raw=False, **kwargs):
     if (raw or getattr(instance, '_vket_publication_sync', False)
             or instance.detail_type != 'LT' or instance.status != 'approved' or instance.deleted_at):
         return
-    from vket.application_link import link_approved_application
-    transaction.on_commit(partial(link_approved_application, instance.pk))
+    from vket.application_link import import_approved_detail
+    transaction.on_commit(partial(import_approved_detail, instance.pk))

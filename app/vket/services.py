@@ -57,13 +57,30 @@ def delete_linked_publication(presentation):
     if detail is None:
         return
     Event.objects.select_for_update().get(pk=detail.event_id)
-    detail = EventDetail.all_objects.select_for_update().get(pk=detail.pk)
+    detail = EventDetail.all_objects.select_for_update().select_related('event').get(pk=detail.pk)
+    if not _detail_belongs_to(participation, detail):
+        # 別集会・別の回へ移った詳細は、元の参加の画面から消させない。
+        logger.warning('vket_linked_detail_delete_skipped', extra={
+            'collaboration_id': participation.collaboration_id, 'participation_id': participation.pk,
+            'presentation_id': presentation.pk, 'event_detail_id': detail.pk, 'event_id': detail.event_id,
+        })
+        return
     if detail.deleted_at is None:
         detail.delete()
         logger.info('vket_linked_detail_deleted', extra={
             'collaboration_id': participation.collaboration_id, 'participation_id': participation.pk,
             'presentation_id': presentation.pk, 'event_detail_id': detail.pk, 'event_id': detail.event_id,
         })
+
+
+def _detail_belongs_to(participation, detail):
+    """詳細の回がこの参加の集会かつこの参加の回か。"""
+    from vket.application_link import application_participations
+    if detail.event.community_id != participation.community_id:
+        return False
+    if detail.event_id == participation.published_event_id:
+        return True
+    return application_participations(detail.event).filter(pk=participation.pk).exists()
 
 
 def matching_publication_detail(event, presentation):
