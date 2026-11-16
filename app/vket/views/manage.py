@@ -16,6 +16,7 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 
 from community.models import Community
+from vket.application_link import active_presentations, is_normal_presentation
 from event.models import Event
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
@@ -55,9 +56,9 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
 
-        presentations_qs = VketPresentation.objects.select_related(
+        presentations_qs = active_presentations(VketPresentation.objects.select_related(
             'published_event_detail'
-        )
+        ))
 
         participations = (
             VketParticipation.objects.filter(collaboration=collaboration)
@@ -89,7 +90,10 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
         )
 
         for participation in participations:
+            participation.collaboration = collaboration
             participation.all_presentations = list(participation.presentations.all())
+            for presentation in participation.all_presentations:
+                presentation.linked_to_public_page = is_normal_presentation(presentation)
 
         registered_community_ids = set(p.community_id for p in participations)
         today = timezone.localdate()

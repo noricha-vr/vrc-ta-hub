@@ -1,5 +1,6 @@
 """Vketコラボに関するビジネスロジック"""
 
+import logging
 from dataclasses import dataclass
 
 from django.db import transaction
@@ -10,7 +11,12 @@ from community.constants import weekday_code
 from event.models import Event, EventDetail
 from ta_hub.index_cache import clear_index_view_cache
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
-from vket.application_link import application_links, application_event_ids, extend_event, inactive_detail, is_normal_presentation
+from vket.application_link import (
+    _normalized, application_links, application_event_ids, application_participations, extend_event,
+    inactive_detail, is_normal_presentation, register_normal_link,
+)
+
+logger = logging.getLogger(__name__)
 
 PENDING_DELETIONS_KEY = 'pending_presentation_deletions'
 
@@ -24,11 +30,13 @@ def pending_presentation_deletions(collaboration, participation_id) -> list[int]
 
 @transaction.atomic
 def delete_requested_presentation(presentation: VketPresentation) -> None:
-    """希望から発表を消し、公開済みの詳細は次の同期まで保持する。"""
+    """連携済みは公開詳細も消し、Vket 単独登録の公開取り下げは次の同期へ回す。"""
     participation = presentation.participation
     collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
     participation.collaboration = collaboration
-    if presentation.published_event_detail_id and not is_normal_presentation(presentation):
+    if presentation.published_event_detail_id and is_normal_presentation(presentation):
+        delete_linked_publication(presentation)
+    elif presentation.published_event_detail_id:
         settings = collaboration.settings_json if isinstance(collaboration.settings_json, dict) else {}
         pending = settings.get(PENDING_DELETIONS_KEY, {})
         pending = dict(pending) if isinstance(pending, dict) else {}
@@ -37,6 +45,51 @@ def delete_requested_presentation(presentation: VketPresentation) -> None:
         collaboration.settings_json = {**settings, PENDING_DELETIONS_KEY: pending}
         collaboration.save(update_fields=['settings_json', 'updated_at'])
     presentation.delete()
+
+
+@transaction.atomic
+def delete_linked_publication(presentation):
+    """連携済みの公開詳細を同期と同じロック順で論理削除する。"""
+    participation = presentation.participation
+    VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    VketParticipation.objects.select_for_update().get(pk=participation.pk)
+    detail = EventDetail.all_objects.filter(pk=presentation.published_event_detail_id).first()
+    if detail is None:
+        return
+    Event.objects.select_for_update().get(pk=detail.event_id)
+    detail = EventDetail.all_objects.select_for_update().select_related('event').get(pk=detail.pk)
+    if not _detail_belongs_to(participation, detail):
+        # 別集会・別の回へ移った詳細は、元の参加の画面から消させない。
+        logger.warning('vket_linked_detail_delete_skipped', extra={
+            'collaboration_id': participation.collaboration_id, 'participation_id': participation.pk,
+            'presentation_id': presentation.pk, 'event_detail_id': detail.pk, 'event_id': detail.event_id,
+        })
+        return
+    if detail.deleted_at is None:
+        detail.delete()
+        logger.info('vket_linked_detail_deleted', extra={
+            'collaboration_id': participation.collaboration_id, 'participation_id': participation.pk,
+            'presentation_id': presentation.pk, 'event_detail_id': detail.pk, 'event_id': detail.event_id,
+        })
+
+
+def _detail_belongs_to(participation, detail):
+    """詳細の回がこの参加の集会かつこの参加の回か。"""
+    from vket.application_link import application_participations
+    if detail.event.community_id != participation.community_id:
+        return False
+    if detail.event_id == participation.published_event_id:
+        return True
+    return application_participations(detail.event).filter(pk=participation.pk).exists()
+
+
+def matching_publication_detail(event, presentation):
+    """別の発表が使っていない同一演題の公開詳細を選ぶ。"""
+    key = (_normalized(presentation.speaker), _normalized(presentation.theme))
+    candidates = EventDetail.objects.filter(
+        event=event, status='approved', detail_type='LT', vket_presentations__isnull=True,
+    ).select_for_update(of=('self',)).order_by('pk')
+    return next((d for d in candidates if (_normalized(d.speaker), _normalized(d.theme)) == key), None)
 
 
 def _clear_pending_presentation_deletions(participation: VketParticipation) -> bool:
@@ -61,6 +114,7 @@ def _clear_pending_presentation_deletions(participation: VketParticipation) -> b
         settings.pop(PENDING_DELETIONS_KEY, None)
     collaboration.settings_json = settings
     collaboration.save(update_fields=['settings_json', 'updated_at'])
+    participation.collaboration = collaboration
     return True
 
 
@@ -299,10 +353,12 @@ def sync_participation_publication(
         raise ValueError("confirmed schedule is required for Vket publication sync")
 
     collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    VketParticipation.objects.select_for_update().get(pk=participation.pk)
     participation.refresh_from_db()
     participation.collaboration = collaboration
     deleted_details = _clear_pending_presentation_deletions(participation)
     event, changed_index_data = _resolve_publication_event(participation)
+    Event.objects.select_for_update().get(pk=event.pk)
     changed_index_data |= deleted_details
 
     for presentation in participation.presentations.filter(
@@ -331,6 +387,21 @@ def sync_participation_publication(
             "deleted_at": None,
         }
 
+        # 同じ回が複数コラボに一致する時は、取り込みと同じく既存の詳細を自動で採用しない。
+        if not presentation.published_event_detail_id and list(
+            application_participations(event).values_list('pk', flat=True)
+        ) == [participation.pk]:
+            detail = matching_publication_detail(event, presentation)
+            if detail is not None:
+                presentation.published_event_detail = detail
+                presentation.save(update_fields=['published_event_detail', 'updated_at'])
+                register_normal_link(participation, presentation, detail)
+                changed_index_data = True
+                logger.info('vket_publication_detail_linked', extra={
+                    'collaboration_id': collaboration.pk, 'participation_id': participation.pk,
+                    'presentation_id': presentation.pk, 'event_detail_id': detail.pk, 'event_id': event.pk,
+                })
+
         if presentation.published_event_detail_id:
             detail = presentation.published_event_detail
             dirty_fields = []
@@ -356,7 +427,10 @@ def sync_participation_publication(
                 detail._vket_publication_sync = False
                 changed_index_data = True
         else:
-            detail = EventDetail.objects.create(**detail_defaults)
+            detail = EventDetail(**detail_defaults)
+            detail._vket_publication_sync = True
+            detail.save()
+            detail._vket_publication_sync = False
             presentation.published_event_detail = detail
             presentation.save(update_fields=["published_event_detail", "updated_at"])
             changed_index_data = True

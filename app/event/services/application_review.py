@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404
 
 from event.models import EventDetail
 from event.services.lt_schedule import next_lt_start_time
-from vket.application_link import application_warnings, link_approved_application, lock_application_event
+from vket.application_link import application_warnings, extend_event, lock_application_event
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,8 @@ def review_application(
         # save を通すことで記事生成・自動投稿などの既存シグナルも実行する。
         locked.save(update_fields=update_fields)
         if decision == 'approved':
-            link_approved_application(locked)
+            # Vket への取り込みはコミット後のシグナルで行う。開催時間の延長は従来どおり承認時にここで行う。
+            extend_event(locked.event)
             warnings = application_warnings(locked)
 
     from event.notifications import notify_applicant_of_result

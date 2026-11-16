@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from django.contrib import messages
@@ -29,7 +30,7 @@ from ..schedule import (
     get_schedule_buffer_minutes,
 )
 from ..activity import activity_snapshot, notify_activity
-from ..application_link import vket_input_warnings
+from ..application_link import vket_input_warnings, active_presentations, is_normal_presentation
 from ..services import delete_requested_presentation
 from .overlap import warn_overlap
 from .helpers import (
@@ -42,6 +43,8 @@ from .status import (
     _resolve_stage_registration_guidance,
     _resolve_stage_url,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
@@ -229,11 +232,13 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
         """LT情報のformsetを構築する"""
         lt_initial = []
         if participation:
-            for pres in participation.presentations.order_by('order'):
+            for pres in active_presentations(participation.presentations.select_related('published_event_detail')).order_by('order', 'id'):
                 lt_initial.append({
+                    'presentation_id': pres.pk,
                     'speaker': pres.speaker,
                     'theme': pres.theme,
                     'lt_start_time': pres.requested_start_time,
+                    'linked_to_public_page': is_normal_presentation(pres),
                 })
 
         formset = VketPresentationFormSet(
@@ -243,6 +248,7 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
         )
         for form in formset:
             form.can_organizer_delete = True
+            form.linked_to_public_page = form.initial.get('linked_to_public_page', False)
         if not permissions.can_edit_lt:
             self._disable_formset(formset)
             return formset
@@ -336,10 +342,12 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
 
         # プレゼンテーション情報をVketPresentationに保存（formset）
         if permissions.can_edit_lt:
-            self._save_presentations(
+            stale = self._save_presentations(
                 participation,
                 formset_data,
             )
+            if stale:
+                messages.warning(request, '別の画面で変更された発表があります。もう一度確認してください。')
 
         # prefetch 済みの古い発表一覧を警告・通知で使わない。
         participation._prefetched_objects_cache = {}
@@ -349,12 +357,22 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
         self,
         participation: VketParticipation,
         formset_data: list[dict],
-    ) -> None:
-        """希望の発表情報を保存する。確定時刻・公開情報は次の確定まで保持する。"""
-        existing = list(participation.presentations.order_by('order', 'id'))
+    ) -> bool:
+        """希望の発表情報を保存する。表示後に消えた発表の行は触らず True を返す。"""
+        existing = list(active_presentations(participation.presentations.select_related('published_event_detail')).order_by('order', 'id'))
+        # この参加の表示対象だけを引く。改ざんした他参加の ID は一致しない。
+        by_id = {item.pk: item for item in existing}
         saved: list[VketPresentation] = []
-        for index, row in enumerate(formset_data):
-            presentation = existing[index] if index < len(existing) else None
+        stale = False
+        for row in formset_data:
+            presentation_id = row.get('presentation_id')
+            presentation = by_id.pop(presentation_id, None) if presentation_id else None
+            if presentation_id and presentation is None:
+                stale = True
+                logger.warning('vket_apply_stale_presentation_row', extra={
+                    'participation_id': participation.pk, 'presentation_id': presentation_id,
+                })
+                continue
             speaker = (row.get('speaker') or '').strip()
             theme = (row.get('theme') or '').strip()
             if row.get('DELETE') or (not speaker and not theme):
@@ -381,6 +399,7 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
                 )
             saved.append(presentation)
         self._fill_missing_lt_start_times(participation, saved)
+        return stale
 
     @staticmethod
     def _fill_missing_lt_start_times(

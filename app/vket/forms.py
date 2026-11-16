@@ -87,6 +87,9 @@ class VketPresentationForm(forms.Form):
         widget=forms.TimeInput(attrs={'type': 'time', 'step': 300, 'class': 'form-control'}),
     )
 
+    # 表示した発表と送信行を ID で対応づける。空なら新規の追加。
+    presentation_id = forms.IntegerField(required=False, min_value=1, widget=forms.HiddenInput)
+
     def __init__(self, *args, lock_lt_start_time: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
         if lock_lt_start_time:
