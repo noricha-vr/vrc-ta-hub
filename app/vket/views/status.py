@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 
+from vket.application_link import active_presentations, is_normal_presentation
 from event.models import EventDetail
 
 from ..og import page_metadata
@@ -231,13 +232,16 @@ class ParticipationStatusView(PublicParticipationShellMixin, LoginRequiredMixin,
                 .prefetch_related(
                     Prefetch(
                         'presentations',
-                        queryset=VketPresentation.objects.select_related('published_event_detail'),
+                        queryset=active_presentations(VketPresentation.objects.select_related('published_event_detail')),
                     ),
                     'notice_receipts__notice',
                 )
                 .first()
             )
             if participation:
+                participation.collaboration = collaboration
+                for presentation in participation.presentations.all():
+                    presentation.linked_to_public_page = is_normal_presentation(presentation)
                 # 最新2件のお知らせ受信記録を取得
                 latest_notices = (
                     participation.notice_receipts.select_related('notice')

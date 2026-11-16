@@ -333,8 +333,8 @@ class EventDetailReviewAPITest(TestCase):
                 self.assertEqual(self._post().status_code, 409)
                 self.notify.assert_called_once()
 
-    def test_failure_in_approval_link_rolls_back_status_and_signals(self):
-        with patch('event.services.application_review.link_approved_application', side_effect=RuntimeError):
+    def test_failure_during_approval_rolls_back_status_and_signals(self):
+        with patch('event.services.application_review.application_warnings', side_effect=RuntimeError):
             with self.assertRaises(RuntimeError):
                 self._post()
         self._assert_pending()

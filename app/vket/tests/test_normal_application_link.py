@@ -70,7 +70,7 @@ class NormalApplicationLinkTests(TestCase):
     def test_existing_pending_ajax_approval_uses_same_record(self):
         detail = self.detail(status='pending')
         self.client.force_login(self.owner)
-        with patch('event.notifications.notify_applicant_of_result'):
+        with patch('event.notifications.notify_applicant_of_result'), self.captureOnCommitCallbacks(execute=True):
             response = self.client.post(reverse('event:lt_application_approve', args=[detail.pk]),
                                         HTTP_X_REQUESTED_WITH='XMLHttpRequest')
         self.assertEqual(response.status_code, 200)
@@ -80,7 +80,7 @@ class NormalApplicationLinkTests(TestCase):
     def test_reviewer_approval_links_same_record(self):
         detail = self.detail(status='pending')
         self.client.force_login(self.owner)
-        with patch('event.notifications.notify_applicant_of_result'):
+        with patch('event.notifications.notify_applicant_of_result'), self.captureOnCommitCallbacks(execute=True):
             response = self.client.post(reverse('event:lt_application_review', args=[detail.pk]), {
                 'action': 'approve', 'event': self.event.pk, 'start_time': '22:15', 'duration': '30',
             })
@@ -114,7 +114,7 @@ class NormalApplicationLinkTests(TestCase):
         self.assertIsNotNone(EventDetail.all_objects.get(pk=detail.pk).deleted_at)
         self.assertEqual(EventDetail.all_objects.count(), 1)
 
-    def test_vket_removal_does_not_delete_or_recreate_normal_talk(self):
+    def test_vket_removal_deletes_without_recreating_normal_talk(self):
         detail = self.detail(time(22, 45))
         link_approved_application(detail)
         delete_requested_presentation(VketPresentation.objects.get())
@@ -124,8 +124,8 @@ class NormalApplicationLinkTests(TestCase):
         confirm_participation_schedule(self.participation)
         detail.refresh_from_db()
         self.event.refresh_from_db()
-        self.assertIsNone(detail.deleted_at)
-        self.assertEqual(self.event.duration, 75)
+        self.assertIsNotNone(detail.deleted_at)
+        self.assertEqual(self.event.duration, 60)
         self.assertFalse(VketPresentation.objects.exists())
 
     def test_participation_withdrawal_preserves_normal_talk(self):
@@ -168,7 +168,7 @@ class NormalApplicationLinkTests(TestCase):
         detail.refresh_from_db()
         self.assertEqual(detail.applicant_id, self.speaker.pk)
 
-    def test_edit_after_vket_removal_still_extends_event(self):
+    def test_edit_after_vket_removal_does_not_extend_deleted_detail(self):
         detail = self.detail(time(22, 45))
         link_approved_application(detail)
         presentation = VketPresentation.objects.get()
@@ -177,8 +177,8 @@ class NormalApplicationLinkTests(TestCase):
         detail.save(update_fields=['duration'])
         self.event.refresh_from_db()
         self.participation.refresh_from_db()
-        self.assertEqual(self.event.duration, 105)
-        self.assertEqual(self.participation.confirmed_duration, 105)
+        self.assertEqual(self.event.duration, 75)
+        self.assertEqual(self.participation.confirmed_duration, 75)
 
     def test_malformed_source_markers_are_ignored(self):
         self.collaboration.settings_json = {'normal_application_links': {'²': 123, 'bad': 1, '2': True, '3': '4'}}

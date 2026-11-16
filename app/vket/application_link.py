@@ -1,4 +1,4 @@
-"""承認済みの通常応募を、公開IDを変えずにVketへ連携する。"""
+"""開催回の承認済み発表を、公開 ID を変えずに Vket へ連携する。"""
 import logging
 import re
 import unicodedata
@@ -44,18 +44,22 @@ def inactive_detail(presentation):
     return False
 
 
-def lock_application_event(event):
-    """承認の詳細ロックより先に、同期と同じ順序でコラボ・参加をロックする。"""
+def application_participations(event):
+    """取り込みと既存データ確認で、同じ開催回の一致条件を使う。"""
     from vket.services import collab_event_match
-    ids = list(VketParticipation.objects.filter(
+    return VketParticipation.objects.filter(
         collab_event_match(event) | Q(
             published_event__isnull=True, confirmed_date__isnull=True,
             requested_date=event.date, requested_start_time=event.start_time,
             collaboration__period_start__lte=event.date, collaboration__period_end__gte=event.date,
         ), community_id=event.community_id,
         lifecycle=VketParticipation.Lifecycle.ACTIVE,
-    ).exclude(progress=VketParticipation.Progress.NOT_APPLIED)
-        .order_by('collaboration_id', 'pk').values_list('pk', 'collaboration_id'))
+    ).exclude(progress=VketParticipation.Progress.NOT_APPLIED).order_by('collaboration_id', 'pk')
+
+
+def lock_application_event(event):
+    """承認の詳細ロックより先に、同期と同じ順序でコラボ・参加をロックする。"""
+    ids = list(application_participations(event).values_list('pk', 'collaboration_id'))
     for collaboration_id in sorted({cid for _, cid in ids}):
         VketCollaboration.objects.select_for_update().get(pk=collaboration_id)
     participations = list(VketParticipation.objects.select_for_update().filter(
@@ -91,49 +95,95 @@ def extend_event(event, participation=None):
         })
 
 
+def matching_presentation(participation, detail):
+    """同じ発表で、公開詳細が未設定か論理削除済みの希望を再利用する。"""
+    key = (_normalized(detail.speaker), _normalized(detail.theme))
+    candidates = participation.presentations.filter(
+        Q(published_event_detail__isnull=True) | Q(published_event_detail__deleted_at__isnull=False),
+    ).order_by('order', 'pk')
+    return next((p for p in candidates if (_normalized(p.speaker), _normalized(p.theme)) == key), None)
+
+
+def register_normal_link(participation, presentation, detail):
+    """対応表と開催回を同じコラボ設定へ記録する。呼出元でコラボをロックする。"""
+    collaboration = participation.collaboration
+    settings = dict(collaboration.settings_json) if isinstance(collaboration.settings_json, dict) else {}
+    links = application_links(collaboration)
+    links[str(presentation.pk)] = detail.pk
+    collaboration.settings_json = {
+        **settings, LINKS_KEY: links,
+        EVENTS_KEY: sorted(set(application_event_ids(collaboration) + [detail.event_id])),
+    }
+    collaboration.save(update_fields=['settings_json', 'updated_at'])
+
+
 @transaction.atomic
-def link_approved_application(detail):
-    """名前による既存データ統合はせず、承認された1件だけを参照する。"""
-    if detail.status != 'approved' or detail.deleted_at or detail.detail_type != 'LT':
+def link_approved_application(detail, *, notify=True):
+    """入口を問わず承認済みの詳細を取り込む。保存のコミット後に呼ぶ。"""
+    detail_id = detail.pk if isinstance(detail, EventDetail) else detail
+    detail = EventDetail.objects.select_related('event').filter(pk=detail_id).first()
+    if detail is None or detail.status != 'approved' or detail.detail_type != 'LT':
+        return
+    # Vket と関係ない回の保存ではロックも開催時間の延長もしない。
+    if not application_participations(detail.event).exists():
         return
     participations = lock_application_event(detail.event)
-    for participation in participations:
-        collaboration = participation.collaboration
-        settings = dict(collaboration.settings_json) if isinstance(collaboration.settings_json, dict) else {}
-        collaboration.settings_json = {**settings, EVENTS_KEY: sorted(set(application_event_ids(collaboration) + [detail.event_id]))}
-        collaboration.save(update_fields=['settings_json', 'updated_at'])
-    # 1回を複数コラボへ自動採用しない。曖昧な既存データは運営確認に残す。
+    locked = EventDetail.objects.select_for_update().filter(pk=detail_id).first()
+    if (locked is None or locked.event_id != detail.event_id
+            or locked.status != 'approved' or locked.detail_type != 'LT'):
+        return
+    detail = locked
     if len(participations) > 1:
+        # 既存の曖昧な回は採用せず、再同期でも公開枠の延長だけを維持する。
+        for participation in participations:
+            collaboration = participation.collaboration
+            settings = dict(collaboration.settings_json) if isinstance(collaboration.settings_json, dict) else {}
+            collaboration.settings_json = {
+                **settings, EVENTS_KEY: sorted(set(application_event_ids(collaboration) + [detail.event_id])),
+            }
+            collaboration.save(update_fields=['settings_json', 'updated_at'])
         logger.warning('application_vket_link_ambiguous', extra={'event_id': detail.event_id})
         extend_event(detail.event)
         return
+    if VketPresentation.objects.filter(published_event_detail=detail).exists():
+        return
     participation = participations[0] if participations else None
     if participation:
-        links = dict(application_links(participation.collaboration))
-        if detail.pk not in links.values():
-            presentation = VketPresentation.objects.filter(published_event_detail=detail).first()
-            if presentation is None:
-                order = (participation.presentations.aggregate(value=Max('order'))['value'] or 0) + 1
-                presentation = VketPresentation.objects.create(
-                    participation=participation, published_event_detail=detail, order=order,
-                    theme=detail.theme, speaker=detail.speaker, duration=detail.duration,
-                    requested_start_time=detail.start_time, confirmed_start_time=detail.start_time,
-                    status=VketPresentation.Status.CONFIRMED,
-                )
-            if presentation.participation_id != participation.pk:
-                raise ValueError('発表のVket参加が一致しません')
-            links[str(presentation.pk)] = detail.pk
-            collaboration = participation.collaboration
-            settings = dict(collaboration.settings_json) if isinstance(collaboration.settings_json, dict) else {}
-            collaboration.settings_json = {**settings, LINKS_KEY: links}
-            collaboration.save(update_fields=['settings_json', 'updated_at'])
-            if not participation.published_event_id:
-                participation.published_event = detail.event
-                participation.save(update_fields=['published_event', 'updated_at'])
-            logger.info('approved_application_vket_linked', extra={
-                'event_detail_id': detail.pk, 'participation_id': participation.pk,
-            })
-    extend_event(detail.event, participation)
+        from vket.activity import activity_snapshot, notify_activity
+        before = activity_snapshot(participation) if notify else None
+        presentation = matching_presentation(participation, detail)
+        created = presentation is None
+        if created:
+            order = (participation.presentations.aggregate(value=Max('order'))['value'] or 0) + 1
+            presentation = VketPresentation(participation=participation, order=order)
+        presentation.published_event_detail = detail
+        presentation.theme = detail.theme
+        presentation.speaker = detail.speaker
+        presentation.duration = detail.duration
+        presentation.requested_start_time = presentation.confirmed_start_time = detail.start_time
+        presentation.status = VketPresentation.Status.CONFIRMED
+        presentation.save()
+        register_normal_link(participation, presentation, detail)
+        if not participation.published_event_id:
+            participation.published_event = detail.event
+            participation.save(update_fields=['published_event', 'updated_at'])
+        logger.info('event_detail_vket_imported', extra={
+            'event_detail_id': detail.pk, 'event_id': detail.event_id,
+            'participation_id': participation.pk, 'collaboration_id': participation.collaboration_id,
+            'presentation_id': presentation.pk, 'presentation_created': created,
+        })
+        extend_event(detail.event, participation)
+        if notify and created:
+            notify_activity(participation.collaboration, participation.community.name,
+                            before, activity_snapshot(participation), [])
+        return presentation
+
+
+def active_presentations(queryset):
+    """公開詳細の論理削除・承認取り消しを、申込みと管理の一覧にも反映する。"""
+    return queryset.exclude(published_event_detail__deleted_at__isnull=False).exclude(
+        Q(published_event_detail__isnull=False) & ~Q(published_event_detail__status='approved'),
+    )
 
 
 def normal_participations(detail):

@@ -29,7 +29,7 @@ from ..schedule import (
     get_schedule_buffer_minutes,
 )
 from ..activity import activity_snapshot, notify_activity
-from ..application_link import vket_input_warnings
+from ..application_link import vket_input_warnings, active_presentations, is_normal_presentation
 from ..services import delete_requested_presentation
 from .overlap import warn_overlap
 from .helpers import (
@@ -229,11 +229,12 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
         """LT情報のformsetを構築する"""
         lt_initial = []
         if participation:
-            for pres in participation.presentations.order_by('order'):
+            for pres in active_presentations(participation.presentations.select_related('published_event_detail')).order_by('order', 'id'):
                 lt_initial.append({
                     'speaker': pres.speaker,
                     'theme': pres.theme,
                     'lt_start_time': pres.requested_start_time,
+                    'linked_to_public_page': is_normal_presentation(pres),
                 })
 
         formset = VketPresentationFormSet(
@@ -243,6 +244,7 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
         )
         for form in formset:
             form.can_organizer_delete = True
+            form.linked_to_public_page = form.initial.get('linked_to_public_page', False)
         if not permissions.can_edit_lt:
             self._disable_formset(formset)
             return formset
@@ -351,7 +353,7 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
         formset_data: list[dict],
     ) -> None:
         """希望の発表情報を保存する。確定時刻・公開情報は次の確定まで保持する。"""
-        existing = list(participation.presentations.order_by('order', 'id'))
+        existing = list(active_presentations(participation.presentations.select_related('published_event_detail')).order_by('order', 'id'))
         saved: list[VketPresentation] = []
         for index, row in enumerate(formset_data):
             presentation = existing[index] if index < len(existing) else None

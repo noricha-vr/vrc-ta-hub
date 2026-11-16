@@ -210,3 +210,13 @@ def mirror_normal_application_to_vket(sender, instance, update_fields=None, **kw
         return
     from vket.application_link import mirror_linked_detail
     mirror_linked_detail(instance, update_fields)
+
+
+@receiver(post_save, sender=EventDetail)
+def import_approved_detail_to_vket(sender, instance, raw=False, **kwargs):
+    """保存側で詳細をロックしたまま、逆順で Vket のロックを取らない。"""
+    if (raw or getattr(instance, '_vket_publication_sync', False)
+            or instance.detail_type != 'LT' or instance.status != 'approved' or instance.deleted_at):
+        return
+    from vket.application_link import link_approved_application
+    transaction.on_commit(partial(link_approved_application, instance.pk))

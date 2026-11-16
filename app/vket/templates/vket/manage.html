@@ -192,7 +192,11 @@
                                     {% url 'vket:manage_presentation_delete' collaboration.id pres.pk as delete_url %}
                                     {% with presentation_id=pres.pk|stringformat:'s' speaker=pres.confirm_label %}
                                         {% with panel_id='delete-pres-'|add:presentation_id %}
+                                            {% if pres.linked_to_public_page %}
+                                                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label=speaker|add:' の発表の削除確認' message=speaker|add:' の発表を削除します。開催回に連携している発表は、公開ページからも消えます。' action_url=delete_url submit_label='この発表を削除する' %}
+                                            {% else %}
                                             {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label=speaker|add:' の発表の削除確認' message=speaker|add:' の発表と、紐づく公開済みの発表を削除します。' action_url=delete_url submit_label='この発表を削除する' %}
+                                            {% endif %}
                                         {% endwith %}
                                     {% endwith %}
                                 </div>

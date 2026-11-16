@@ -181,6 +181,9 @@
                             </div>
                             {% endif %}
                         </div>
+                        {% if lt_form.linked_to_public_page %}
+                            <p class="small text-danger mt-2 mb-0">この発表を削除して保存すると、公開ページからも消えます。</p>
+                        {% endif %}
                         <div class="d-none">{{ lt_form.DELETE }}</div>
                     </div>
                     {% endfor %}
