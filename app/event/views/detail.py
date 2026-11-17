@@ -119,11 +119,19 @@ class EventDetailView(DetailView):
 
         # 構造化データ（BlogPosting）を生成（ブログ記事のみ）
         try:
-            if event_detail.detail_type == 'BLOG':
+            if event_detail.detail_type == 'BLOG' or event_detail.has_article:
                 request = self.request
                 absolute_url = request.build_absolute_uri()
 
                 images: List[str] = []
+                # 発表のサムネイル（スライド由来）を最初に置く
+                try:
+                    if event_detail.thumbnail_image and getattr(event_detail.thumbnail_image, 'url', None):
+                        images.append(request.build_absolute_uri(event_detail.thumbnail_image.url))
+                except (OSError, ValueError):
+                    logger.exception(
+                        "Failed to add thumbnail to structured data: event_detail_id=%s", event_detail.pk,
+                    )
                 # コミュニティのポスター画像
                 try:
                     poster = event_detail.event.community.poster_image
@@ -168,7 +176,7 @@ class EventDetailView(DetailView):
                     "url": absolute_url,
                     "inLanguage": "ja-JP",
                     "isAccessibleForFree": True,
-                    "datePublished": event_detail.created_at.isoformat(),
+                    "datePublished": event_detail.event.date.isoformat(),
                     "dateModified": event_detail.updated_at.isoformat(),
                     "description": description,
                     "publisher": publisher_obj,
@@ -263,6 +271,10 @@ class EventDetailView(DetailView):
         article_visible = not event_detail.is_article_ng
         return {
             'article_visible': article_visible,
+            # 自動生成のままの記事だけ「AI が要約したもの」と明記する（手動で作成・編集した記事には出さない）
+            'show_ai_notice': (
+                article_visible and event_detail.article_state() == EventDetail.ArticleState.AUTO
+            ),
             # 修正前に生成した記事に残る、行き先の無いスライドリンクも表示時に消す
             'html_content': convert_markdown(remove_invalid_slide_links(event_detail.contents)) if article_visible else '',
             'can_generate_article': (
