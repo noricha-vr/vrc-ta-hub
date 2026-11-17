@@ -1,5 +1,4 @@
 """特別企画の撮影設定は、画面で毎回出演者全員への確認を求める。"""
-from datetime import time
 from unittest.mock import patch
 
 from django.contrib import admin
