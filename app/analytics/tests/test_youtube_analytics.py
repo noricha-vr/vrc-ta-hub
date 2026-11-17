@@ -23,6 +23,7 @@ TODAY = date(2026, 10, 23)
 TARGET = TODAY - timedelta(days=1)
 VIDEO_ID = 'abcdefghijk'
 SECOND_ID = 'lmnopqrstuv'
+THIRD_ID = 'wxyzabcdefg'
 OAUTH_SETTINGS = {
     'YOUTUBE_CLIENT_ID': 'test-client-id',
     'YOUTUBE_CLIENT_SECRET': 'test-client-secret',
@@ -311,6 +312,33 @@ class VideoWatchTimeTests(AnalyticsDataTestCase):
         self.assertEqual(by_detail, {self.detail.pk: 222, self.shared.pk: 222, self.second.pk: 86})
         self.assertEqual(combined, 120)  # (37 + 43) * 60 / (10 + 30)
         self.assertEqual(get_video_watch_times([self.second.pk]), ({self.second.pk: 86}, 86))
+
+    def test_description_link_representative_without_youtube_url(self, _today):
+        # 説明欄のリンクで代表になった発表は、youtube_url が空でも平均視聴が出る（#786）。
+        empty = make_event_detail(self.event, status='approved', youtube_url='')
+        make_youtube_video_analytics(
+            video_id=THIRD_ID, date=TARGET, event_detail=empty, views=10,
+            estimated_minutes_watched=20, average_view_duration_seconds=120,
+        )
+        self.assertEqual(get_video_watch_times([empty.pk]), ({empty.pk: 120}, 120))
+
+    def test_description_link_representative_with_other_youtube_url(self, _today):
+        # youtube_url が別の動画でも、代表になっている動画の視聴時間を数える。
+        make_youtube_video_analytics(
+            video_id=THIRD_ID, date=TARGET, event_detail=self.second, views=10,
+            estimated_minutes_watched=20, average_view_duration_seconds=120,
+        )
+        make_youtube_video_analytics(video_id=SECOND_ID, date=TARGET, views=30,
+                                     estimated_minutes_watched=43, average_view_duration_seconds=86)
+        by_detail, combined = get_video_watch_times([self.second.pk])
+        # 二重に数えず、2 本の動画（10+30 再生、20+43 分）を合算する。
+        self.assertEqual(by_detail, {self.second.pk: 63 * 60 / 40})
+        self.assertEqual(combined, 63 * 60 / 40)
+
+    def test_same_video_via_both_paths_is_not_double_counted(self, _today):
+        make_youtube_video_analytics(date=TARGET, views=10, estimated_minutes_watched=20,
+                                     average_view_duration_seconds=120)
+        self.assertEqual(get_video_watch_times([self.detail.pk]), ({self.detail.pk: 120}, 120))
 
     def test_zero_views_and_missing_data_are_absent(self, _today):
         make_youtube_video_analytics(date=TARGET, views=0)
