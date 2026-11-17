@@ -858,6 +858,42 @@ class LTSettingsTest(TestCase):
         self.community.refresh_from_db()
         self.assertEqual(self.community.lt_start_offset_minutes, 30)
 
+    def _post_lt_settings(self, duration, offset):
+        self.client.force_login(self.owner_user)
+        return self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'accepts_lt_application': 'on',
+                'lt_application_template': '【テスト】',
+                'default_lt_duration': duration,
+                'lt_start_offset_minutes': offset,
+            },
+            follow=True,
+        )
+
+    def test_update_lt_settings_rejects_duration_over_limit(self):
+        """持ち時間が上限(240分)を超える値は保存されずエラーになる"""
+        before = (self.community.default_lt_duration, self.community.lt_start_offset_minutes)
+        response = self._post_lt_settings(241, 30)
+        self.assertContains(response, '240分以下')
+        self.community.refresh_from_db()
+        self.assertEqual((self.community.default_lt_duration, self.community.lt_start_offset_minutes), before)
+
+    def test_update_lt_settings_rejects_offset_over_limit(self):
+        """開始のずれが上限(1440分)を超える値は保存されずエラーになる"""
+        before = (self.community.default_lt_duration, self.community.lt_start_offset_minutes)
+        response = self._post_lt_settings(30, 1441)
+        self.assertContains(response, '1440分以下')
+        self.community.refresh_from_db()
+        self.assertEqual((self.community.default_lt_duration, self.community.lt_start_offset_minutes), before)
+
+    def test_update_lt_settings_accepts_limit_values(self):
+        """上限ちょうどの値は保存される"""
+        self._post_lt_settings(240, 1440)
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.default_lt_duration, 240)
+        self.assertEqual(self.community.lt_start_offset_minutes, 1440)
+
     def test_update_lt_settings_offset_zero_allowed(self):
         """オフセット 0 を許容する（集会開始と同時にLT開始）"""
         self.client.force_login(self.owner_user)
