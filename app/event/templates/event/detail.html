@@ -302,6 +302,11 @@
                     </div>
                 {% endif %}
                 {% if article_visible %}
+                    {% if show_ai_notice %}
+                        <p class="ed-ai-notice small text-muted mb-3" id="article-ai-notice">
+                            <i class="bi bi-info-circle me-1" aria-hidden="true"></i>この記事は発表動画・スライドをもとに AI が要約したものです
+                        </p>
+                    {% endif %}
                     <div class="ed-body">{{ html_content|safe }}</div>
                 {% endif %}
             </article>
