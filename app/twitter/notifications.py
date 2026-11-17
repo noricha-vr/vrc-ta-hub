@@ -3,6 +3,7 @@
 投稿失敗を Admin Discord Webhook に通知し、管理者が即時に検知できるようにする。
 """
 import logging
+import re
 
 from django.conf import settings
 
@@ -18,6 +19,20 @@ logger = logging.getLogger(__name__)
 DISCORD_FIELD_MAX_LENGTH = 1024
 DISCORD_DESC_MAX_LENGTH = 4000
 COLOR_RED = 15548997
+
+
+_ZERO_WIDTH_SPACE = "\u200b"
+_BACKTICK_RUN = re.compile(r"`{3,}")
+
+
+def _neutralize_code_fence(text: str) -> str:
+    """本文中の ``` を、Discord のコードフェンスを閉じない形にする.
+
+    3 つ以上連続するバッククォートの間にゼロ幅スペースを挟み、連続を 1 つずつに分断する。
+    """
+    return _BACKTICK_RUN.sub(
+        lambda m: _ZERO_WIDTH_SPACE.join(m.group()), text
+    )
 
 
 def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
@@ -56,7 +71,7 @@ def _notify_post_failure(
     if not webhook_url:
         return
 
-    tweet_text = queue_item.generated_text or "(本文なし)"
+    tweet_text = _neutralize_code_fence(queue_item.generated_text or "(本文なし)")
     if len(tweet_text) > DISCORD_DESC_MAX_LENGTH - 10:
         tweet_text = tweet_text[: DISCORD_DESC_MAX_LENGTH - 13] + "..."
 

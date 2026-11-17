@@ -91,6 +91,31 @@ class NotifyTweetPostFailureTest(TestCase):
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
     @patch("twitter.notifications.post_discord_webhook")
+    def test_description_fence_not_closed_by_body_backticks(self, mock_post):
+        """本文に ``` があっても、通知の囲みが途中で閉じない（#884）"""
+        mock_post.return_value = MagicMock(status_code=204)
+        self.queue_item.generated_text = "前\n```\n[表示](https://example.com)\n````\n後"
+        self.queue_item.save()
+
+        notify_tweet_post_failure(
+            self.queue_item,
+            {"ok": False, "data": None, "status_code": 403, "error_body": "x"},
+        )
+
+        description = mock_post.call_args.args[1]["embeds"][0]["description"]
+        self.assertTrue(description.startswith("```\n"))
+        self.assertTrue(description.endswith("\n```"))
+        # 囲みの外側の ``` 以外に、3 連続のバッククォートが残らない
+        inner = description[4:-4]
+        self.assertNotIn("```", inner)
+        # 本文の文字は保たれる（ゼロ幅スペースを除くと元の本文に戻る）
+        self.assertEqual(
+            inner.replace("\u200b", ""),
+            self.queue_item.generated_text,
+        )
+
+    @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_fields_contain_status_code_and_error_body(self, mock_post):
         """fields に status_code と error_body と詳細URLが含まれる"""
         mock_response = MagicMock(status_code=204)
