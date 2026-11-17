@@ -242,6 +242,50 @@ class EventDetailAPIKeyRecordingPolicyTest(TestCase):
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.detail_type, 'LT')
 
+    def _patch_after_screen_change(self, payload, **screen_values):
+        """検証の後、保存の前に画面で行が変わった状態で PATCH する。"""
+        from api_v1.serializers import EventDetailWriteSerializer
+
+        original = EventDetailWriteSerializer.validate
+
+        def validate_then_change_on_screen(serializer, attrs):
+            attrs = original(serializer, attrs)
+            EventDetail.objects.filter(pk=self.detail.pk).update(**screen_values)
+            return attrs
+
+        with mock.patch.object(EventDetailWriteSerializer, 'validate', validate_then_change_on_screen):
+            return self.client.patch(self.detail_url, payload, format='json')
+
+    def test_stale_special_is_not_written_back_over_screen_change(self):
+        """読み込み時は禁止の特別企画でも、画面で撮影する発表に変わった後に古い種類を書き戻さない。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='企画名', recording_policy='forbidden')
+        response = self._patch_after_screen_change(
+            {'contents': '本文だけ'}, detail_type='LT', recording_policy='public', theme='発表のテーマ')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(
+            (self.detail.detail_type, self.detail.recording_policy, self.detail.theme),
+            ('LT', 'public', '発表のテーマ'),
+        )
+
+    def test_explicit_special_is_rejected_after_screen_enables_recording(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='企画名', recording_policy='forbidden')
+        response = self._patch_after_screen_change(
+            {'detail_type': 'SPECIAL', 'contents': '本文'}, detail_type='LT', recording_policy='public')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.detail.refresh_from_db()
+        self.assertEqual((self.detail.detail_type, self.detail.recording_policy), ('LT', 'public'))
+
+    def test_special_theme_follows_title_changed_on_screen(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='古い企画名', recording_policy='forbidden')
+        response = self._patch_after_screen_change({'contents': '本文'}, h1='新しい企画名')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual((self.detail.h1, self.detail.theme), ('新しい企画名', '新しい企画名'))
+
     def test_special_transcript_only_update_keeps_save_free_path(self):
         EventDetail.objects.filter(pk=self.detail.pk).update(
             detail_type='SPECIAL', h1='企画名', youtube_url='https://youtu.be/QDYMKH1hbbA',

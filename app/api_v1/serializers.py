@@ -268,8 +268,8 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
                 and not attrs.keys() - {'transcript', 'generate_from_pdf'}
             )
             if not transcript_only:
-                title = (attrs.get('h1', instance.h1) or '').strip()
-                attrs['theme'] = title[:EventDetail._meta.get_field('theme').max_length] or 'Special Event'
+                attrs['theme'] = self._special_theme(attrs.get('h1', instance.h1))
+                self._theme_mirrored = True
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})
         if attrs.get('detail_type', instance.detail_type) == 'LT':
@@ -333,18 +333,31 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
                 if 'event' in validated_data:
                     instance.event = validated_data['event']
                 lock_linked_detail(instance)
-                instance.recording_policy = (
+                # 種類とタイトルも読み直す。送っていない項目を検証前の古い値で書き戻すと、
+                # 画面で変えた種類・撮影の組み合わせが確認なしの「特別企画で撮影する」に戻りうるため
+                current_type, current_policy, current_h1, current_theme = (
                     EventDetail.objects.select_for_update()
-                    .values_list('recording_policy', flat=True)
+                    .values_list('detail_type', 'recording_policy', 'h1', 'theme')
                     .get(pk=instance.pk)
                 )
-                # 検証後に画面で撮影の扱いが変わった場合も、確認なしの種類変更を防ぐ。
+                instance.detail_type = current_type
+                instance.recording_policy = current_policy
+                if 'h1' not in validated_data:
+                    instance.h1 = current_h1
+                if getattr(self, '_theme_mirrored', False) or 'theme' not in validated_data:
+                    instance.theme = current_theme
+                final_type = validated_data.get('detail_type', current_type)
                 if (
-                    validated_data.get('detail_type') == 'SPECIAL'
-                    and instance.detail_type != 'SPECIAL'
-                    and instance.recording_policy != EventDetail.RecordingPolicy.FORBIDDEN
+                    final_type == 'SPECIAL'
+                    and current_type != 'SPECIAL'
+                    and current_policy != EventDetail.RecordingPolicy.FORBIDDEN
                 ):
                     raise serializers.ValidationError({'recording_policy': self.special_recording_error})
+                # テーマは実際に保存される種類・タイトルから作り直す
+                if final_type == 'SPECIAL':
+                    validated_data['theme'] = self._special_theme(validated_data.get('h1', instance.h1))
+                elif getattr(self, '_theme_mirrored', False):
+                    validated_data.pop('theme', None)
                 instance = super().update(instance, validated_data)
         self._store_transcript(instance, transcript)
         
@@ -354,6 +367,12 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
             pass
             
         return instance
+
+    @staticmethod
+    def _special_theme(h1):
+        """特別企画のテーマ。画面と同じく、タイトルを切り詰めて使い、空なら固定の名前にする。"""
+        title = (h1 or '').strip()
+        return title[:EventDetail._meta.get_field('theme').max_length] or 'Special Event'
 
     @staticmethod
     def _store_transcript(instance, transcript):
