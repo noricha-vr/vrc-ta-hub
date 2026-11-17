@@ -193,28 +193,44 @@ def get_video_watch_times(event_detail_ids, *, days=30):
         return {}, None
     # youtube_url は発表者が編集できるので、他集会の動画 URL を貼って数字を覗けないよう、
     # 説明欄のリンクで決めた代表の発表が「その発表と同じ集会」に属する行だけを数える。
-    key_by_detail = {}
+    today = timezone.localdate()
+    date_range = {'date__gte': today - timedelta(days=days), 'date__lt': today}
+    keys_by_detail = {}
     for pk, url, community_id in EventDetail.objects.filter(pk__in=event_detail_ids).values_list(
         'pk', 'youtube_url', 'event__community_id',
     ):
+        keys_by_detail[pk] = set()
         if video_id := youtube_video_id(url):
-            key_by_detail[pk] = (video_id, community_id)
-    if not key_by_detail:
+            keys_by_detail[pk].add((video_id, community_id))
+    # 説明欄のリンクで代表になっている発表（event_detail_id がその発表そのもの）は、
+    # youtube_url が空でも別の動画でも、その動画の視聴時間を数える。
+    # 説明欄のリンクはチャンネル所有者しか編集できないので権限境界は崩れない。
+    for pk, video_id, community_id in YouTubeVideoAnalytics.objects.filter(
+        event_detail_id__in=keys_by_detail.keys(), **date_range,
+    ).values_list('event_detail_id', 'video_id', 'event_detail__event__community_id').distinct():
+        keys_by_detail[pk].add((video_id, community_id))
+    keys = set().union(*keys_by_detail.values())
+    if not keys:
         return {}, None
-    keys = set(key_by_detail.values())
-    today = timezone.localdate()
     totals = {}
     for row in YouTubeVideoAnalytics.objects.filter(
         video_id__in={video_id for video_id, _ in keys},
         event_detail__event__community_id__in={community_id for _, community_id in keys},
-        date__gte=today - timedelta(days=days), date__lt=today,
+        **date_range,
     ).values('video_id', 'event_detail__event__community_id').annotate(
         views_total=Sum('views'), minutes_total=Sum('estimated_minutes_watched'),
     ):
         key = (row['video_id'], row['event_detail__event__community_id'])
         if key in keys:
             totals[key] = (row['views_total'], row['minutes_total'])
-    by_key = {key: minutes * 60 / views for key, (views, minutes) in totals.items() if views > 0}
-    views = sum(views for views, _ in totals.values())
-    average = sum(minutes for _, minutes in totals.values()) * 60 / views if views else None
-    return {pk: by_key[key] for pk, key in key_by_detail.items() if key in by_key}, average
+    totals = {key: value for key, value in totals.items() if value[0] and value[0] > 0}
+    # 同じ動画が両方の経路で当たっても、キー（動画・集会）が同じなら 1 回だけ数える。
+    by_detail = {}
+    for pk, detail_keys in keys_by_detail.items():
+        views = sum(totals[key][0] for key in detail_keys if key in totals)
+        minutes = sum(totals[key][1] for key in detail_keys if key in totals)
+        if views > 0:
+            by_detail[pk] = minutes * 60 / views
+    all_views = sum(views for views, _ in totals.values())
+    average = sum(minutes for _, minutes in totals.values()) * 60 / all_views if all_views else None
+    return by_detail, average
