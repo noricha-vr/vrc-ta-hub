@@ -5,6 +5,7 @@ import os
 import re
 import socket
 import sys
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
@@ -104,12 +105,24 @@ def _is_pre_send_connection_failure(error: BaseException) -> bool:
     return False
 
 
-def _api_url(endpoint: str) -> str:
+def _instance_url() -> str:
     """環境変数はホスト名として扱い、パスや認証情報の混入を拒否する。"""
     host = os.environ.get('MISSKEY_HOST', 'misskey.io')
     if not re.fullmatch(r'[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?', host):
         raise ValueError('MISSKEY_HOST must be a hostname')
-    return f'https://{host}/api/{endpoint}'
+    return f'https://{host}'
+
+
+def _api_url(endpoint: str) -> str:
+    return f'{_instance_url()}/api/{endpoint}'
+
+
+def note_url(note_id: str) -> str:
+    """API と同じホスト検証を使い、設定不正時はリンクを表示しない。"""
+    try:
+        return f'{_instance_url()}/notes/{quote(note_id, safe="")}'
+    except ValueError:
+        return ''
 
 
 def _post_api(endpoint: str, *, payload=None, files=None) -> PostTweetResult:

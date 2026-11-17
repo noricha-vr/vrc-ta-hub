@@ -31,6 +31,31 @@
         {% if object.tweet_id %}<dt class="col-sm-3">ポストID</dt><dd class="col-sm-9 text-break"><a href="https://x.com/vrc_ta_hub/status/{{ object.tweet_id }}" target="_blank" rel="noopener noreferrer">{{ object.tweet_id }}（X で開く ↗）</a></dd>{% endif %}
     </dl>
 </section>
+<section class="admin-card" aria-labelledby="misskey-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='Misskey の投稿' heading_id='misskey-heading' only %}
+    {% if not misskey_enabled %}<p class="admin-muted" role="status">Misskey 連携は無効です。</p>{% endif %}
+    {% with note=object.misskey_note %}
+    <dl class="row mb-0">
+        <dt class="col-sm-3">状態</dt><dd class="col-sm-9" data-queue-misskey-status>{% include 'twitter/includes/misskey_status.html' with note=note misskey_enabled=misskey_enabled only %}{% if misskey_enabled and note.status == 'sending' %} <span class="admin-muted">送信中です。しばらくしてからページを開き直してください。</span>{% endif %}</dd>
+        {% if note %}
+        <dt class="col-sm-3">投稿日時</dt><dd class="col-sm-9">{% if note.posted_at %}{{ note.posted_at|date:'Y/m/d H:i' }}{% else %}未投稿{% endif %}</dd>
+        <dt class="col-sm-3">試行回数</dt><dd class="col-sm-9">{{ note.attempts }} 回</dd>
+        {% if misskey_note_url %}<dt class="col-sm-3">ノート</dt><dd class="col-sm-9 text-break"><a href="{{ misskey_note_url }}" target="_blank" rel="noopener noreferrer">{{ note.note_id }}（Misskey で開く ↗）</a></dd>{% endif %}
+        {% if note.error_message %}<dt class="col-sm-3">エラー・理由</dt><dd class="col-sm-9 text-break">{{ note.error_message }}</dd>{% endif %}
+        {% endif %}
+    </dl>
+    {% if misskey_enabled and not note %}<p class="admin-muted mb-0">このキューは Misskey 投稿の対象外です。</p>{% endif %}
+    {% if misskey_can_repost %}
+    <p class="admin-muted mt-3">保存済みの投稿文を予約日時を待たずに Misskey に投稿します。編集中の変更は先に保存してください。</p>
+    {% if note.status == 'unknown' %}<p class="action-required" id="misskey-repost-warning">結果不明のため、すでに投稿されている可能性があります</p>{% endif %}
+    <button type="button" class="btn btn-primary" data-confirm-panel="repost-misskey" aria-controls="repost-misskey" aria-expanded="false"{% if note.status == 'unknown' %} aria-describedby="misskey-repost-warning"{% endif %}>Misskey に再投稿</button>
+    {% url 'twitter:tweet_queue_detail' object.pk as detail_url %}
+    {% with queue=object %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='repost-misskey' label='Misskey 再投稿の確認' message='Misskey の投稿先を確認してから、保存済みの次の内容を再投稿してください。' action_url=detail_url submit_label='この内容で Misskey に再投稿' submit_name='action' submit_value='repost_misskey' fields_template='twitter/includes/queue_confirm_content.html' tone='primary' %}
+    {% endwith %}
+    {% endif %}
+    {% endwith %}
+</section>
 {% if request.user.is_superuser %}<form id="tweet-queue-form" method="post" data-admin-dirty>
     {% csrf_token %}
     <input type="hidden" name="action" value="update">

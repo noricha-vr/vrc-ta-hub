@@ -21,6 +21,7 @@ from .announcement_eligibility import (
 logger = structlog.get_logger(__name__)
 MAX_ATTEMPTS = 3
 SCHEDULE_EXPIRY_HOURS = 24
+REPOSTABLE_STATUSES = frozenset({'failed', 'unknown', 'skipped'})
 
 
 def _log_post(note: MisskeyNote, http_status=None) -> None:
@@ -104,8 +105,7 @@ def _claim_next_note(current):
                 continue
 
             note.status = 'sending'
-            note.attempts += 1
-            note.save(update_fields=['status', 'attempts', 'updated_at'])
+            note.save(update_fields=['status', 'updated_at'])
             return note
     return None
 
@@ -120,7 +120,40 @@ def process_pending_notes(*, now=None) -> None:
     note = _claim_next_note(current)
     if note is None:
         return
+    _post_claimed_note(note, now=current)
+
+
+def repost_note(queue_id: int) -> MisskeyNote:
+    """失敗等の 1 件を確保し、予約日時を待たず Misskey だけに再投稿する。"""
+    if not misskey_api.is_misskey_enabled():
+        raise ValueError('Misskey 連携は無効です。')
+    with transaction.atomic():
+        note = MisskeyNote.objects.select_for_update().select_related('tweet_queue').filter(
+            tweet_queue_id=queue_id,
+        ).first()
+        if note is None:
+            raise ValueError('このキューは Misskey 投稿の対象外です。')
+        if note.status not in REPOSTABLE_STATUSES:
+            raise ValueError('この状態では Misskey に再投稿できません。')
+        queue_item = note.tweet_queue
+        if queue_item.status in ('generating', 'generation_failed'):
+            raise ValueError('投稿文の生成が完了していないため、Misskey に再投稿できません。')
+        if not queue_item.generated_text.strip():
+            raise ValueError('生成テキストが空のため Misskey に再投稿できません。')
+        note.status = 'sending'
+        note.attempts = 0
+        note.error_message = ''
+        note.save(update_fields=['status', 'attempts', 'error_message', 'updated_at'])
+    _post_claimed_note(note)
+    return note
+
+
+def _post_claimed_note(note: MisskeyNote, *, now=None) -> None:
+    """送信中として確定済みのノートを投稿し、結果と失敗通知を記録する。"""
+    current = now or timezone.now()
     queue_item = note.tweet_queue
+    note.attempts += 1
+    note.save(update_fields=['attempts', 'updated_at'])
 
     try:
         result = misskey_api.post_note(
