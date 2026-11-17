@@ -10,6 +10,10 @@ from datetime import date
 from django.db import models
 
 
+# 発表の持ち時間・開始のずれの上限（集会設定と申請フォームで共有）
+MAX_LT_DURATION_MINUTES = 240
+MAX_LT_START_OFFSET_MINUTES = 1440
+
 _WEEKDAY_CODES = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 
 WEEKDAY_CHOICES = (

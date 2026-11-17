@@ -2,7 +2,10 @@ from django import forms
 from django.forms.widgets import CheckboxSelectMultiple
 
 
-from .constants import WEEKDAY_CHOICES, RECORDING_POLICY_FORM_CHOICES
+from .constants import (
+    WEEKDAY_CHOICES, RECORDING_POLICY_FORM_CHOICES,
+    MAX_LT_DURATION_MINUTES, MAX_LT_START_OFFSET_MINUTES,
+)
 from .recording_settings import _parse_recording_allowed, _resolve_default_recording_policy
 from .libs import resolve_vrc_group_url
 from .models import Community, TAGS, FORM_TAGS
@@ -224,12 +227,12 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
     )
     default_recording_policy_chosen = forms.CharField(required=False, strip=False, widget=forms.HiddenInput)
     default_lt_duration = forms.IntegerField(
-        label='発表の持ち時間（分）', required=False, initial=30, min_value=1, max_value=240,
+        label='発表の持ち時間（分）', required=False, initial=30, min_value=1, max_value=MAX_LT_DURATION_MINUTES,
         help_text='発表と質疑応答を含めた合計時間（分）。',
     )
     lt_start_offset_minutes = forms.IntegerField(
         label='最初の発表を始めるタイミング（集会開始から何分後）',
-        required=False, initial=30, min_value=0, max_value=1440,
+        required=False, initial=30, min_value=0, max_value=MAX_LT_START_OFFSET_MINUTES,
         help_text='例：集会開始が22:00の場合、15分後なら発表開始は22:15です。',
     )
 

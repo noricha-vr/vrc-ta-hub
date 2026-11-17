@@ -16,6 +16,7 @@ from website.discord_webhook import (
     post_discord_webhook,
 )
 
+from ..constants import MAX_LT_DURATION_MINUTES, MAX_LT_START_OFFSET_MINUTES
 from ..recording_settings import _parse_recording_allowed, _resolve_default_recording_policy
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 from .admin_ui import settings_display
@@ -350,6 +351,16 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
             offset = max(0, int(offset_str))
         except ValueError:
             offset = 30
+
+        # 上限超過は保存せずエラーを出す（申請フォームと同じ上限）
+        if duration > MAX_LT_DURATION_MINUTES:
+            messages.error(
+                request, f'発表の持ち時間は{MAX_LT_DURATION_MINUTES}分以下で入力してください。')
+            return redirect('community:settings')
+        if offset > MAX_LT_START_OFFSET_MINUTES:
+            messages.error(
+                request, f'最初の発表を始めるタイミングは{MAX_LT_START_OFFSET_MINUTES}分以下で入力してください。')
+            return redirect('community:settings')
 
         community.accepts_lt_application = accepts_lt
         community.recording_allowed = recording_allowed
