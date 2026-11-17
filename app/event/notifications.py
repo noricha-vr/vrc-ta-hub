@@ -272,7 +272,8 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
             呼び出し側が event.material_upload_reminders.get_material_reminder_recipient で決める。
 
     Returns:
-        メールを送れた時 True。呼び出し側は False なら通知日時を戻して送り直せるようにする。
+        メールを送れた時 True（Discord の再確認・送信の失敗は結果に影響しない）。
+        呼び出し側は False なら通知日時を戻して送り直せるようにする。
     """
     is_published = event_detail.status == 'approved'
     edit_url = build_site_url(
@@ -282,9 +283,17 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
 
     sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
     if sent and is_published:
-        published_detail = get_published_article_for_notification(event_detail.pk)
-        if published_detail is not None and not article_discord_replaced_by_video_notice(published_detail):
-            send_discord_notification_for_article(published_detail, edit_url, article_url)
+        # メールは送れている。Discord 用の再確認・送信が例外になっても、メール失敗と同じ扱いにしない
+        # （呼び出し元が通知日時を戻し、次の生成で同じメールを送り直すのを防ぐ）。
+        try:
+            published_detail = get_published_article_for_notification(event_detail.pk)
+            if published_detail is not None and not article_discord_replaced_by_video_notice(published_detail):
+                send_discord_notification_for_article(published_detail, edit_url, article_url)
+        except Exception:
+            logger.exception(
+                'article_published_discord_failed',
+                extra={'event_type': 'article_published_discord_failed', 'event_detail_id': event_detail.pk},
+            )
     return sent
 
 

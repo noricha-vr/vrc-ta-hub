@@ -313,6 +313,11 @@ def _send_article_approval_notification(pk: int, claimed_at: datetime, send_emai
             return
         if send_email:
             recipient = get_material_reminder_recipient(detail)
+            # 宛先の取得の間に変わることがあるので、メールを送る直前にも読み直す。
+            detail = get_published_article_for_notification(pk)
+            if detail is None:
+                _release_claim(pk, claimed_at)
+                return
             if not _send_published_notification(detail, recipient):
                 _release_claim(pk, claimed_at)
         elif not article_discord_replaced_by_video_notice(detail):
@@ -369,10 +374,16 @@ def _notify_first_time(pk: int) -> None:
                 ).update(article_published_notified_at=None)
                 return
             recipient = get_material_reminder_recipient(detail)
+        # 行ロックを外してからメールを送るまでに記事化 NG・却下・削除へ変わることがあるので、
+        # 送る直前にも公開の条件と記事を読み直す。満たさなければ送らずに自分の担当を戻す。
+        detail = EventDetail.all_objects.filter(
+            EventDetail.article_notifiable_q(), pk=pk,
+        ).select_related('event__community', 'applicant').first()
+        if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+            _release_claim(pk, notified_at)
+            return
         if not _send_published_notification(detail, recipient):
-            EventDetail.all_objects.filter(
-                pk=pk, article_published_notified_at=notified_at,
-            ).update(article_published_notified_at=None)
+            _release_claim(pk, notified_at)
     except Exception:
         logger.exception(
             'article_published_notification_failed',
