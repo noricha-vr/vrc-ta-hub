@@ -401,6 +401,45 @@ class ApplyRecordingOptInTest(TestCase):
         self.assertEqual(backup['event_details'][str(detail.pk)], RecordingPolicy.ALLOWED)
         self.assertEqual(sum(f'id={detail.pk} ' in line for line in output.splitlines() if '旧 recording_policy' in line), 1)
 
+    def test_detail_moving_between_rules_is_applied_once_and_not_skipped(self):
+        # 今後・allowed → （b の集計の間に）過去・public → （更新の前に）今後・allowed と値が動く発表。
+        # a と b の両方に入る状態を優先順で a だけに残し、a の更新が通って APPLIED にだけ出る。
+        detail = self._detail(self.other, 3, policy=RecordingPolicy.ALLOWED, old=True, url=None)
+        original_filter = QuerySet.filter
+        original_update = QuerySet.update
+        moved = restored = False
+
+        def filter_(queryset, *args, **kwargs):
+            nonlocal moved
+            result = original_filter(queryset, *args, **kwargs)
+            if queryset.model is EventDetail and not moved and args and 'recording_policy' in str(args[0]) \
+                    and 'created_at' in str(args[0]):
+                moved = True
+                original_update(Event.objects.filter(pk=detail.event_id), date=self.today - timedelta(days=3))
+                original_update(EventDetail.all_objects.filter(pk=detail.pk), recording_policy=RecordingPolicy.PUBLIC)
+            return result
+
+        def update(queryset, **kwargs):
+            nonlocal restored
+            if queryset.model is Community and moved and not restored:
+                restored = True
+                original_update(Event.objects.filter(pk=detail.event_id), date=self.today + timedelta(days=3))
+                original_update(EventDetail.all_objects.filter(pk=detail.pk), recording_policy=RecordingPolicy.ALLOWED)
+            return original_update(queryset, **kwargs)
+
+        with patch.object(QuerySet, 'filter', filter_), patch.object(QuerySet, 'update', update):
+            output = self._run()
+
+        self.assertTrue(moved and restored)
+        lines = output.splitlines()
+        applied = json.loads(next(l for l in lines if l.startswith('RECORDING_OPT_IN_APPLIED ')).split(' ', 1)[1])
+        skipped_lines = [l for l in lines if l.startswith('RECORDING_OPT_IN_SKIPPED ')]
+        skipped = json.loads(skipped_lines[0].split(' ', 1)[1]) if skipped_lines else {'event_details': []}
+        # APPLIED の旧値は、実際に更新した時（a の集計時）の allowed。SKIPPED には出ない。
+        self.assertEqual(applied['event_details'][str(detail.pk)], RecordingPolicy.ALLOWED)
+        self.assertNotIn(detail.pk, skipped['event_details'])
+        self._assert_policy(detail, RecordingPolicy.FORBIDDEN)
+
     def test_all_updates_are_atomic(self):
         before = self._state()
         original_update = QuerySet.update
