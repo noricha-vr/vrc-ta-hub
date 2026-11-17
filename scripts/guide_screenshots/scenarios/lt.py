@@ -118,6 +118,14 @@ def create(capture):
     region(capture, f'{FORM} .admin-card:has(#id_detail_type_2)', field('h1'), field('contents'))
     capture.annotate(f'{FORM} button[type=submit]', 1)
     region(capture, f'{FORM} button[type=submit]')
+    # パネルを撮影する時: 特別企画に戻すと撮影は「禁止」から始まる。全員の了承を得た選択肢と確認のチェックを示す
+    capture.page.locator('#id_detail_type_1').check()
+    capture.page.locator('#id_h1').fill('みんなで試す実験会')
+    capture.page.locator('[aria-label="撮影"] input[value="public"]').check()
+    capture.page.locator('#id_special_recording_confirmed').check()
+    capture.annotate('[aria-label="撮影"]', 1)
+    capture.annotate(f'{field("special_recording_confirmed")} .form-check', 2)
+    region(capture, field('recording_policy'), field('special_recording_confirmed'))
 
 
 @scenario('lt/edit-delete', mobile=True)
