@@ -374,12 +374,19 @@ def _notify_first_time(pk: int) -> None:
                 ).update(article_published_notified_at=None)
                 return
             recipient = get_material_reminder_recipient(detail)
+            claimed_status = detail.status
         # 行ロックを外してからメールを送るまでに記事化 NG・却下・削除へ変わることがあるので、
         # 送る直前にも公開の条件と記事を読み直す。満たさなければ送らずに自分の担当を戻す。
+        # 取得時から承認へ進んでいた時は、承認側が通知日時を引き継いで公開メールと Discord を送るので、
+        # ここでは送らない（取得時の状態で作成メールだけを送る前提が崩れ、Discord が二重になるのを防ぐ）。
         detail = EventDetail.all_objects.filter(
             EventDetail.article_notifiable_q(), pk=pk,
         ).select_related('event__community', 'applicant').first()
-        if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+        if (
+            detail is None
+            or detail.article_state() == EventDetail.ArticleState.NONE
+            or detail.status != claimed_status
+        ):
             _release_claim(pk, notified_at)
             return
         if not _send_published_notification(detail, recipient):

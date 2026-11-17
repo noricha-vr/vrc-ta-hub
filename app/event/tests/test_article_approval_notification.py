@@ -434,6 +434,25 @@ class ArticleApprovalNotificationTest(TestCase):
                 detail.refresh_from_db()
                 self.assertIsNone(detail.article_published_notified_at)
 
+    def test_generation_does_not_send_when_approved_after_claim(self, send_mail, post_webhook):
+        """通知の担当を取った後に承認へ進んだら、生成側は送らない（承認側が引き継ぐので Discord が二重にならない）。"""
+        detail = self._detail()
+        real_recipient = article_generation.get_material_reminder_recipient
+        calls = []
+
+        def recipient_then_approve(target):
+            recipient = real_recipient(target)
+            calls.append(1)
+            if len(calls) == 2:
+                EventDetail.all_objects.filter(pk=detail.pk).update(status='approved')
+            return recipient
+
+        with patch.object(article_generation, 'get_material_reminder_recipient', recipient_then_approve):
+            _notify_first_time(detail.pk)
+
+        send_mail.assert_not_called()
+        post_webhook.assert_not_called()
+
     def test_approval_rechecks_article_just_before_publication_email(self, send_mail, post_webhook):
         """承認時の公開メールも、送信の直前に NG へ変わっていたら送らず担当を戻す（#706）。"""
         detail = self._detail()
