@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from event.models import EventDetail
 from event.notifications import notify_applicant_of_result
+from event.services import article_generation
 from event.services.article_generation import _notify_first_time, schedule_article_notification_on_approval
 from event.services.content_generation_service import BlogOutput, BlogSources, _with_sources, save_generated_article
 from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail
@@ -388,6 +389,89 @@ class ArticleApprovalNotificationTest(TestCase):
                 self.assertIsNotNone(detail.article_published_notified_at)
                 send_mail.side_effect = None
                 send_mail.reset_mock()
+
+    def test_discord_recheck_error_after_email_does_not_release_claim(self, send_mail, post_webhook):
+        """メールを送れた後に Discord 用の再確認が例外になっても、通知日時を戻さずメールを送り直さない（#706）。"""
+        detail = self._detail(status='approved')
+
+        with patch('event.notifications.get_published_article_for_notification', side_effect=RuntimeError('db')):
+            _notify_first_time(detail.pk)
+
+        send_mail.assert_called_once()
+        post_webhook.assert_not_called()
+        detail.refresh_from_db()
+        self.assertIsNotNone(detail.article_published_notified_at)
+        _notify_first_time(detail.pk)
+        send_mail.assert_called_once()
+
+    def test_generation_rechecks_article_just_before_email(self, send_mail, post_webhook):
+        """通知の担当を取って行ロックを外した後、メール送信の直前に NG・却下・削除へ変わったら、送らず担当を戻す（#706）。"""
+        for changes in (
+            {'article_consent': EventDetail.ArticleConsent.NG},
+            {'status': 'rejected'},
+            {'deleted_at': timezone.now()},
+        ):
+            with self.subTest(changes=changes):
+                detail = self._detail()
+                real_recipient = article_generation.get_material_reminder_recipient
+                calls = []
+
+                def recipient_then_change(target):
+                    recipient = real_recipient(target)
+                    calls.append(1)
+                    # 1 回目は担当を取る前の宛先確認。2 回目（担当を取った後の読み直し）の直後に変える。
+                    if len(calls) == 2:
+                        EventDetail.all_objects.filter(pk=detail.pk).update(**changes)
+                    return recipient
+
+                with patch.object(article_generation, 'get_material_reminder_recipient', recipient_then_change):
+                    _notify_first_time(detail.pk)
+
+                self.assertEqual(len(calls), 2)
+
+                send_mail.assert_not_called()
+                post_webhook.assert_not_called()
+                detail.refresh_from_db()
+                self.assertIsNone(detail.article_published_notified_at)
+
+    def test_generation_does_not_send_when_approved_after_claim(self, send_mail, post_webhook):
+        """通知の担当を取った後に承認へ進んだら、生成側は送らない（承認側が引き継ぐので Discord が二重にならない）。"""
+        detail = self._detail()
+        real_recipient = article_generation.get_material_reminder_recipient
+        calls = []
+
+        def recipient_then_approve(target):
+            recipient = real_recipient(target)
+            calls.append(1)
+            if len(calls) == 2:
+                EventDetail.all_objects.filter(pk=detail.pk).update(status='approved')
+            return recipient
+
+        with patch.object(article_generation, 'get_material_reminder_recipient', recipient_then_approve):
+            _notify_first_time(detail.pk)
+
+        send_mail.assert_not_called()
+        post_webhook.assert_not_called()
+
+    def test_approval_rechecks_article_just_before_publication_email(self, send_mail, post_webhook):
+        """承認時の公開メールも、送信の直前に NG へ変わっていたら送らず担当を戻す（#706）。"""
+        detail = self._detail()
+        real_recipient = article_generation.get_material_reminder_recipient
+
+        def recipient_then_change(target):
+            recipient = real_recipient(target)
+            EventDetail.all_objects.filter(pk=detail.pk).update(article_consent=EventDetail.ArticleConsent.NG)
+            return recipient
+
+        with patch.object(article_generation, 'get_material_reminder_recipient', recipient_then_change):
+            self.assertEqual(self._post(detail, 'lt_application_review').status_code, 302)
+
+        self.assertFalse([
+            call for call in send_mail.call_args_list if '発表の記事を公開しました' in call.kwargs['subject']
+        ])
+        self.assertEqual(self._article_posts(post_webhook), [])
+        detail.refresh_from_db()
+        self.assertIsNone(detail.article_published_notified_at)
 
     def test_publication_discord_uses_article_after_email(self, send_mail, post_webhook):
         """公開メールの送信中に本文が変わったら、Discord は読み直した記事で作る。"""
