@@ -27,6 +27,18 @@ ARTICLE_AFTER_FETCH_MESSAGE = "PDF を読み込んだら記事を作ります。
 ARTICLE_REFUSED_MESSAGE = "生成している間に発表者が記事化を NG にしたため、記事は保存しませんでした。"
 
 
+def _log_special_recording(detail, user):
+    if detail.detail_type == 'SPECIAL' and detail.recording_policy != EventDetail.RecordingPolicy.FORBIDDEN:
+        logger.info('special_recording_enabled', extra={
+            'event': 'special_recording_enabled',
+            'event_type': 'special_recording_enabled',
+            'event_detail_id': detail.pk,
+            'community_id': detail.event.community_id,
+            'recording_policy': detail.recording_policy,
+            'user_id': user.pk,
+        })
+
+
 def _save_and_report(request, event_detail: EventDetail, blog_output) -> None:
     """生成結果を保存し、結果をメッセージで知らせる。
 
@@ -94,6 +106,7 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
     def form_valid(self, form):
         form.instance.event = self.event
         response = super().form_valid(form)
+        _log_special_recording(self.object, self.request.user)
 
         # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
         if _should_generate_on_save(form):
@@ -153,6 +166,7 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
 
     def form_valid(self, form):
         response = super().form_valid(form)
+        _log_special_recording(self.object, self.request.user)
 
         # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
         if _should_generate_on_save(form):

@@ -168,17 +168,17 @@
             const fieldVisibility = {
                 'LT': {
                     show: ['theme', 'speaker', 'start_time', 'duration', 'slide_entry', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article', 'recording_policy', 'x_account', 'article_consent', 'additional_info'],
-                    hide: [],
+                    hide: ['special_recording_confirmed'],
                     optional: ['slide_entry', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
                 },
                 'SPECIAL': {
-                    show: ['h1', 'thumbnail_image', 'contents', 'start_time'],
-                    hide: ['theme', 'speaker', 'duration', 'recording_policy', 'slide_entry', 'youtube_url', 'x_account', 'article_consent', 'additional_info'],
+                    show: ['h1', 'thumbnail_image', 'contents', 'start_time', 'duration', 'recording_policy', 'special_recording_confirmed'],
+                    hide: ['theme', 'speaker', 'slide_entry', 'youtube_url', 'x_account', 'article_consent', 'additional_info'],
                     optional: []
                 },
                 'BLOG': {
                     show: ['h1', 'thumbnail_image', 'contents'],
-                    hide: ['theme', 'speaker', 'start_time', 'duration', 'recording_policy', 'slide_entry', 'youtube_url', 'x_account', 'article_consent', 'additional_info'],
+                    hide: ['theme', 'speaker', 'start_time', 'duration', 'recording_policy', 'special_recording_confirmed', 'slide_entry', 'youtube_url', 'x_account', 'article_consent', 'additional_info'],
                     optional: []
                 }
             };
@@ -249,6 +249,14 @@
             detailTypeRadios.forEach(radio => {
                 radio.addEventListener('change', function() {
                     if (this.checked) {
+                        {% if not form.instance.pk and form.recording_policy %}
+                        if (this.value === 'SPECIAL') {
+                            const forbidden = document.querySelector('input[name="recording_policy"][value="forbidden"]');
+                            if (forbidden) forbidden.checked = true;
+                            const confirmation = document.getElementById('id_special_recording_confirmed');
+                            if (confirmation) confirmation.checked = false;
+                        }
+                        {% endif %}
                         // 詳細設定を閉じた状態にリセット
                         detailSettingsExpanded = false;
                         const button = document.querySelector('#detail-settings-toggle button');

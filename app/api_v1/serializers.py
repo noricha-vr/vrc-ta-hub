@@ -221,6 +221,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
 
 class EventDetailWriteSerializer(serializers.ModelSerializer):
     """EventDetail作成・更新用シリアライザー"""
+    special_recording_error = '特別企画の撮影は API では設定できません。主催者の画面で出演者全員の確認をつけて設定してください。'
     status = serializers.ChoiceField(choices=[('pending', '承認待ち')], required=False)
     generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
     # 録画側で作った字幕。YouTube はクラウドの IP からの字幕取得を弾くので、記事生成の字幕キャッシュへ直接入れる
@@ -250,6 +251,25 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             # 同じ値でも保存の対象から外す（読み込みから保存までの間に画面で変えた同意を古い値で戻さない）
             attrs.pop('recording_policy', None)
+        if attrs.get('detail_type', instance.detail_type) == 'SPECIAL':
+            policy = (
+                instance.recording_policy if self.instance is not None
+                else attrs.get('recording_policy', EventDetail.RecordingPolicy.FORBIDDEN)
+            )
+            if (
+                (self.instance is None or instance.detail_type != 'SPECIAL')
+                and policy != EventDetail.RecordingPolicy.FORBIDDEN
+            ):
+                raise serializers.ValidationError({'recording_policy': self.special_recording_error})
+            # 字幕だけの更新は記事の save() を起こさない。それ以外の保存は画面と同じテーマに揃える。
+            transcript_only = (
+                'transcript' in attrs
+                and not attrs.get('generate_from_pdf')
+                and not attrs.keys() - {'transcript', 'generate_from_pdf'}
+            )
+            if not transcript_only:
+                attrs['theme'] = self._special_theme(attrs.get('h1', instance.h1))
+                self._theme_mirrored = True
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})
         if attrs.get('detail_type', instance.detail_type) == 'LT':
@@ -313,11 +333,31 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
                 if 'event' in validated_data:
                     instance.event = validated_data['event']
                 lock_linked_detail(instance)
-                instance.recording_policy = (
+                # 種類とタイトルも読み直す。送っていない項目を検証前の古い値で書き戻すと、
+                # 画面で変えた種類・撮影の組み合わせが確認なしの「特別企画で撮影する」に戻りうるため
+                current_type, current_policy, current_h1, current_theme = (
                     EventDetail.objects.select_for_update()
-                    .values_list('recording_policy', flat=True)
+                    .values_list('detail_type', 'recording_policy', 'h1', 'theme')
                     .get(pk=instance.pk)
                 )
+                instance.detail_type = current_type
+                instance.recording_policy = current_policy
+                if 'h1' not in validated_data:
+                    instance.h1 = current_h1
+                if getattr(self, '_theme_mirrored', False) or 'theme' not in validated_data:
+                    instance.theme = current_theme
+                final_type = validated_data.get('detail_type', current_type)
+                if (
+                    final_type == 'SPECIAL'
+                    and current_type != 'SPECIAL'
+                    and current_policy != EventDetail.RecordingPolicy.FORBIDDEN
+                ):
+                    raise serializers.ValidationError({'recording_policy': self.special_recording_error})
+                # テーマは実際に保存される種類・タイトルから作り直す
+                if final_type == 'SPECIAL':
+                    validated_data['theme'] = self._special_theme(validated_data.get('h1', instance.h1))
+                elif getattr(self, '_theme_mirrored', False):
+                    validated_data.pop('theme', None)
                 instance = super().update(instance, validated_data)
         self._store_transcript(instance, transcript)
         
@@ -327,6 +367,12 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
             pass
             
         return instance
+
+    @staticmethod
+    def _special_theme(h1):
+        """特別企画のテーマ。画面と同じく、タイトルを切り詰めて使い、空なら固定の名前にする。"""
+        title = (h1 or '').strip()
+        return title[:EventDetail._meta.get_field('theme').max_length] or 'Special Event'
 
     @staticmethod
     def _store_transcript(instance, transcript):

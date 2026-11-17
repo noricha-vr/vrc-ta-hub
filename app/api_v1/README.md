@@ -53,9 +53,11 @@
 | `recording_allowed` | コミュニティ（`/community/`、`/event/` と `/event_detail/` の `event.community` ネストを含む） | `true` = 撮影を許可 / `false`（既定）= この集会は自動撮影の対象外 |
 | `recording_policy` | イベント詳細（`/event_detail/`、`/event-details/`） | `public` = 撮影して YouTube で公開 / `allowed` = 撮影するが公開しない / `forbidden` = 撮影しない（`POST` で省略した時の既定） |
 
-イベント詳細の読み取りには `detail_type`（`LT` = 発表 / `SPECIAL` = 特別企画 / `BLOG` = ブログ）も出ます。自動撮影の対象を発表に絞る時に使います。
+イベント詳細の読み取りには `detail_type`（`LT` = 発表 / `SPECIAL` = 特別企画 / `BLOG` = ブログ）も出ます。発表に加え、出演者全員への確認を済ませた特別企画も撮影の対象になりえます。集会の `recording_allowed` と各行の `recording_policy` も確認してください。特別企画の `theme` はタイトル（`h1`）の前後の空白を除き、100 文字に収めた値です。タイトルが空なら `Special Event` です。
 
 `recording_policy` は API キー認証の `POST /event-details/`（新規登録）でだけ指定できます。上の 3 つ以外の値は 400 になります。登録後の `PUT` / `PATCH` で今と違う値を送ると 400 になり、何も保存しません（同じ値の送り直しは通ります）。撮影の扱いは登壇者の同意なので、変えられるのは発表者・主催者の画面だけです。
+
+特別企画の新規登録では、`recording_policy` が `forbidden` 以外なら 400 になります（省略時は `forbidden`）。既存行を特別企画へ種類変更する時も、撮影の扱いが `forbidden` 以外なら 400 になります。撮影する特別企画は、主催者の発表の編集画面で出演者全員への確認にチェックを入れて保存してください。
 
 ## レスポンス形式
 

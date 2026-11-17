@@ -101,6 +101,8 @@ class CsrfBehaviorTests(TestCase):
 
     def test_api_key_put_and_delete_succeed_without_csrf_token(self):
         """APIKey 認証経由なら CSRF token なしで PUT/DELETE が通る."""
+        # 種類を特別企画へ変えるため、撮影は事前に主催者の画面で禁止した状態にする。
+        EventDetail.objects.filter(pk=self.event_detail.pk).update(recording_policy='forbidden')
         client = APIClient(enforce_csrf_checks=True)
         client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key}')
 

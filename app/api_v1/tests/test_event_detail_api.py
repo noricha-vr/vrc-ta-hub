@@ -316,6 +316,8 @@ class EventDetailAPITest(TestCase):
     
     def test_update_event_detail(self):
         """イベント詳細更新のテスト"""
+        # API は撮影を変更できないので、特別企画への変更は撮影禁止の行で確かめる。
+        EventDetail.objects.filter(pk=self.event_detail1.pk).update(recording_policy='forbidden')
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         
         url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})

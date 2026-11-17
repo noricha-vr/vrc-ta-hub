@@ -2,6 +2,7 @@
 
 from django import forms
 from django.db import transaction
+from django.utils.safestring import mark_safe
 
 from user_account.forms import normalize_x_account
 
@@ -31,6 +32,21 @@ from .mixins import (
 
 
 class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms.ModelForm):
+    special_recording_confirmed = forms.BooleanField(
+        label='出演者全員に、撮影と公開の可否を確認しました',
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input',
+            'aria-describedby': 'id_special_recording_confirmed_help',
+        }),
+        help_text=mark_safe(
+            '1 人でも撮影を望まない人がいる時は「禁止」を選んでください。'
+            '開始前に、質疑などでの発言も録音されることを参加者へ案内してください。'
+            '<a href="/guide/lt/create/#パネルを撮影する時の進め方" target="_blank" rel="noopener">'
+            'パネルを撮影する時の進め方</a>'
+        ),
+    )
     start_time = forms.TimeField(
         label='開始時間',
         widget=forms.TimeInput(
@@ -206,11 +222,18 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             community = self.instance.event.community
             if self.remove_recording_policy_unless_allowed(community):
                 self.recording_not_allowed = not self.applicant_datetime_locked
-                # 非表示の項目は送信値を使わず、新規は「禁止」、編集は今の値を保つ。
+                # 非表示の項目は送信値を使わない。特別企画は clean() で既存も「禁止」にする。
                 if not self.instance.pk:
                     self.instance.recording_policy = EventDetail.RecordingPolicy.FORBIDDEN
             elif not self.instance.pk:
-                self.initial['recording_policy'] = community.default_recording_policy
+                self.initial['recording_policy'] = (
+                    EventDetail.RecordingPolicy.FORBIDDEN
+                    if self.initial.get('detail_type', self.instance.detail_type) == 'SPECIAL'
+                    else community.default_recording_policy
+                )
+
+        if 'recording_policy' not in self.fields:
+            self.fields.pop('special_recording_confirmed')
 
         # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする。
         # meta_description だけで判定すると手書きの contents / h1 を上書き再生成してしまう。
@@ -249,14 +272,23 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             if has_event_detail_duration_changed(self.instance, self.data.get('duration')):
                 self.add_error('duration', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)
 
-        # 特別企画とブログの場合、非表示フィールドにデフォルト値を設定
+        # 特別企画とブログのタイトルをテーマへ反映し、非表示の発表者を空にする。
         if detail_type == 'SPECIAL':
-            # 特別企画のデフォルト値
-            cleaned_data['theme'] = 'Special Event'
+            title = (cleaned_data.get('h1') or '').strip()
+            cleaned_data['theme'] = title[:EventDetail._meta.get_field('theme').max_length] or 'Special Event'
             cleaned_data['speaker'] = ''
-            # start_timeは入力されたものを使用（ただしVketロック中は元の値を維持）
-            if not getattr(self, 'datetime_locked', False):
-                cleaned_data['duration'] = 60
+            if 'recording_policy' not in self.fields:
+                self.instance.recording_policy = EventDetail.RecordingPolicy.FORBIDDEN
+            elif (
+                cleaned_data.get('recording_policy') in (
+                    EventDetail.RecordingPolicy.ALLOWED, EventDetail.RecordingPolicy.PUBLIC,
+                )
+                and not cleaned_data.get('special_recording_confirmed')
+            ):
+                self.add_error(
+                    'special_recording_confirmed',
+                    '特別企画を撮影する時は、出演者全員に確認したことにチェックを入れてください。',
+                )
         elif detail_type == 'BLOG':
             # ブログのデフォルト値（h1があればthemeにコピー）
             h1 = cleaned_data.get('h1', '')

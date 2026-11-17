@@ -165,3 +165,134 @@ class EventDetailAPIKeyRecordingPolicyTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
+
+    def test_special_creation_rejects_recording_without_confirmation_path(self):
+        for policy in ('allowed', 'public'):
+            with self.subTest(policy=policy):
+                response = self.client.post(self.list_url, self._create_payload(
+                    detail_type='SPECIAL', recording_policy=policy, h1='パネル',
+                ), format='json')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('recording_policy', response.data)
+        self.assertEqual(EventDetail.objects.count(), 1)
+
+    def test_special_creation_forbidden_or_omitted_uses_title_and_duration(self):
+        for title, expected in (('  パネル  ', 'パネル'), ('', 'Special Event'), ('題' * 110, '題' * 100)):
+            for policy in ({}, {'recording_policy': 'forbidden'}):
+                with self.subTest(title=title, policy=policy):
+                    response = self.client.post(self.list_url, self._create_payload(
+                        detail_type='SPECIAL', h1=title, duration=95, **policy,
+                    ), format='json')
+                    self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+                    detail = EventDetail.objects.get(pk=response.data['id'])
+                    self.assertEqual(detail.recording_policy, 'forbidden')
+                    self.assertEqual(detail.theme, expected)
+                    self.assertEqual(detail.duration, 95)
+                    public = self.client.get('/api/v1/event_detail/')
+                    self.assertEqual(_find(public, detail.pk)['theme'], expected)
+
+    def test_switch_to_special_rejects_existing_recording(self):
+        for kind in ('LT', 'BLOG'):
+            for policy in ('public', 'allowed'):
+                with self.subTest(kind=kind, policy=policy):
+                    EventDetail.objects.filter(pk=self.detail.pk).update(detail_type=kind, recording_policy=policy)
+                    response = self.client.patch(self.detail_url, {'detail_type': 'SPECIAL'}, format='json')
+                    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                    self.assertIn('recording_policy', response.data)
+                    self.detail.refresh_from_db()
+                    self.assertEqual(self.detail.detail_type, kind)
+
+    def test_switch_forbidden_to_special_and_partial_title_update(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy='forbidden', h1='企画名')
+        response = self.client.patch(self.detail_url, {'detail_type': 'SPECIAL'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '企画名')
+        response = self.client.patch(self.detail_url, {'h1': ' 新しい企画名 '}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '新しい企画名')
+
+    def test_existing_special_can_update_content_without_changing_recording(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(detail_type='SPECIAL', h1='既存の企画名')
+        response = self.client.patch(self.detail_url, {'contents': '修正した本文'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '既存の企画名')
+        response = self.client.patch(self.detail_url, {'h1': '更新後の企画名'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, 'public')
+        self.assertEqual(self.detail.theme, '更新後の企画名')
+
+    def test_switch_rechecks_policy_changed_after_validation(self):
+        from api_v1.serializers import EventDetailWriteSerializer
+
+        EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy='forbidden')
+        original = EventDetailWriteSerializer.validate
+
+        def validate_then_enable(serializer, attrs):
+            attrs = original(serializer, attrs)
+            EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy='public')
+            return attrs
+
+        with mock.patch.object(EventDetailWriteSerializer, 'validate', validate_then_enable):
+            response = self.client.patch(self.detail_url, {'detail_type': 'SPECIAL'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.detail_type, 'LT')
+
+    def _patch_after_screen_change(self, payload, **screen_values):
+        """検証の後、保存の前に画面で行が変わった状態で PATCH する。"""
+        from api_v1.serializers import EventDetailWriteSerializer
+
+        original = EventDetailWriteSerializer.validate
+
+        def validate_then_change_on_screen(serializer, attrs):
+            attrs = original(serializer, attrs)
+            EventDetail.objects.filter(pk=self.detail.pk).update(**screen_values)
+            return attrs
+
+        with mock.patch.object(EventDetailWriteSerializer, 'validate', validate_then_change_on_screen):
+            return self.client.patch(self.detail_url, payload, format='json')
+
+    def test_stale_special_is_not_written_back_over_screen_change(self):
+        """読み込み時は禁止の特別企画でも、画面で撮影する発表に変わった後に古い種類を書き戻さない。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='企画名', recording_policy='forbidden')
+        response = self._patch_after_screen_change(
+            {'contents': '本文だけ'}, detail_type='LT', recording_policy='public', theme='発表のテーマ')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(
+            (self.detail.detail_type, self.detail.recording_policy, self.detail.theme),
+            ('LT', 'public', '発表のテーマ'),
+        )
+
+    def test_explicit_special_is_rejected_after_screen_enables_recording(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='企画名', recording_policy='forbidden')
+        response = self._patch_after_screen_change(
+            {'detail_type': 'SPECIAL', 'contents': '本文'}, detail_type='LT', recording_policy='public')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.detail.refresh_from_db()
+        self.assertEqual((self.detail.detail_type, self.detail.recording_policy), ('LT', 'public'))
+
+    def test_special_theme_follows_title_changed_on_screen(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='古い企画名', recording_policy='forbidden')
+        response = self._patch_after_screen_change({'contents': '本文'}, h1='新しい企画名')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual((self.detail.h1, self.detail.theme), ('新しい企画名', '新しい企画名'))
+
+    def test_special_transcript_only_update_keeps_save_free_path(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            detail_type='SPECIAL', h1='企画名', youtube_url='https://youtu.be/QDYMKH1hbbA',
+        )
+        with mock.patch.object(EventDetail, 'save', side_effect=AssertionError('字幕だけでは save しない')):
+            response = self.client.patch(self.detail_url, {'transcript': 'パネルの字幕'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.cached_transcript, 'パネルの字幕')
+        self.assertIsNone(self.detail.article_generation_requested_at)

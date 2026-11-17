@@ -375,8 +375,8 @@ class EventDetailFormCleanTest(TestCase):
         cleaned_data = form.cleaned_data
         self.assertEqual(cleaned_data['theme'], 'Special Event')
 
-    def test_special_type_sets_default_duration(self):
-        """SPECIALタイプではdurationが60に設定される"""
+    def test_special_type_preserves_duration(self):
+        """SPECIALタイプでは入力した持ち時間が保存される"""
         request = self._create_request()
         form_data = {
             'detail_type': 'SPECIAL',
@@ -384,7 +384,7 @@ class EventDetailFormCleanTest(TestCase):
             'theme': '',
             'speaker': '',
             'start_time': '22:00',
-            'duration': 30,  # 入力があっても上書きされる
+            'duration': 30,  # 特別企画でも入力値を使う
             'contents': 'Special event content',
             'generate_blog_article': False,
         }
@@ -393,7 +393,7 @@ class EventDetailFormCleanTest(TestCase):
         self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
 
         cleaned_data = form.cleaned_data
-        self.assertEqual(cleaned_data['duration'], 60)
+        self.assertEqual(cleaned_data['duration'], 30)
 
     def test_lt_type_preserves_user_input(self):
         """LTタイプではユーザー入力が保持される"""
