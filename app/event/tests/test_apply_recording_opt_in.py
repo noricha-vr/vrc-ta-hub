@@ -432,8 +432,8 @@ class ApplyRecordingOptInTest(TestCase):
 
         self.assertTrue(moved and restored)
         lines = output.splitlines()
-        applied = json.loads(next(l for l in lines if l.startswith('RECORDING_OPT_IN_APPLIED ')).split(' ', 1)[1])
-        skipped_lines = [l for l in lines if l.startswith('RECORDING_OPT_IN_SKIPPED ')]
+        applied = json.loads(next(line for line in lines if line.startswith('RECORDING_OPT_IN_APPLIED ')).split(' ', 1)[1])
+        skipped_lines = [line for line in lines if line.startswith('RECORDING_OPT_IN_SKIPPED ')]
         skipped = json.loads(skipped_lines[0].split(' ', 1)[1]) if skipped_lines else {'event_details': []}
         # APPLIED の旧値は、実際に更新した時（a の集計時）の allowed。SKIPPED には出ない。
         self.assertEqual(applied['event_details'][str(detail.pk)], RecordingPolicy.ALLOWED)
