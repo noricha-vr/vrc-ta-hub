@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.contrib import messages
+from django import forms
 from django.utils.html import format_html
 from django.urls import path
 from django.shortcuts import render, redirect
@@ -10,8 +11,39 @@ from community.constants import weekday_code
 from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecurrenceRule
 
 
+class EventDetailAdminForm(forms.ModelForm):
+    class Meta:
+        model = EventDetail
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_detail_type = self.instance.detail_type
+        self._original_recording_policy = self.instance.recording_policy
+
+    def clean(self):
+        cleaned = super().clean()
+        if (
+            cleaned.get('detail_type') == 'SPECIAL'
+            and cleaned.get('recording_policy') in (
+                EventDetail.RecordingPolicy.ALLOWED, EventDetail.RecordingPolicy.PUBLIC,
+            )
+            and (
+                not self.instance.pk
+                or self._original_detail_type != 'SPECIAL'
+                or cleaned['recording_policy'] != self._original_recording_policy
+            )
+        ):
+            self.add_error(
+                'recording_policy',
+                '特別企画の撮影は、主催者の発表の編集画面で出演者全員の確認をつけて設定してください',
+            )
+        return cleaned
+
+
 class EventDetailInline(admin.TabularInline):
     model = EventDetail
+    form = EventDetailAdminForm
     extra = 1  # 追加フォームの数
     exclude = ('slide_source_file',)
 
@@ -182,6 +214,7 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(EventDetail)
 class EventDetailAdmin(admin.ModelAdmin):
+    form = EventDetailAdminForm
     list_display = ('get_community_name', 'created_at', 'updated_at', 'detail_type', 'theme', 'speaker', 'deleted_at')
     list_filter = ('detail_type', 'status', 'source', 'article_consent', 'deleted_at', 'event__community', 'speaker')
     exclude = ('slide_source_file',)

@@ -2,6 +2,18 @@
 <section class="admin-card" data-detail-card>
     {% include 'ta_hub/admin/includes/section_heading.html' with title='撮影・記事化' only %}
     {% include 'event/includes/presentation_field.html' with field=form.recording_policy icon='bi-camera-video' only %}
+    {% if form.special_recording_confirmed %}
+    <div class="mb-4 field-wrapper{% if form.detail_type.value != 'SPECIAL' %} field-hidden{% endif %}" data-field="special_recording_confirmed">
+        <div class="form-check">
+            {{ form.special_recording_confirmed }}
+            <label class="form-check-label" for="{{ form.special_recording_confirmed.id_for_label }}">{{ form.special_recording_confirmed.label }}</label>
+        </div>
+        <div id="id_special_recording_confirmed_help" class="form-text">{{ form.special_recording_confirmed.help_text }}</div>
+        {% if form.special_recording_confirmed.errors %}
+        <div class="invalid-feedback d-block text-danger">{{ form.special_recording_confirmed.errors }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
     {% if form.recording_not_allowed %}
     <div class="mb-4 field-wrapper" data-field="recording_policy">
         <p class="form-label fw-bold"><i class="bi bi-camera-video me-1" aria-hidden="true"></i>撮影</p>

@@ -221,6 +221,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
 
 class EventDetailWriteSerializer(serializers.ModelSerializer):
     """EventDetail作成・更新用シリアライザー"""
+    special_recording_error = '特別企画の撮影は API では設定できません。主催者の画面で出演者全員の確認をつけて設定してください。'
     status = serializers.ChoiceField(choices=[('pending', '承認待ち')], required=False)
     generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
     # 録画側で作った字幕。YouTube はクラウドの IP からの字幕取得を弾くので、記事生成の字幕キャッシュへ直接入れる
@@ -250,6 +251,25 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             # 同じ値でも保存の対象から外す（読み込みから保存までの間に画面で変えた同意を古い値で戻さない）
             attrs.pop('recording_policy', None)
+        if attrs.get('detail_type', instance.detail_type) == 'SPECIAL':
+            policy = (
+                instance.recording_policy if self.instance is not None
+                else attrs.get('recording_policy', EventDetail.RecordingPolicy.FORBIDDEN)
+            )
+            if (
+                (self.instance is None or instance.detail_type != 'SPECIAL')
+                and policy != EventDetail.RecordingPolicy.FORBIDDEN
+            ):
+                raise serializers.ValidationError({'recording_policy': self.special_recording_error})
+            # 字幕だけの更新は記事の save() を起こさない。それ以外の保存は画面と同じテーマに揃える。
+            transcript_only = (
+                'transcript' in attrs
+                and not attrs.get('generate_from_pdf')
+                and not attrs.keys() - {'transcript', 'generate_from_pdf'}
+            )
+            if not transcript_only:
+                title = (attrs.get('h1', instance.h1) or '').strip()
+                attrs['theme'] = title[:EventDetail._meta.get_field('theme').max_length] or 'Special Event'
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})
         if attrs.get('detail_type', instance.detail_type) == 'LT':
@@ -318,6 +338,13 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
                     .values_list('recording_policy', flat=True)
                     .get(pk=instance.pk)
                 )
+                # 検証後に画面で撮影の扱いが変わった場合も、確認なしの種類変更を防ぐ。
+                if (
+                    validated_data.get('detail_type') == 'SPECIAL'
+                    and instance.detail_type != 'SPECIAL'
+                    and instance.recording_policy != EventDetail.RecordingPolicy.FORBIDDEN
+                ):
+                    raise serializers.ValidationError({'recording_policy': self.special_recording_error})
                 instance = super().update(instance, validated_data)
         self._store_transcript(instance, transcript)
         
