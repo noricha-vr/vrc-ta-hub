@@ -26,11 +26,13 @@ from community.models import Community, CommunityMember
 from event.models import Event
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from .forms import TwitterTemplateForm
+from . import misskey_api
 from .models import TwitterTemplate, TweetQueue
 from .notifications import notify_tweet_post_failure
 from .scheduling import default_scheduled_at
 from .utils import format_event_info, generate_tweet
 from .services.media_service import upload_media_to_x as upload_media
+from .services.misskey_service import REPOSTABLE_STATUSES, repost_note
 from .services.tweet_scheduling_service import (
     post_tweet_queue_item,
     process_scheduled_tweets,
@@ -347,7 +349,7 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
         return [primary_order, models.F('created_at').desc(), models.F('pk').desc()]
 
     def get_queryset(self):
-        qs = TweetQueue.objects.select_related('community', 'event').order_by(*self._get_ordering())
+        qs = TweetQueue.objects.select_related('community', 'event', 'misskey_note').order_by(*self._get_ordering())
         qs = _scope_tweet_queue_to_user(qs, self.request.user)
         status = self.request.GET.get('status', '')
         valid_statuses = {choice[0] for choice in TweetQueue.STATUS_CHOICES}
@@ -361,6 +363,7 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
         current_sort = self._get_sort_field()
         current_order = self._get_sort_order()
         context['current_status'] = status
+        context['misskey_enabled'] = misskey_api.is_misskey_enabled()
         context['status_choices'] = TweetQueue.STATUS_CHOICES
         context['queue_list_target'] = 'すべての集会' if self.request.user.is_superuser else '所属する集会'
         context['current_sort'] = current_sort
@@ -394,7 +397,7 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
     """TweetQueue 詳細・編集ページ。
 
     閲覧（GET）は superuser または所属コミュニティを持つスタッフ以上が可能。
-    編集系の POST アクション（update / retry / post_now / delete）は superuser のみ。
+    編集系の POST アクションは superuser のみ。
     """
 
     model = TweetQueue
@@ -402,11 +405,19 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
     context_object_name = 'object'
 
     def get_queryset(self):
-        qs = TweetQueue.objects.select_related('community', 'event', 'event_detail')
+        qs = TweetQueue.objects.select_related('community', 'event', 'event_detail', 'misskey_note')
         return _scope_tweet_queue_to_user(qs, self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['misskey_enabled'] = misskey_api.is_misskey_enabled()
+        note = getattr(self.object, 'misskey_note', None)
+        context['misskey_can_repost'] = (
+            self.request.user.is_superuser and context['misskey_enabled']
+            and note is not None and note.status in REPOSTABLE_STATUSES
+        )
+        if note and note.status == 'posted' and note.note_id:
+            context['misskey_note_url'] = misskey_api.note_url(note.note_id)
         if self.request.user.is_superuser:
             context['save_actions'] = [{
                 'form_id': 'tweet-queue-form', 'scope': f'キュー #{self.object.pk}',
@@ -426,10 +437,24 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
             return self._handle_retry()
         elif action == 'post_now':
             return self._handle_post_now()
+        elif action == 'repost_misskey':
+            return self._handle_repost_misskey()
         elif action == 'delete':
             return self._handle_delete()
         else:
             return self._handle_update(request)
+
+    def _handle_repost_misskey(self):
+        try:
+            note = repost_note(self.object.pk)
+        except ValueError as error:
+            messages.error(self.request, str(error))
+        else:
+            if note.status == 'posted':
+                messages.success(self.request, 'Misskey に再投稿しました。')
+            else:
+                messages.error(self.request, note.error_message)
+        return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
 
     def _handle_update(self, request):
         """generated_text と image_url と scheduled_at を更新する。"""

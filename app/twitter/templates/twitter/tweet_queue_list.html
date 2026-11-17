@@ -10,6 +10,9 @@
 {% block admin_subnav %}
 {% include 'ta_hub/admin/includes/subnav.html' with label='ポストの状態で絞り込み' links_template='twitter/includes/queue_filters.html' %}
 {% endblock %}
+{% block admin_attention %}
+{% if not misskey_enabled %}<p class="admin-muted" role="status">Misskey 連携は無効です。</p>{% endif %}
+{% endblock %}
 {% block admin_content %}
 <div class="d-flex flex-wrap gap-3 mb-3 small" aria-label="並び順">
     <span>並び順:</span>
@@ -23,7 +26,11 @@
     <div class="event-summary">
         <div>
             <h2 class="h6 fw-bold text-break mb-1"><a href="{% url 'twitter:tweet_queue_detail' item.pk %}">{{ item.community.name }} · {{ item.get_tweet_type_display }} #{{ item.pk }}</a>
-                {% include 'twitter/includes/queue_status.html' with queue=item only %}{% if item.pk in today_tweet_queue_ids %} {% include 'ta_hub/admin/includes/status_chip.html' with label='本日予約' tone='warning' only %}{% endif %}</h2>
+                {% if item.pk in today_tweet_queue_ids %} {% include 'ta_hub/admin/includes/status_chip.html' with label='本日予約' tone='warning' only %}{% endif %}</h2>
+            <div class="d-flex flex-wrap gap-3 mb-2" aria-label="投稿先ごとの状態">
+                <span class="d-inline-flex align-items-center gap-1" data-queue-x-status>X {% include 'twitter/includes/queue_status.html' with queue=item only %}</span>
+                <span class="d-inline-flex align-items-center gap-1" data-queue-misskey-status>Misskey {% include 'twitter/includes/misskey_status.html' with note=item.misskey_note misskey_enabled=misskey_enabled only %}</span>
+            </div>
             <p class="admin-muted mb-0">予約 {{ item.scheduled_at|date:'Y/m/d H:i' }} · 作成 {{ item.created_at|date:'Y/m/d H:i' }} · 投稿 {% if item.posted_at %}{{ item.posted_at|date:'Y/m/d H:i' }}{% else %}未投稿{% endif %} · {% if item.image_url %}画像あり{% else %}画像なし{% endif %}</p>
         </div>
         <div class="event-actions">

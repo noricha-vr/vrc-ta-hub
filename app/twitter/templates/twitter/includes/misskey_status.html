@@ -1,0 +1,15 @@
+{% if not misskey_enabled %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='連携無効' only %}
+{% elif not note %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='対象外' only %}
+{% elif note.status == 'pending' or note.status == 'sending' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='未送信' only %}
+{% elif note.status == 'posted' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='投稿済み' tone='success' only %}
+{% elif note.status == 'unknown' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='結果不明' tone='warning' only %}
+{% elif note.status == 'failed' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='失敗' tone='danger' only %}
+{% elif note.status == 'skipped' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='スキップ' only %}
+{% endif %}
