@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 import uuid
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 MAX_ARTICLE_SLIDE_IMAGES = 8
+# 画像生成全体の時間の上限（秒）。リクエストのタイムアウト（120 秒）に収めるため、超えたら残りは省略する
+SLIDE_IMAGES_TOTAL_BUDGET_SECONDS = 40
 
 
 def _h2_lines(text: str):
@@ -59,9 +62,15 @@ def _render_images(event_detail: EventDetail, selected, slide_name: str) -> dict
     images = {}
     page_urls = {}
     directory = uuid.uuid4()
+    deadline = time.monotonic() + SLIDE_IMAGES_TOTAL_BUDGET_SECONDS
     try:
         temp_path = _copy_uploaded_file_to_temp_path(event_detail.article_pdf)
         for index, heading, page in selected:
+            if time.monotonic() >= deadline:
+                logger.warning('article_slide_images_budget_exceeded', extra={
+                    'event_type': 'article_slide_images_budget_exceeded', 'event_detail_id': event_detail.pk,
+                })
+                break
             try:
                 if page not in page_urls:
                     image = run_pdf_worker('page_image', temp_path, page=page)

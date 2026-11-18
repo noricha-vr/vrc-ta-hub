@@ -113,6 +113,15 @@ class ArticleSlideImagesTests(SimpleTestCase):
         self.assertEqual(result.text.count('!['), MAX_ARTICLE_SLIDE_IMAGES)
         self.assertEqual(worker.call_count, MAX_ARTICLE_SLIDE_IMAGES)
 
+    @patch('event.services.article_slide_images.time.monotonic', side_effect=[0, 0, 100, 100, 100])
+    @patch('event.services.article_slide_images.run_pdf_worker', return_value=b'jpeg')
+    def test_total_time_budget_skips_remaining_pages_but_keeps_article(self, worker, _clock):
+        result = self.generate('## 一\n\n本文\n\n## 二\n\n本文',
+                               [{'heading': '一', 'page': 1}, {'heading': '二', 'page': 2}])
+        self.assertEqual(result.text.count('!['), 1)
+        self.assertIn('## 二\n\n本文', result.text)
+        worker.assert_called_once()
+
     @patch('event.services.article_slide_images.run_pdf_worker', return_value=b'jpeg')
     def test_code_block_headings_are_ignored_and_reused_page_is_rendered_once(self, worker):
         result = self.generate('```markdown\n## 例\n```\n\n## 実践\n\n本文\n\n## 補足 ###\n', [
