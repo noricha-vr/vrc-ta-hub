@@ -1255,7 +1255,7 @@ class GeneratedSourcesTest(TestCase):
     def test_sources_are_not_part_of_the_llm_schema(self, *_mocks):
         """生成に使った入力は BlogOutput に持たせるが、LLM に渡す関数のスキーマには出さない。"""
         self.assertEqual(
-            set(BlogOutput.model_json_schema()['properties']), {'title', 'meta_description', 'text'},
+            set(BlogOutput.model_json_schema()['properties']), {'title', 'meta_description', 'text', 'slide_pages'},
         )
 
 

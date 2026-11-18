@@ -53,7 +53,7 @@ class OpenAISdkCompatibilityTest(TestCase):
                 'function': {'name': 'generate_blog_post', 'arguments': json.dumps(self.payload)},
             }],
         })
-        self.assertEqual(result.model_dump(), self.payload)
+        self.assertEqual(result.model_dump(exclude={'slide_pages'}), self.payload)
         request = self.requests[0]
         self.assertEqual(request.url.path, '/api/v1/chat/completions')
         self.assertEqual(request.headers['Authorization'], 'Bearer offline-test-key')
@@ -69,7 +69,7 @@ class OpenAISdkCompatibilityTest(TestCase):
                 'custom': {'name': 'other_tool', 'input': 'not blog JSON'},
             }],
         })
-        self.assertEqual(result.model_dump(), self.payload)
+        self.assertEqual(result.model_dump(exclude={'slide_pages'}), self.payload)
 
     def test_custom_call_without_content_returns_empty_output(self):
         with self.assertLogs('event.services.content_generation_service', level='ERROR') as logs:
@@ -85,4 +85,4 @@ class OpenAISdkCompatibilityTest(TestCase):
 
     def test_plain_content_still_generates_blog(self):
         result = self._generate({'role': 'assistant', 'content': json.dumps(self.payload)})
-        self.assertEqual(result.model_dump(), self.payload)
+        self.assertEqual(result.model_dump(exclude={'slide_pages'}), self.payload)

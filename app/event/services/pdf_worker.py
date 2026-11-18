@@ -112,12 +112,20 @@ def _run_child(argv: list[str]) -> int:
             _kill_and_reap(process)
 
 
-def run_pdf_worker(operation: str, input_path: str, *, max_chars: int | None = None) -> bytes:
+def run_pdf_worker(operation: str, input_path: str, *, max_chars: int | None = None,
+                   page: int | None = None, with_page_numbers: bool = False) -> bytes:
     """Run one worker and return a bounded result; failures become sanitized errors."""
-    if operation not in {"text", "thumbnail", "page_count"}:
+    if operation not in {"text", "thumbnail", "page_count", "page_image"}:
         raise ValueError("unsupported PDF operation")
     if operation == "text" and (max_chars is None or max_chars < 0):
         raise ValueError("text extraction requires a non-negative character budget")
+    if operation == "page_image":
+        if type(page) is not int or page < 1:
+            raise ValueError("page image requires a positive page number")
+    elif page is not None:
+        raise ValueError("page is only supported for page images")
+    if with_page_numbers and operation != "text":
+        raise ValueError("page numbers are only supported for text extraction")
 
     started = time.monotonic()
     if not _pdf_worker_semaphore.acquire(timeout=PDF_WORKER_QUEUE_TIMEOUT_SECONDS):
@@ -154,6 +162,10 @@ def run_pdf_worker(operation: str, input_path: str, *, max_chars: int | None = N
             ]
             if operation == "text":
                 argv.extend(("--max-chars", str(max_chars)))
+                if with_page_numbers:
+                    argv.append("--with-page-numbers")
+            if operation == "page_image":
+                argv.extend(("--page", str(page)))
 
             try:
                 return_code = _run_child(argv)
@@ -185,7 +197,7 @@ def run_pdf_worker(operation: str, input_path: str, *, max_chars: int | None = N
             if len(result) > PDF_WORKER_MAX_OUTPUT_BYTES:
                 reason = "result_too_large"
                 raise PdfWorkerError(operation, reason)
-            if operation == "thumbnail" and not result:
+            if operation in {"thumbnail", "page_image"} and not result:
                 reason = "worker_error"
                 raise PdfWorkerError(operation, reason)
     except PdfWorkerError as error:

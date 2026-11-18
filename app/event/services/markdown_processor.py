@@ -15,6 +15,7 @@ import bleach  # type: ignore[import-untyped]
 import markdown  # type: ignore[import-untyped]
 from bleach.css_sanitizer import CSSSanitizer  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
+from django.conf import settings
 
 from event.services.content_sanitizer import (
     ALLOWED_IFRAME_DOMAINS,
@@ -225,7 +226,7 @@ def _remove_disallowed_iframes(soup: BeautifulSoup) -> None:
 def _sanitize_html(html: str) -> str:
     """bleach を使って許可タグ・属性・CSS のみの HTML に整える."""
     css_sanitizer = CSSSanitizer(allowed_css_properties=_ALLOWED_CSS_PROPERTIES)
-    return cast(
+    cleaned = cast(
         str,
         bleach.clean(
             html,
@@ -234,6 +235,36 @@ def _sanitize_html(html: str) -> str:
             css_sanitizer=css_sanitizer,
         ),
     )
+    soup = BeautifulSoup(cleaned, 'html.parser')
+    for img in soup.find_all('img'):
+        if not _is_allowed_image_src(img.get('src')):
+            img.decompose()
+    return str(soup)
+
+
+def _is_allowed_image_src(src) -> bool:
+    """相対画像と自サイト・公開ストレージの画像だけを許可する。"""
+    if not isinstance(src, str) or not src or re.search(r'[\s\\\x00-\x1f\x7f]', src):
+        return False
+    try:
+        parsed = urlparse(src)
+        if not parsed.scheme and not parsed.netloc:
+            return not src.startswith('//')
+        if parsed.scheme not in ('http', 'https') or parsed.username or parsed.password:
+            return False
+        options: dict = settings.STORAGES.get('default', {}).get('OPTIONS', {})  # type: ignore[attr-defined]
+        urls = [settings.MEDIA_URL, getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None),
+                options.get('custom_domain'), options.get('endpoint_url')]
+        hosts = set()
+        for value in urls:
+            if value:
+                host = urlparse(value if '://' in value or value.startswith('/') else f'https://{value}').hostname
+                if host:
+                    hosts.add(host.lower().rstrip('.'))
+        return bool(parsed.hostname and (is_site_domain(parsed.hostname)
+                    or parsed.hostname.lower().rstrip('.') in hosts))
+    except (TypeError, ValueError):
+        return False
 
 
 def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:

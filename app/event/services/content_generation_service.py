@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 from event.models import EventDetail, article_generation_request_values
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.services.content_sanitizer import remove_invalid_slide_links
+from event.services.article_slide_images import insert_slide_images
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
 from event.services.youtube_service import get_transcript
@@ -72,12 +73,20 @@ class BlogSources:
         return self.video_id, self.slide_name
 
 
+class BlogSlidePage(BaseModel):
+    """記事の H2 と、内容に最も合う PDF ページ（1 始まり）。"""
+
+    heading: str = Field(description="本文の H2 見出し文字列。先頭の ## は含めない。")
+    page: int | None = Field(default=None, description="対応する PDF のページ番号（1 始まり）。該当なしは null。")
+
+
 class BlogOutput(BaseModel):
     """ブログ記事の出力形式を定義するPydanticモデル"""
     title: str = Field(description="ブログ記事のタイトル。SEOを意識した40文字以内の魅力的なタイトル。")
     meta_description: str = Field(
         description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
     text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
+    slide_pages: list[BlogSlidePage] = Field(default_factory=list, description="各 H2 と対応する PDF ページ。PDF が無ければ空配列。")
     # generate_blog が生成に使った入力。生成元の記録に使う（関数呼び出しのスキーマには出ない）
     _sources: Optional[BlogSources] = PrivateAttr(default=None)
 
@@ -95,10 +104,13 @@ def _slide_link_instruction(pdf_url: str, *, is_external: bool = False) -> str:
     return "- スライド（PDF）は無いので、スライドへのリンクは記載しない"
 
 
-def _with_sources(blog_output: BlogOutput, sources: BlogSources) -> BlogOutput:
+def _with_sources(blog_output: BlogOutput, sources: BlogSources,
+                  event_detail: Optional[EventDetail] = None) -> BlogOutput:
     """生成結果に、生成に使った入力を持たせる。行き先の無いスライドリンクはここで消す。"""
     blog_output.text = remove_invalid_slide_links(blog_output.text)
     blog_output._sources = sources
+    if event_detail is not None:
+        blog_output.text = insert_slide_images(event_detail, blog_output, sources)
     return blog_output
 
 
@@ -208,7 +220,8 @@ def _limit_source_text(text: str, *, max_chars: int = MAX_SOURCE_TEXT_CHARS) -> 
     return text[:max_chars]
 
 
-def _extract_pdf_text(temp_file_path: str, *, max_chars: int = MAX_SOURCE_TEXT_CHARS) -> str:
+def _extract_pdf_text(temp_file_path: str, *, max_chars: int = MAX_SOURCE_TEXT_CHARS,
+                      with_page_numbers: bool = False) -> str:
     """Extract bounded text from a PDF file for blog generation.
 
     Args:
@@ -222,7 +235,10 @@ def _extract_pdf_text(temp_file_path: str, *, max_chars: int = MAX_SOURCE_TEXT_C
         return ""
 
     try:
-        result = run_pdf_worker("text", temp_file_path, max_chars=max_chars)
+        if with_page_numbers:
+            result = run_pdf_worker("text", temp_file_path, max_chars=max_chars, with_page_numbers=True)
+        else:
+            result = run_pdf_worker("text", temp_file_path, max_chars=max_chars)
         return result.decode("utf-8")
     except PdfWorkerError:
         # Worker failures preserve the existing contract: omit PDF text and
@@ -300,7 +316,7 @@ def fetch_transcript(event_detail: EventDetail) -> Optional[str]:
     return _get_transcript_with_cache(event_detail)
 
 
-def _read_slide_text(event_detail: EventDetail, max_chars: int) -> str:
+def _read_slide_text(event_detail: EventDetail, max_chars: int, *, with_page_numbers: bool = False) -> str:
     """スライドPDFのテキストを上限内で取り出す。読めない時は空文字。"""
     if not event_detail.article_pdf:
         return ""
@@ -308,7 +324,7 @@ def _read_slide_text(event_detail: EventDetail, max_chars: int) -> str:
     temp_file_path = None
     try:
         temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.article_pdf)
-        pdf_content = _extract_pdf_text(temp_file_path, max_chars=max_chars)
+        pdf_content = _extract_pdf_text(temp_file_path, max_chars=max_chars, with_page_numbers=with_page_numbers)
         logger.info(f"Extracted PDF content: {len(pdf_content)} chars")
         return pdf_content
     except Exception:
@@ -345,7 +361,7 @@ def collect_blog_sources(event_detail: EventDetail,
     limited_transcript = _limit_source_text(transcript) if transcript else ""
     pdf_budget = max(MAX_COMBINED_SOURCE_CHARS - len(limited_transcript), 0)
     pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
-    pdf_content = _read_slide_text(event_detail, pdf_budget)
+    pdf_content = _read_slide_text(event_detail, pdf_budget, with_page_numbers=True)
     return BlogSources(
         transcript=limited_transcript,
         pdf_content=pdf_content,
@@ -414,7 +430,7 @@ def generate_blog(event_detail: EventDetail, model=None, sources: Optional[BlogS
         prompt_text += """
 
 # 出力形式
-関数呼び出しが使えない場合は、title / meta_description / text の3フィールドを持つ
+関数呼び出しが使えない場合は、title / meta_description / text / slide_pages のフィールドを持つ
 JSONオブジェクトだけを```json ... ```ブロックで出力してください。"""
 
         logger.info(f'Prompt for OpenRouter:\n{prompt_text[:500]}...')  # 長すぎるので一部表示
@@ -489,7 +505,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
                 try:
                     blog_output = BlogOutput.model_validate_json(blog_output_json)
                     logger.info("Successfully parsed BlogOutput from function call response")
-                    return _with_sources(blog_output, sources)
+                    return _with_sources(blog_output, sources, event_detail)
                 except Exception as validate_error:
                     logger.warning(f"Failed to validate BlogOutput from function call: {str(validate_error)}")
                     # 検証に失敗した場合、JSONとして解析して手動でモデルを作成
@@ -497,7 +513,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
                         output_data = json.loads(blog_output_json)
                         blog_output = BlogOutput(**output_data)
                         logger.info("Created BlogOutput manually from function call data")
-                        return _with_sources(blog_output, sources)
+                        return _with_sources(blog_output, sources, event_detail)
                     except Exception as e:
                         logger.error(f"Failed to parse function call response: {str(e)}")
                         # 失敗した場合は通常のJSONパース処理に続く
@@ -593,7 +609,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
             try:
                 blog_output = BlogOutput(**output_data)
                 logger.info('Parsed BlogOutput: ' + str(blog_output))
-                return _with_sources(blog_output, sources)
+                return _with_sources(blog_output, sources, event_detail)
             except Exception as validation_error:
                 # Pydanticのバリデーションエラーなど
                 logger.error(f"Failed to create BlogOutput from parsed JSON: {str(validation_error)}")
