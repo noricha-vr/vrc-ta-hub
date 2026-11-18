@@ -54,6 +54,7 @@ def extract_pdf_text(
     max_chars: int,
     max_pages: int | None = None,
     reader_factory=None,
+    with_page_numbers: bool = False,
 ) -> str:
     """既存のページ数・文字数budgetでPDF本文を抽出する."""
     _add_application_root_to_path()
@@ -75,6 +76,8 @@ def extract_pdf_text(
         text = page.extract_text() or ""
         if not text:
             continue
+        if with_page_numbers:
+            text = f"[ページ {page_index + 1}]\n{text}"
 
         remaining_chars = max_chars - current_chars
         if remaining_chars <= 0:
@@ -117,6 +120,36 @@ def render_pdf_thumbnail(pdf_path: str, output_path: str, *, pdf_document_factor
             pdf.close()
 
 
+def render_pdf_page(pdf_path: str, output_path: str, *, page: int) -> None:
+    """指定ページ全体を、サムネイルと同じ長辺上限で JPEG にする（1 始まり）。"""
+    if page < 1:
+        raise ValueError("page must be positive")
+    _add_application_root_to_path()
+    import pypdfium2 as pdfium
+    from event.pdf_processing import get_pdf_thumbnail_render_scale
+
+    pdf = pdfium.PdfDocument(pdf_path)
+    try:
+        if page > len(pdf):
+            raise ValueError("page out of range")
+        pdf_page = pdf[page - 1]
+        try:
+            bitmap = pdf_page.render(scale=get_pdf_thumbnail_render_scale(pdf_page))
+            try:
+                image = bitmap.to_pil().convert("RGB")
+            finally:
+                bitmap.close()
+        finally:
+            pdf_page.close()
+        try:
+            with open(output_path, "xb") as output_file:
+                image.save(output_file, format="JPEG", quality=85, optimize=True)
+        finally:
+            image.close()
+    finally:
+        pdf.close()
+
+
 def _write_text_result(output_path: str, text: str) -> None:
     with open(output_path, "xb") as output_file:
         output_file.write(text.encode("utf-8"))
@@ -126,18 +159,30 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Limits are set before importing pypdf, PDFium or Pillow."""
     _apply_resource_limits()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--operation", choices=("text", "thumbnail", "page_count"), required=True)
+    parser.add_argument("--operation", choices=("text", "thumbnail", "page_count", "page_image"), required=True)
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--max-chars", type=int)
+    parser.add_argument("--page", type=int)
+    parser.add_argument("--with-page-numbers", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.operation == "page_image":
+        if args.page is None or args.page < 1:
+            return 2
+    elif args.page is not None:
+        return 2
+    if args.with_page_numbers and args.operation != "text":
+        return 2
 
     try:
         if args.operation == "text":
             if args.max_chars is None or args.max_chars < 0:
                 return 2
-            text = extract_pdf_text(args.input, max_chars=args.max_chars)
+            text = extract_pdf_text(args.input, max_chars=args.max_chars, with_page_numbers=args.with_page_numbers)
             _write_text_result(args.output, text)
+        elif args.operation == "page_image":
+            render_pdf_page(args.input, args.output, page=args.page)
         elif args.operation == "page_count":
             from pypdf import PdfReader
             with open(args.input, "rb") as pdf:

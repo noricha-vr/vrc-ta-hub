@@ -246,8 +246,8 @@ class GuideRenderingTest(SimpleTestCase):
         self.assertEqual(soup.img.parent['href'], '/guide/index/')
         self.assertNotIn('guide-screenshot-link', soup.img.parent.get('class', []))
 
-    def test_external_and_absolute_images_are_unchanged(self):
-        for src in ('https://example.com/image.webp', 'http://example.com/image.webp', '/images/a.webp', '//example.com/a.webp', 'other/a.webp'):
+    def test_relative_images_are_unchanged(self):
+        for src in ('/images/a.webp', 'other/a.webp'):
             with self.subTest(src=src):
                 img = self.render(f'<img src="{src}" alt="参考図">').img
                 self.assertEqual(img['src'], src)
@@ -255,6 +255,11 @@ class GuideRenderingTest(SimpleTestCase):
                 self.assertNotIn('fetchpriority', img.attrs)
                 self.assertNotIn('width', img.attrs)
                 self.assertNotIn('height', img.attrs)
+
+    def test_external_images_are_removed_by_markdown_sanitizer(self):
+        for src in ('https://example.com/image.webp', 'http://example.com/image.webp', '//example.com/a.webp'):
+            with self.subTest(src=src):
+                self.assertIsNone(self.render(f'<img src="{src}" alt="参考図">').img)
 
     def test_only_first_guide_image_is_prioritized(self):
         soup = self.render('![外部](https://example.com/image.webp)\n\n'

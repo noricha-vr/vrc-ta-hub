@@ -800,7 +800,7 @@ class TranscriptCacheTest(TestCase):
         mock_openai_class.return_value = mock_client
 
         # PDF 側は与えられた残り予算いっぱいのテキストを返す
-        mock_extract_pdf_text.side_effect = lambda path, *, max_chars: pdf_marker * max_chars
+        mock_extract_pdf_text.side_effect = lambda path, *, max_chars, with_page_numbers=False: pdf_marker * max_chars
 
         detail = self._create_detail()
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
