@@ -87,7 +87,7 @@ def insert_slide_images(event_detail: EventDetail, output: BlogOutput, sources: 
     pdf = event_detail.article_pdf
     if not pdf or not sources.slide_name or pdf.name != sources.slide_name or not output.slide_pages:
         return output.text
-    mapping = {}
+    mapping: dict[str, int | None] = {}
     for item in output.slide_pages:
         mapping.setdefault(item.heading, item.page)
     selected = []

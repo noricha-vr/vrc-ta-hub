@@ -252,7 +252,7 @@ def _is_allowed_image_src(src) -> bool:
             return not src.startswith('//')
         if parsed.scheme not in ('http', 'https') or parsed.username or parsed.password:
             return False
-        options = settings.STORAGES.get('default', {}).get('OPTIONS', {})
+        options: dict = settings.STORAGES.get('default', {}).get('OPTIONS', {})  # type: ignore[attr-defined]
         urls = [settings.MEDIA_URL, getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None),
                 options.get('custom_domain'), options.get('endpoint_url')]
         hosts = set()
