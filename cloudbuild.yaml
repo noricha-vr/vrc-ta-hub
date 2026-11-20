@@ -4,7 +4,7 @@ steps:
     args:
       - '--destination=${_DOCKER_PATH}${_SERVICE_NAME}:$SHORT_SHA'
       - '--destination=${_DOCKER_PATH}${_SERVICE_NAME}:latest'
-      - '--cache=true'
+      - '--cache=${_USE_CACHE}'
       - '--cache-ttl=168h'
       - '--dockerfile=./Dockerfile'
 
@@ -79,5 +79,9 @@ steps:
           --remove-tags="$${LEGACY_TAGS}"
 
 substitutions:
+  # apt の層を作り直したい時（OS パッケージの修正版を取り込む時）だけ 'false' で起動する。
+  # 例: gcloud builds triggers run <trigger> --branch=<branch> --substitutions=_USE_CACHE=false
+  # 通常の push は 'true'（kaniko のレイヤーキャッシュを使う）。
+  _USE_CACHE: 'true'
   _SERVICE_NAME: 'vrc-ta-hub'
   _DOCKER_PATH: 'asia-northeast1-docker.pkg.dev/vrc-ta-hub/docker/'
