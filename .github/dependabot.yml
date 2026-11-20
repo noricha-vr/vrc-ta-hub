@@ -1,5 +1,5 @@
-# Dependabot: バージョン更新は止め、セキュリティ更新だけを受ける。例外は github-actions の月 1 回
-# github-actions は SHA 固定で alert が出ないため。他は open-pull-requests-limit: 0（security updates は別枠）
+# Dependabot: バージョン更新は全エコシステムで止め、セキュリティ更新だけを受ける（open-pull-requests-limit: 0。security updates は別枠）
+# docker はベースイメージのメジャー更新で本番ビルドが壊れたため外した。ベースイメージは手で上げる
 version: 2
 updates:
   # uv: requirements.in / requirements-e2e.in（入力）と requirements.txt / requirements-e2e.txt
@@ -21,31 +21,4 @@ updates:
       security:                        # security updates も同じエコシステムで 1 本にまとめる
         applies-to: security-updates
         update-types: ["minor", "patch"]
-    labels: ["dependencies"]
-
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-      time: "06:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 2
-    labels: ["dependencies"]
-    cooldown:
-      default-days: 7
-    groups:
-      actions:
-        applies-to: version-updates
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-    commit-message:
-      prefix: "chore(ci)"
-
-  - package-ecosystem: "docker"        # ベースイメージ（Dockerfile の FROM）。CI 緑なら自動マージし、本番はカナリアで出す
-    directory: "/"
-    schedule:
-      interval: "monthly"
-      time: "06:00"
-      timezone: "Asia/Tokyo"
-    open-pull-requests-limit: 1
     labels: ["dependencies"]

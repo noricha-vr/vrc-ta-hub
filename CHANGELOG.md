@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-20
+
+### Changed
+
+- Dependabot によるバージョン更新を全エコシステム（`uv` / `github-actions` / `docker`）で停止し、脆弱性修正のセキュリティ更新のみを受け付けるようにしました。
+
 ## 2026-11-18
 
 ### Added
