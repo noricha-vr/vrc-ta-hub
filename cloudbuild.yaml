@@ -4,7 +4,7 @@ steps:
     args:
       - '--destination=${_DOCKER_PATH}${_SERVICE_NAME}:$SHORT_SHA'
       - '--destination=${_DOCKER_PATH}${_SERVICE_NAME}:latest'
-      - '--cache=true'
+      - '--cache=${_USE_CACHE}'
       - '--cache-ttl=168h'
       - '--dockerfile=./Dockerfile'
 
@@ -26,7 +26,7 @@ steps:
       - '--platform'
       - 'managed'
       - '--revision-suffix'
-      - '$SHORT_SHA'
+      - '$SHORT_SHA${_REVISION_EXTRA}'
       # FERNET_KEY: community.encrypted_fields の対称暗号化鍵。
       # 未設定だと notification_webhook_url 関連の操作で RuntimeError、
       # migration 0027 が即失敗する。
@@ -79,5 +79,11 @@ steps:
           --remove-tags="$${LEGACY_TAGS}"
 
 substitutions:
+  # apt の層を作り直したい時（OS パッケージの修正版を取り込む時）だけ 'false' で起動する。
+  # 例: gcloud builds triggers run <trigger> --branch=<branch> --substitutions=_USE_CACHE=false,_REVISION_EXTRA=-nc1
+  # 通常の push は 'true'（kaniko のレイヤーキャッシュを使う）。
+  _USE_CACHE: 'true'
+  # 同じコミットを作り直す時（_USE_CACHE=false）は、リビジョン名が既存と衝突しないよう '-nc1' のような接尾を足す。通常は空。
+  _REVISION_EXTRA: ''
   _SERVICE_NAME: 'vrc-ta-hub'
   _DOCKER_PATH: 'asia-northeast1-docker.pkg.dev/vrc-ta-hub/docker/'
