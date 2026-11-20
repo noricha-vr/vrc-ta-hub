@@ -1,5 +1,5 @@
 # ベースイメージの指定
-FROM python:3.15-slim
+FROM python:3.12-slim
 
 # 環境変数の設定
 ENV PYTHONUNBUFFERED 1
