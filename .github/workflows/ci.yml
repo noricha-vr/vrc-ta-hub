@@ -66,13 +66,9 @@ jobs:
           python -m unittest scripts.tests.test_run_live_smoke
           python -m unittest scripts.tests.test_requirements_layout
 
-  test-shard:
+  test:
     needs: isolation-gate
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3]
 
     env:
       SECRET_KEY: "test-secret-key-for-ci"
@@ -82,8 +78,6 @@ jobs:
       CSRF_TRUSTED_ORIGIN: "https://localhost"
       # Python 3.12 の sys.monitoring ベース計測で coverage の実行オーバーヘッドを削減する
       COVERAGE_CORE: "sysmon"
-      TEST_SHARD_INDEX: ${{ matrix.shard }}
-      TEST_SHARD_TOTAL: "4"
       # Required environment variables (dummy values for CI)
       GOOGLE_API_KEY: "dummy-google-api-key"
       GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
@@ -116,63 +110,38 @@ jobs:
         run: uv pip sync --system requirements.txt
 
       - name: Check for missing migrations
-        if: matrix.shard == 0
         working-directory: app
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Run tests with coverage (shard ${{ matrix.shard }}/4)
+      - name: Run tests with coverage (4 parallel shards)
         working-directory: app
-        env:
-          EMAIL_FILE_PATH: "/tmp/emails"
         run: |
           # 実サービスへ接続する live smoke とブラウザE2Eだけを除外する。
           # 遮断runner (OfflineNetworkDiscoverRunner) は settings の TEST_RUNNER 既定で有効になるため、
           # ここでCLI指定しない（ローカルとCIで同じ遮断条件にする）。
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
-          coverage run -p --rcfile=../pyproject.toml -m tests.offline_manage test \
-            --exclude-tag=live_smoke --exclude-tag=e2e \
-            --noinput
-
-      - name: Upload coverage data
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-data-${{ matrix.shard }}
-          path: app/.coverage.*
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
-
-  test:
-    needs: [isolation-gate, test-shard]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: "requirements.txt"
-
-      - name: Install dependencies (locked)
-        run: uv pip sync --system requirements.txt
-
-      - name: Download coverage data
-        uses: actions/download-artifact@v7
-        with:
-          pattern: coverage-data-*
-          path: app
-          merge-multiple: true
-
-      - name: Combine and report coverage
-        working-directory: app
-        run: |
+          pids=()
+          for shard in 0 1 2 3; do
+            mkdir -p "/tmp/emails-${shard}"
+            TEST_SHARD_INDEX="${shard}" \
+            TEST_SHARD_TOTAL="4" \
+            EMAIL_FILE_PATH="/tmp/emails-${shard}" \
+            coverage run -p --rcfile=../pyproject.toml -m tests.offline_manage test \
+              --exclude-tag=live_smoke --exclude-tag=e2e \
+              --noinput > "/tmp/test-shard-${shard}.log" 2>&1 &
+            pids+=($!)
+          done
+          failed=0
+          for shard in 0 1 2 3; do
+            if ! wait "${pids[$shard]}"; then
+              failed=1
+            fi
+            echo "=== Shard ${shard} ==="
+            cat "/tmp/test-shard-${shard}.log"
+          done
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
           coverage combine
           coverage report --rcfile=../pyproject.toml
 
