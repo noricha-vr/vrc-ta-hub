@@ -54,6 +54,10 @@
     .hub-admin .vket-schedule .vket-community-requested {
         opacity: 0.65;
     }
+    .hub-admin .vket-schedule table > tbody > tr.vket-date-alt > td {
+        --bs-table-bg: #edf5fe;
+        background-color: #edf5fe;
+    }
 </style>
 
 <div class="vket-schedule">
@@ -72,7 +76,7 @@
             </thead>
             <tbody>
             {% for row in rows %}
-                <tr>
+                <tr{% if row.is_alt_date %} class="vket-date-alt"{% endif %}>
                     <td>{{ row.date|date:"n/j（D）" }}</td>
                     <td class="{% if not row.is_confirmed %}vket-community-requested{% endif %}">
                         <span class="fw-bold">{{ row.participation.community.name }}</span>

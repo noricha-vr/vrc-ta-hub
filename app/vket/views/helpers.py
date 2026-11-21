@@ -286,11 +286,18 @@ def _build_schedule_context(
                     f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の発表開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
                 )
 
+    prev_date = None
+    is_alt_date = False
     for p in participations:
         eff = effective_data[p.id]
         p_start = eff['start_time']
         p_duration = eff['duration']
         p_date = eff['date']
+        if prev_date is None:
+            prev_date = p_date
+        elif p_date != prev_date:
+            is_alt_date = not is_alt_date
+            prev_date = p_date
         event_start = datetime.combine(base, p_start)
         event_end = event_start + timedelta(minutes=p_duration)
         lt_slots = lt_slots_by_pid.get(p.id, {})
@@ -324,6 +331,7 @@ def _build_schedule_context(
             'start_time': p_start,
             'duration': p_duration,
             'is_confirmed': eff['is_confirmed'],
+            'is_alt_date': is_alt_date,
             'cells': cells,
             'presentation_ranges': [
                 format_block_range(block) for block in presentation_blocks_by_pid.get(p.id, [])
