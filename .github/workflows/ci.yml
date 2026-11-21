@@ -66,9 +66,13 @@ jobs:
           python -m unittest scripts.tests.test_run_live_smoke
           python -m unittest scripts.tests.test_requirements_layout
 
-  test:
-    needs: [isolation-gate, lint]
+  test-shard:
+    needs: isolation-gate
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
 
     env:
       SECRET_KEY: "test-secret-key-for-ci"
@@ -76,6 +80,10 @@ jobs:
       TESTING: "1"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
       CSRF_TRUSTED_ORIGIN: "https://localhost"
+      # Python 3.12 の sys.monitoring ベース計測で coverage の実行オーバーヘッドを削減する
+      COVERAGE_CORE: "sysmon"
+      TEST_SHARD_INDEX: ${{ matrix.shard }}
+      TEST_SHARD_TOTAL: "4"
       # Required environment variables (dummy values for CI)
       GOOGLE_API_KEY: "dummy-google-api-key"
       GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
@@ -108,10 +116,11 @@ jobs:
         run: uv pip sync --system requirements.txt
 
       - name: Check for missing migrations
+        if: matrix.shard == 0
         working-directory: app
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (shard ${{ matrix.shard }}/4)
         working-directory: app
         env:
           EMAIL_FILE_PATH: "/tmp/emails"
@@ -120,13 +129,54 @@ jobs:
           # 遮断runner (OfflineNetworkDiscoverRunner) は settings の TEST_RUNNER 既定で有効になるため、
           # ここでCLI指定しない（ローカルとCIで同じ遮断条件にする）。
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
-          coverage run --rcfile=../pyproject.toml -m tests.offline_manage test \
+          coverage run -p --rcfile=../pyproject.toml -m tests.offline_manage test \
             --exclude-tag=live_smoke --exclude-tag=e2e \
             --noinput
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-${{ matrix.shard }}
+          path: app/.coverage.*
+          if-no-files-found: error
+          retention-days: 1
+
+  test:
+    needs: [isolation-gate, test-shard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "requirements.txt"
+
+      - name: Install dependencies (locked)
+        run: uv pip sync --system requirements.txt
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-data-*
+          path: app
+          merge-multiple: true
+
+      - name: Combine and report coverage
+        working-directory: app
+        run: |
+          coverage combine
           coverage report --rcfile=../pyproject.toml
 
   e2e:
-    needs: [isolation-gate, lint]
+    needs: isolation-gate
     runs-on: ubuntu-latest
 
     env:
@@ -181,7 +231,7 @@ jobs:
           retention-days: 14
 
   mypy:
-    needs: [isolation-gate, lint]
+    needs: isolation-gate
     runs-on: ubuntu-latest
     # warn-only は continue-on-error で維持しつつ、型エラーは job 単位の失敗として可視化する (docs/mypy.md 参照)
     continue-on-error: true
