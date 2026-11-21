@@ -6,6 +6,7 @@ import io
 import socket
 import tempfile
 import threading
+import unittest
 from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import patch
@@ -254,3 +255,55 @@ class BlockedNetworkDetectionTest(SimpleTestCase):
 
         self.assertEqual(failures, 0)
         self.assertEqual(report, "")
+
+
+class TestShardingTests(SimpleTestCase):
+    """TEST_SHARD_INDEX / TEST_SHARD_TOTAL によるシャード分割を検証する."""
+
+    def test_shard_splits_all_tests_without_overlap_or_omission(self):
+        from website.tests.offline_runner import _iter_suite_tests, _shard_test_suite
+
+        class AlphaTests(unittest.TestCase):
+            def test_1(self): pass
+            def test_2(self): pass
+            def test_3(self): pass
+
+        class BetaTests(unittest.TestCase):
+            def test_1(self): pass
+            def test_2(self): pass
+
+        class GammaTests(unittest.TestCase):
+            def test_1(self): pass
+
+        suite = unittest.TestSuite([
+            AlphaTests("test_1"), AlphaTests("test_2"), AlphaTests("test_3"),
+            BetaTests("test_1"), BetaTests("test_2"),
+            GammaTests("test_1"),
+        ])
+
+        collected = []
+        for idx in range(3):
+            sharded = _shard_test_suite(suite, idx, 3)
+            ids = [t.id() for t in _iter_suite_tests(sharded)]
+            self.assertTrue(ids, f"shard {idx} should not be empty")
+            collected.extend(ids)
+
+        expected = [t.id() for t in _iter_suite_tests(suite)]
+        self.assertEqual(len(collected), len(expected))
+        self.assertEqual(set(collected), set(expected))
+
+    def test_parse_shard_env_rejects_partial_or_invalid_values(self):
+        import os
+        from unittest.mock import patch
+        from website.tests.offline_runner import _parse_shard_env
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertIsNone(_parse_shard_env())
+
+        with patch.dict(os.environ, {"TEST_SHARD_INDEX": "0"}, clear=True):
+            with self.assertRaises(ValueError):
+                _parse_shard_env()
+
+        with patch.dict(os.environ, {"TEST_SHARD_INDEX": "4", "TEST_SHARD_TOTAL": "4"}, clear=True):
+            with self.assertRaises(ValueError):
+                _parse_shard_env()
