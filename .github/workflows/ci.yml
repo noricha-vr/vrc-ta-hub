@@ -138,6 +138,7 @@ jobs:
         with:
           name: coverage-data-${{ matrix.shard }}
           path: app/.coverage.*
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
 
