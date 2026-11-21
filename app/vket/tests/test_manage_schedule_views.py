@@ -1,6 +1,6 @@
 """Vketコラボ機能のテスト."""
 
-from datetime import time
+from datetime import time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
+from tests.factories import make_community
 from vket.models import (
     VketParticipation,
     VketPresentation,
@@ -157,3 +158,33 @@ class VketManageViewsTests(VketManageViewsBase):
         lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt_times')]
         self.assertEqual(lt_indices, [expected_idx])
         self.assertEqual(row['cells'][expected_idx]['lt_times'], [time(21, 30)])
+
+    def test_manage_schedule_alternates_row_class_by_date(self):
+        """日付が変わるごとにvket-date-altクラスが交互に付与され、同日は同じ色になる"""
+        base_date = self.collaboration.period_start
+        community3 = make_community(name='集会C', status='approved', frequency='毎週')
+        community4 = make_community(name='集会D', status='approved', frequency='毎週')
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=community3,
+            confirmed_date=base_date + timedelta(days=1),
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+        )
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=community4,
+            confirmed_date=base_date + timedelta(days=2),
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+        )
+
+        self.client.force_login(self.superuser)
+        response = self.client.get(
+            reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+        rows = response.context['rows']
+        self.assertEqual([r['is_alt_date'] for r in rows], [False, False, True, False])
+        self.assertContains(response, '<tr class="vket-date-alt">', count=1)
