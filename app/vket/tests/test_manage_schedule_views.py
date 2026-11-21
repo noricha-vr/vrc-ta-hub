@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
+from tests.factories import make_community
 from vket.models import (
     VketParticipation,
     VketPresentation,
@@ -161,8 +162,8 @@ class VketManageViewsTests(VketManageViewsBase):
     def test_manage_schedule_alternates_row_class_by_date(self):
         """日付が変わるごとにvket-date-altクラスが交互に付与され、同日は同じ色になる"""
         base_date = self.collaboration.period_start
-        community3 = Community.objects.create(name='集会C', status='approved', frequency='毎週')
-        community4 = Community.objects.create(name='集会D', status='approved', frequency='毎週')
+        community3 = make_community(name='集会C', status='approved', frequency='毎週')
+        community4 = make_community(name='集会D', status='approved', frequency='毎週')
         VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=community3,
