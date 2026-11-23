@@ -10,7 +10,6 @@
 - [mypy + django-stubs 段階導入ガイド](mypy.md)
 - [関数リファレンス](functions.md)
 - [管理スクリプト一覧](../scripts/index.md)
-- [次にやるべきこと](next-actions.md)
 - [プロンプトメモ](prompt.md)
 - [テストカバレッジ](coverage.md)
 - [構造化ログ (structlog)](logging.md)
@@ -27,8 +26,7 @@
 - [マイグレーション Rollback 手順](migration-rollback.md)
 - [Vketコラボ現行仕様・公開同期運用](vket-collaboration-spec.md)
 - [お知らせのサムネイルの使い分け](design/news-thumbnails.md)
-- [Discord Bot仕様書](discord-bot-specification.md)
-- [Discord Bot実装ガイド](discord-bot-implementation-guide.md)
+- [Discord Bot による集会通知・環境変数設定](setup.md#discord-bot-による集会通知任意)
 
 ## ガイドとナレッジ
 
@@ -54,6 +52,7 @@
 - [Issue #288 Vket確定後の主催者向け日程・LTロック](issue-288-vket-confirmed-lock.md)
 - [Issue #292 db-pull の Docker Compose DB 復元検証](issue-292-db-pull-compose-restore.md)
 - [Issue #343 LT申請「追加情報」テンプレート初期値化](research/issue-343-lt-application-additional-info-initial.md)
+- [次にやるべきこと（2026-03-24 時点アーカイブ）](next-actions.md)
 
 ## その他のドキュメント
 

@@ -1,5 +1,7 @@
 # 次にやるべきこと
 
+> **アーカイブ（2026-03-24 スナップショット）**: 当時の棚卸しメモです。Vket コラボ仕様書（[vket-collaboration-spec.md](vket-collaboration-spec.md)）など多くはその後更新済みのため、現行の課題管理は GitHub Issues を正としてください。
+
 生成日時: 2026-03-24 23:03 JST  
 スキャンスコープ: default
 
