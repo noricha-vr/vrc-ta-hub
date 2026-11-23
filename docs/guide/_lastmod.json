@@ -48,8 +48,8 @@
     "hash": "b07bc967912dcf0f"
   },
   "community/settings": {
-    "date": "2026-10-27",
-    "hash": "1211f980b1adac93"
+    "date": "2026-11-24",
+    "hash": "c1004970212b7018"
   },
   "community/switch": {
     "date": "2026-10-27",
@@ -80,8 +80,8 @@
     "hash": "cc835334328c85c1"
   },
   "glossary": {
-    "date": "2026-10-26",
-    "hash": "ac19f74f7849451f"
+    "date": "2026-11-24",
+    "hash": "58b8eacdf39a993c"
   },
   "index": {
     "date": "2026-10-27",
@@ -96,8 +96,8 @@
     "hash": "937be415a79532de"
   },
   "lt/create": {
-    "date": "2026-11-17",
-    "hash": "5da36636cac312a4"
+    "date": "2026-11-24",
+    "hash": "f7d01948768761f0"
   },
   "lt/edit-delete": {
     "date": "2026-11-05",
@@ -144,20 +144,20 @@
     "hash": "86cd5a687179e225"
   },
   "settings/lt-application": {
-    "date": "2026-10-27",
-    "hash": "faf3509b19760e52"
+    "date": "2026-11-24",
+    "hash": "bec2681ac07950c5"
   },
   "settings/x-template": {
     "date": "2026-10-27",
     "hash": "badfd3363ae53f84"
   },
   "speaker/apply": {
-    "date": "2026-10-27",
-    "hash": "a63569f12da097bf"
+    "date": "2026-11-24",
+    "hash": "09a23d577010029a"
   },
   "speaker/manage": {
-    "date": "2026-11-05",
-    "hash": "070f186839243040"
+    "date": "2026-11-24",
+    "hash": "4bf4ba3e47f73141"
   },
   "speaker/slide-video": {
     "date": "2026-11-05",

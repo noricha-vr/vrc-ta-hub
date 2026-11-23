@@ -4,6 +4,7 @@ from django import forms
 from django.db import transaction
 from django.utils.safestring import mark_safe
 
+from community.constants import RECORDING_POLICY_FORM_VALUES
 from user_account.forms import normalize_x_account
 
 from ..datetime_lock import (
@@ -41,7 +42,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             'aria-describedby': 'id_special_recording_confirmed_help',
         }),
         help_text=mark_safe(
-            '1 人でも撮影を望まない人がいる時は「禁止」を選んでください。'
+            '1 人でも撮影を望まない人がいる時は「許可しない（ボットで撮影しない）」を選んでください。'
             '開始前に、質疑などでの発言も録音されることを参加者へ案内してください。'
             '<a href="/guide/lt/create/#パネルを撮影する時の進め方" target="_blank" rel="noopener">'
             'パネルを撮影する時の進め方</a>'
@@ -226,10 +227,15 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
                 if not self.instance.pk:
                     self.instance.recording_policy = EventDetail.RecordingPolicy.FORBIDDEN
             elif not self.instance.pk:
+                default_policy = (
+                    community.default_recording_policy
+                    if community.default_recording_policy in RECORDING_POLICY_FORM_VALUES
+                    else EventDetail.RecordingPolicy.FORBIDDEN
+                )
                 self.initial['recording_policy'] = (
                     EventDetail.RecordingPolicy.FORBIDDEN
                     if self.initial.get('detail_type', self.instance.detail_type) == 'SPECIAL'
-                    else community.default_recording_policy
+                    else default_policy
                 )
 
         if 'recording_policy' not in self.fields:

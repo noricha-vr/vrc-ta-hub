@@ -103,7 +103,7 @@ class AccountScenarioTargetsTest(TestCase):
                      'recording_policy', 'article_consent'):
             self.unique(soup, f'.field-wrapper[data-field="{name}"]')
         headings = [heading.get_text(strip=True) for heading in soup.select('#application-form h2')]
-        self.assertEqual(headings, ['内容', '資料', '撮影・記事化'])
+        self.assertEqual(headings, ['内容', '資料', 'ボット撮影・記事化'])
         self.unique(soup, '#application-form [data-admin-action-bar]', '#application-form button[type="submit"]')
         self.assertEqual(soup.select_one('#application-form button [data-submit-default]').get_text(strip=True), '保存')
 

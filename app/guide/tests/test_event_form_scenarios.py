@@ -72,7 +72,7 @@ class EventFormScenarioTargetsTest(TestCase):
                        '#detail-form .admin-card:has(#id_detail_type_1)',
                        '#detail-form .admin-card:has(#id_detail_type_2)',
                        '#detail-settings-toggle button', '#detail-materials', '#detail-article',
-                       '[aria-label="撮影"]', '.form-check:has(#id_detail_type_0)',
+                       '[aria-label="ボットによる自動撮影"]', '.form-check:has(#id_detail_type_0)',
                        '.form-check:has(#id_detail_type_1)', '.form-check:has(#id_detail_type_2)',
                        '#detail-form button[type="submit"]')
                 unique(soup, '[data-field="recording_policy"]', '[data-field="slide_entry"]', '#id_slide_file', '#id_slide_url')
@@ -82,8 +82,8 @@ class EventFormScenarioTargetsTest(TestCase):
                 content = soup.select_one('#detail-form .admin-card:has(#id_theme)')
                 unique(content, '#id_start_time', '#id_duration')
                 recording = soup.select_one('#detail-form .admin-card:has([data-field="recording_policy"])')
-                unique(recording, '[aria-label="撮影"]')
-                headings = ['発表内容', '撮影・記事化']
+                unique(recording, '[aria-label="ボットによる自動撮影"]')
+                headings = ['発表内容', 'ボット撮影・記事化']
                 if path.endswith('/create/'):
                     headings.append('追加情報')
                     unique(soup, '[data-field="x_account"]', '[data-field="article_consent"]',
@@ -120,11 +120,11 @@ class EventFormScenarioTargetsTest(TestCase):
         soup = page('/event/apply/1/')
         for field in ('event', 'theme', 'speaker', 'x_account', 'additional_info'):
             unique(soup, f'form .mb-4:has(#id_{field})', f'#id_{field}')
-        unique(soup, 'form .mb-4:has([aria-label="撮影"])',
+        unique(soup, 'form .mb-4:has([aria-label="ボットによる自動撮影"])',
                'form .mb-4:has([aria-label="発表の記事化"])',
                '#application-form .admin-card:has(#id_additional_info)')
         self.assertEqual([h.get_text(strip=True) for h in soup.select('#application-form h2')],
-                         ['集会と開催回', '発表内容', '撮影・記事化', '追加情報'])
+                         ['集会と開催回', '発表内容', 'ボット撮影・記事化', '追加情報'])
         action_bar(soup, 'application-form', '申請する')
         soup = page('/event/apply/1/complete/')
         unique(soup, 'main h1', 'main .alert-success', 'a[href="/account/lt-applications/"]')

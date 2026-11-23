@@ -38,31 +38,33 @@ class SpecialRecordingFormTest(TestCase):
             for kind in ('LT', 'BLOG', 'SPECIAL')
         ]
         for instance in instances:
-            for policy in ('public', 'allowed'):
-                with self.subTest(instance=instance, policy=policy):
-                    form = self.form(instance=instance, recording_policy=policy)
-                    self.assertFalse(form.is_valid())
-                    self.assertEqual(form.errors['special_recording_confirmed'], [
-                        '特別企画を撮影する時は、出演者全員に確認したことにチェックを入れてください。',
-                    ])
+            with self.subTest(instance=instance, policy='public'):
+                form = self.form(instance=instance, recording_policy='public')
+                self.assertFalse(form.is_valid())
+                self.assertEqual(form.errors['special_recording_confirmed'], [
+                    '特別企画を撮影する時は、出演者全員に確認したことにチェックを入れてください。',
+                ])
 
     def test_confirmed_saves_duration_theme_and_resets_confirmation(self):
-        for policy in ('public', 'allowed'):
-            with self.subTest(policy=policy):
-                form = self.form(special_recording_confirmed=True, recording_policy=policy)
-                self.assertTrue(form.is_valid(), form.errors)
-                detail = form.save()
-                detail.refresh_from_db()
-                self.assertEqual(detail.duration, 95)
-                self.assertEqual(detail.theme, 'パネルの企画名')
-                self.assertEqual(detail.recording_policy, policy)
-                self.assertEqual(detail.speaker, '')
-                self.assertFalse(detail.can_auto_generate_article)
-                reopened = EventDetailForm(instance=detail, request=self.request)
-                self.assertFalse(reopened['special_recording_confirmed'].value())
-                update = self.form(instance=detail, special_recording_confirmed=True)
-                self.assertTrue(update.is_valid(), update.errors)
-                update.save()
+        form = self.form(special_recording_confirmed=True, recording_policy='public')
+        self.assertTrue(form.is_valid(), form.errors)
+        detail = form.save()
+        detail.refresh_from_db()
+        self.assertEqual(detail.duration, 95)
+        self.assertEqual(detail.theme, 'パネルの企画名')
+        self.assertEqual(detail.recording_policy, 'public')
+        self.assertEqual(detail.speaker, '')
+        self.assertFalse(detail.can_auto_generate_article)
+        reopened = EventDetailForm(instance=detail, request=self.request)
+        self.assertFalse(reopened['special_recording_confirmed'].value())
+        update = self.form(instance=detail, special_recording_confirmed=True)
+        self.assertTrue(update.is_valid(), update.errors)
+        update.save()
+
+    def test_allowed_policy_is_rejected_by_form(self):
+        form = self.form(special_recording_confirmed=True, recording_policy='allowed')
+        self.assertFalse(form.is_valid())
+        self.assertIn('recording_policy', form.errors)
 
     def test_forbidden_and_presentation_need_no_confirmation(self):
         for extra in (
@@ -209,7 +211,7 @@ class SpecialRecordingScreenTest(TestCase):
         self.assertNotContains(response, 'name="special_recording_confirmed"')
 
     def test_enabled_create_and_edit_emit_one_structured_log_each(self):
-        for policy in ('allowed', 'public'):
+        for policy in ('public',):
             with self.subTest(policy=policy):
                 with self.assertLogs('event.views.crud_event_detail', level='INFO') as logs:
                     response = self.client.post(self.create_url, self.payload(recording_policy=policy))

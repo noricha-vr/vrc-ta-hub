@@ -5,7 +5,12 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
-from community.constants import RECORDING_POLICY_FORM_CHOICES, WEEKDAY_ABBR, weekday_code
+from community.constants import (
+    RECORDING_POLICY_FORM_CHOICES,
+    RECORDING_POLICY_FORM_VALUES,
+    WEEKDAY_ABBR,
+    weekday_code,
+)
 from user_account.forms import normalize_x_account
 from ..datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
@@ -197,7 +202,11 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
             configure_additional_info_field(self.fields['additional_info'], self.community)
 
             if not self.remove_recording_policy_unless_allowed(self.community):
-                self.fields['recording_policy'].initial = self.community.default_recording_policy
+                policy = self.community.default_recording_policy
+                self.fields['recording_policy'].initial = (
+                    policy if policy in RECORDING_POLICY_FORM_VALUES
+                    else EventDetail.RecordingPolicy.FORBIDDEN
+                )
 
         if self.user and self.user.is_authenticated:
             self.fields['speaker'].initial = self.user.display_label

@@ -37,8 +37,8 @@ data-article-generation-form
 
 </section>
 <section class="admin-card" aria-labelledby="consent-heading">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='撮影・記事化' heading_id='consent-heading' %}
-{% if form.recording_policy %}<fieldset class="mb-3 field-wrapper" data-field="recording_policy"><legend class="form-label fs-6">{{ form.recording_policy.label }}</legend>{% include 'event/includes/recording_policy_radios.html' with field=form.recording_policy %}<div class="form-text">{{ form.recording_policy.help_text }}</div>{{ form.recording_policy.errors }}</fieldset>{% endif %}
+{% include 'ta_hub/admin/includes/section_heading.html' with title='ボット撮影・記事化' heading_id='consent-heading' %}
+{% if form.recording_policy %}<fieldset class="mb-3 field-wrapper" data-field="recording_policy"><legend class="form-label fs-6">{{ form.recording_policy.label }}</legend>{% if form.recording_policy.field.legacy_notice %}<p class="form-text text-muted mb-2">{{ form.recording_policy.field.legacy_notice }}</p>{% endif %}{% include 'event/includes/recording_policy_radios.html' with field=form.recording_policy %}<div class="form-text">{{ form.recording_policy.help_text }}</div>{{ form.recording_policy.errors }}</fieldset>{% endif %}
 {% if form.article_consent %}<fieldset class="mb-3 field-wrapper" data-field="article_consent"><legend class="form-label fs-6">{{ form.article_consent.label }}</legend>{% include 'event/includes/recording_policy_radios.html' with field=form.article_consent %}<div class="form-text">{{ form.article_consent.help_text }}</div>{{ form.article_consent.errors }}</fieldset>{% endif %}
 <p id="article-auto-generation-note">{{ form.slide_article_note }}</p>
 

@@ -61,7 +61,7 @@ class RecordingAllowedSettingsViewTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'ハブの自動撮影の対象になりません')
+        self.assertContains(response, 'ハブの自動撮影ボットの対象になりません')
         html = response.content.decode()
         self.assertRegex(html, r'id="recording_allowed_true" name="recording_allowed" value="true"\s+checked')
         self.assertRegex(html, r'id="recording_allowed_false" name="recording_allowed" value="false"\s+onchange')
@@ -140,26 +140,29 @@ class DefaultRecordingPolicySettingsTest(TestCase):
 
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
 
-    def test_settings_page_shows_three_choices_with_public_checked(self):
-        """設定画面に 3 択が出て、「公開」が選ばれている。"""
+    def test_settings_page_shows_two_choices_with_public_checked(self):
+        """設定画面の初期値は 2 択で、「許可する（公開）」が選ばれている。"""
         html = self.client.get(reverse('community:settings')).content.decode()
 
-        for value, label in RecordingPolicy.choices:
+        for value, label in (
+            (RecordingPolicy.PUBLIC, '許可する（ボットで撮影して YouTube で公開）'),
+            (RecordingPolicy.FORBIDDEN, '許可しない（ボットで撮影しない）'),
+        ):
             self.assertIn(f'id="default_recording_policy_{value}"', html)
             self.assertIn(label, html)
+        self.assertNotIn('id="default_recording_policy_allowed"', html)
+        self.assertNotIn('許可（撮影するが公開しない）', html)
         self.assertRegex(html, r'id="default_recording_policy_public" name="default_recording_policy" value="public"\s+checked')
         self.assertNotRegex(html, r'id="default_recording_policy_forbidden"[^>]*checked')
-        self.assertIn('撮影ステータスの初期値', html)
-        self.assertNotIn('デフォルトの撮影ステータス', html)
+        self.assertIn('ボット撮影許可の初期値', html)
+        self.assertNotIn('撮影ステータスの初期値', html)
         public_pos = html.index('id="default_recording_policy_public"')
-        allowed_pos = html.index('id="default_recording_policy_allowed"')
         forbidden_pos = html.index('id="default_recording_policy_forbidden"')
-        self.assertLess(public_pos, allowed_pos)
-        self.assertLess(allowed_pos, forbidden_pos)
+        self.assertLess(public_pos, forbidden_pos)
 
     def test_each_choice_is_saved(self):
-        """3 つの値それぞれを保存できる。"""
-        for value in RecordingPolicy.values:
+        """2 つの値それぞれを保存できる。"""
+        for value in (RecordingPolicy.PUBLIC, RecordingPolicy.FORBIDDEN):
             with self.subTest(value=value):
                 response = self._post(default_recording_policy=value)
 
@@ -168,16 +171,17 @@ class DefaultRecordingPolicySettingsTest(TestCase):
                 self.assertEqual(self.community.default_recording_policy, value)
 
     def test_invalid_or_missing_value_keeps_current(self):
-        """選択肢外・未送信の時は今の値を保つ。"""
-        self._post(default_recording_policy='allowed')
+        """選択肢外（旧 allowed を含む）・未送信の時は今の値を保つ。"""
+        self._post(default_recording_policy='forbidden')
 
-        self._post(default_recording_policy='secret')
-        self.community.refresh_from_db()
-        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.ALLOWED)
+        for rejected in ('secret', 'allowed'):
+            self._post(default_recording_policy=rejected)
+            self.community.refresh_from_db()
+            self.assertEqual(self.community.default_recording_policy, RecordingPolicy.FORBIDDEN)
 
         self._post()
         self.community.refresh_from_db()
-        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.ALLOWED)
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_allowed_and_default_are_saved_together(self):
         """撮影許可（2 択）と撮影ステータスの初期値（3 択）は 1 回の保存で両方入る。"""
@@ -239,14 +243,14 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.community.refresh_from_db()
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
 
-    def test_switching_to_allowed_keeps_allowed_choice(self):
-        """切り替え時に「許可」を選んでいればそのまま保存する。"""
+    def test_switching_to_allowed_ignores_legacy_allowed_choice(self):
+        """切り替え時に旧値「allowed」が送られても公開（初期値）にする。"""
         self._disallow()
 
-        self._post(default_recording_policy='allowed')
+        self._post(default_recording_policy='allowed', default_recording_policy_chosen='1')
 
         self.community.refresh_from_db()
-        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.ALLOWED)
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
 
     def test_explicit_forbidden_is_kept_when_already_allowed(self):
         """すでに「許可する」の集会で明示的に「禁止」を保存したら、次に保存しても上書きしない。"""
@@ -509,3 +513,82 @@ class DefaultRecordingPolicyDbDefaultTest(TransactionTestCase):
 
         from community.models import Community
         self.assertEqual(Community.objects.get(pk=pk).default_recording_policy, RecordingPolicy.PUBLIC)
+
+
+class CommunityAdminFormRecordingPolicyTest(TestCase):
+    """Django 管理画面の CommunityForm でも新規 allowed 選択を禁止し、既存 allowed のみ保持する。"""
+
+    def _data(self, **extra):
+        data = {
+            'name': '管理画面の集会',
+            'start_time': '22:00',
+            'duration': '60',
+            'frequency': '毎週',
+            'organizers': '主催',
+            'platform': 'All',
+            'status': 'approved',
+            'is_listed': 'on',
+            'discord_mention_type': 'none',
+            'discord_mention_user_ids': '[]',
+            'default_lt_duration': '30',
+            'lt_start_offset_minutes': '30',
+            'default_recording_policy': RecordingPolicy.PUBLIC,
+        }
+        data.update(extra)
+        return data
+
+    def test_new_form_allows_only_two_choices_and_rejects_allowed(self):
+        from community.forms import CommunityForm
+
+        new_form = CommunityForm()
+        self.assertEqual(
+            list(new_form.fields['default_recording_policy'].choices),
+            [
+                ('public', '許可する（ボットで撮影して YouTube で公開）'),
+                ('forbidden', '許可しない（ボットで撮影しない）'),
+            ],
+        )
+
+        rejected = CommunityForm(data=self._data(default_recording_policy='allowed'))
+        self.assertFalse(rejected.is_valid())
+        self.assertIn('default_recording_policy', rejected.errors)
+
+        accepted = CommunityForm(data=self._data(default_recording_policy='public'))
+        self.assertTrue(accepted.is_valid(), accepted.errors)
+
+    def test_existing_public_rejects_allowed_and_legacy_allowed_is_preserved(self):
+        from community.forms import CommunityForm
+
+        public_community = make_community(name='現行公開集会')
+        public_community.default_recording_policy = RecordingPolicy.PUBLIC
+        public_community.save(update_fields=['default_recording_policy'])
+        rejected = CommunityForm(
+            instance=public_community,
+            data=self._data(name='現行公開集会', default_recording_policy='allowed'),
+        )
+        self.assertFalse(rejected.is_valid())
+        self.assertIn('default_recording_policy', rejected.errors)
+
+        legacy_community = make_community(name='旧設定の集会')
+        legacy_community.default_recording_policy = RecordingPolicy.ALLOWED
+        legacy_community.save(update_fields=['default_recording_policy'])
+
+        legacy_form = CommunityForm(instance=legacy_community)
+        self.assertEqual(
+            list(legacy_form.fields['default_recording_policy'].choices),
+            [
+                ('public', '許可する（ボットで撮影して YouTube で公開）'),
+                ('forbidden', '許可しない（ボットで撮影しない）'),
+                ('allowed', '旧設定（撮影するが公開しない）'),
+            ],
+        )
+
+        kept = CommunityForm(
+            instance=legacy_community,
+            data=self._data(name='旧設定のまま更新', default_recording_policy='allowed'),
+        )
+        self.assertTrue(kept.is_valid(), kept.errors)
+        saved = kept.save()
+        saved.refresh_from_db()
+        self.assertEqual(saved.name, '旧設定のまま更新')
+        self.assertEqual(saved.default_recording_policy, RecordingPolicy.ALLOWED)

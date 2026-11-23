@@ -5,6 +5,7 @@
         <i class="bi {{ icon }} me-1" aria-hidden="true"></i>{{ field.label }}
         {% if field.field.required or field.name == 'article_consent' %}<span class="text-danger">*</span>{% endif %}
     </p>
+    {% if field.field.legacy_notice %}<p class="form-text text-muted mb-2">{{ field.field.legacy_notice }}</p>{% endif %}
     {% include 'event/includes/recording_policy_radios.html' with field=field only %}
     {% else %}
     <label for="{{ field.id_for_label }}" class="form-label fw-bold">

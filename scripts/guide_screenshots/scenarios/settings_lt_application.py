@@ -14,7 +14,7 @@ def lt_application(capture):
            marks=['label[for=accepts_lt_application]'])
     region(capture, ['form[action$="/lt-settings/update/"] > .settings-field:has(#recording_allowed_true)',
                      '#default-recording-policy-section'],
-           marks=['[aria-label="撮影許可"]', '[aria-label="撮影ステータスの初期値"]'])
+           marks=['[aria-label="ボットによる自動撮影の許可"]', '[aria-label="ボット撮影許可の初期値"]'])
     region(capture, ['#lt-settings-detail .settings-field:has(#lt_application_template)'],
            marks=['#lt_application_template'])
     # 変更のあるまとまりだけ保存ボタンが出るため、送信せず値を変更する。

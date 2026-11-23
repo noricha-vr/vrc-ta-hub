@@ -13,7 +13,7 @@ from django.db import models, transaction
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from community.constants import WEEKDAY_CHOICES, RecordingPolicy
+from community.constants import RECORDING_POLICY_DISPLAY_LABELS, WEEKDAY_CHOICES, RecordingPolicy
 from community.models import Community
 from event.youtube_urls import youtube_video_id
 
@@ -771,6 +771,14 @@ class EventDetail(models.Model):
     def video_id(self) -> Optional[str]:
         """YouTube の動画 ID。Discord のメッセージリンクなど YouTube 以外の URL では None。"""
         return youtube_video_id(self.youtube_url)
+
+    @property
+    def recording_policy_display_label(self) -> str:
+        """表示用のボット撮影設定ラベル。旧値 allowed も分かりやすい表記で返す。"""
+        return RECORDING_POLICY_DISPLAY_LABELS.get(
+            self.recording_policy,
+            self.get_recording_policy_display(),
+        )
 
     @classmethod
     def materials_q(cls) -> models.Q:

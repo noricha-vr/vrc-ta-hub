@@ -219,7 +219,7 @@ class CommunityCreateViewTest(TestCase):
         self.assertRegex(html, r'id="recording_allowed_false"[^>]*checked')
         self.assertIn('id="default-recording-policy-section" style="display: none;"', html)
         self.assertRegex(html, r'id="default_recording_policy_public" name="default_recording_policy" value="public"\s+checked')
-        self.assertNotRegex(html, r'id="default_recording_policy_allowed"[^>]*checked')
+        self.assertNotIn('id="default_recording_policy_allowed"', html)
 
     def test_create_page_shows_reception_card_and_defers_complex_settings(self):
         """受付カードと承認後の案内を表示し、手間のかかる入力は出さない。"""
@@ -262,7 +262,7 @@ class CommunityCreateViewTest(TestCase):
                 data.update({
                     'accepts_lt_application': accepts,
                     'recording_allowed': 'true',
-                    'default_recording_policy': RecordingPolicy.ALLOWED,
+                    'default_recording_policy': RecordingPolicy.FORBIDDEN,
                     'default_recording_policy_chosen': '1',
                     'default_lt_duration': '15',
                     'lt_start_offset_minutes': '0',
@@ -274,7 +274,7 @@ class CommunityCreateViewTest(TestCase):
                 community = Community.objects.get(name=data['name'])
                 self.assertEqual(community.accepts_lt_application, accepts == 'on')
                 self.assertTrue(community.recording_allowed)
-                self.assertEqual(community.default_recording_policy, RecordingPolicy.ALLOWED)
+                self.assertEqual(community.default_recording_policy, RecordingPolicy.FORBIDDEN)
                 self.assertEqual(community.default_lt_duration, 15)
                 self.assertEqual(community.lt_start_offset_minutes, 0)
                 self.assertEqual(community.lt_application_template, '')
@@ -327,10 +327,11 @@ class CommunityCreateViewTest(TestCase):
             ({'recording_allowed': 'invalid'}, False, RecordingPolicy.PUBLIC),
             ({'recording_allowed': ' true '}, False, RecordingPolicy.PUBLIC),
             ({'recording_allowed': 'true', 'default_recording_policy': 'invalid'}, True, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'true', 'default_recording_policy': 'allowed', 'default_recording_policy_chosen': '1'}, True, RecordingPolicy.PUBLIC),
             ({'recording_allowed': 'true', 'default_recording_policy': ' public '}, True, RecordingPolicy.PUBLIC),
             ({'recording_allowed': 'false', 'default_recording_policy': 'forbidden'}, False, RecordingPolicy.FORBIDDEN),
         ]
-        for policy in RecordingPolicy.values:
+        for policy in (RecordingPolicy.PUBLIC, RecordingPolicy.FORBIDDEN):
             for chosen in ('', '1'):
                 cases.append((
                     {'recording_allowed': 'true', 'default_recording_policy': policy,

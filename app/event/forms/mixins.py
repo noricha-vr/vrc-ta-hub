@@ -26,9 +26,11 @@ logger = logging.getLogger(__name__)
 # 編集画面を開いた時点の記事のハッシュを持たせる hidden の項目
 ARTICLE_SNAPSHOT_FIELD = 'article_snapshot'
 
-RECORDING_POLICY_LABEL = '撮影'
+RECORDING_POLICY_LABEL = 'ボットによる自動撮影'
 # 固定の文言と URL だけを HTML として扱い、テンプレートの autoescape は維持する。
 RECORDING_POLICY_HELP_TEXT = mark_safe(
+    'ハブの撮影ボットによる録画・YouTube 公開の可否です'
+    '（集会独自の撮影や参加者の写真撮影を制限する設定ではありません）。'
     '公開先は <a href="https://www.youtube.com/channel/UCNISeQgk2_lDF_4_UGWZ_Fw" '
     'target="_blank" rel="noopener">Hub の YouTube チャンネル</a> です。'
     '<a href="/news/2026-10-11-auto-recording-beta/" target="_blank" rel="noopener">撮影について詳しく</a>'
@@ -346,6 +348,18 @@ class RecordingPolicyFormMixin:
         super().__init__(*args, **kwargs)
         self.fields['recording_policy'].required = False
         self.fields['recording_policy'].choices = RECORDING_POLICY_FORM_CHOICES
+        instance = getattr(self, 'instance', None)
+        is_legacy_allowed = bool(
+            instance is not None
+            and instance.pk
+            and instance.recording_policy == EventDetail.RecordingPolicy.ALLOWED
+        )
+        self.fields['recording_policy'].legacy_notice = (
+            '現在は「旧設定（撮影するが公開しない）」が設定されています。'
+            '選択せずに保存すると現在の設定が維持されます。'
+            if is_legacy_allowed
+            else ''
+        )
 
     def clean_recording_policy(self):
         value = self.cleaned_data.get('recording_policy')
