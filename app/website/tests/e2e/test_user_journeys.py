@@ -449,21 +449,21 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.assertEqual(self.community.default_recording_policy, 'forbidden')
 
     def test_recording_toggle_keeps_saved_default_for_allowed_community(self) -> None:
-        """許可済みの集会で保存した初期値「許可」は、許可しない→許可するを往復しても変わらない."""
+        """許可済みの集会で保存した初期値「許可しない」は、許可しない→許可するを往復しても変わらない."""
         self.community.recording_allowed = True
-        self.community.default_recording_policy = 'allowed'
+        self.community.default_recording_policy = 'forbidden'
         self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
         self.login(self.owner.email, self.password)
         self.page.goto(f'{self.live_server_url}{reverse("community:settings")}')
 
         self.page.locator('#recording_allowed_false').check()
         self.page.locator('#recording_allowed_true').check()
-        expect(self.page.locator('#default_recording_policy_allowed')).to_be_checked()
+        expect(self.page.locator('#default_recording_policy_forbidden')).to_be_checked()
         # 往復で元の値に戻ると変更なしになり、保存バーに保存ボタンは出ない
         expect(self.page.locator('button[form="lt-form"]')).to_be_hidden()
 
         self.community.refresh_from_db()
-        self.assertEqual(self.community.default_recording_policy, 'allowed')
+        self.assertEqual(self.community.default_recording_policy, 'forbidden')
 
     def test_recording_switch_to_allowed_selects_public(self) -> None:
         """撮影を許可していない集会を「許可する」に切り替えると「公開」が選ばれ、そのまま保存すると「公開」になる."""

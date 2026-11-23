@@ -68,8 +68,25 @@ class RecordingPolicy(models.TextChoices):
     PUBLIC = 'public', '公開（撮影して YouTube で公開）'
 
 
-# フォームの表示順だけを変え、モデルの choices（migration）には影響させない。
+# フォームの表示順・選択肢・表示文言を定義し、モデルの choices（migration）には影響させない。
+# allowed は過去データ互換のためにモデル定義のみ残し、新規選択には出さない。
 RECORDING_POLICY_FORM_CHOICES = [
-    (policy.value, policy.label)
-    for policy in (RecordingPolicy.PUBLIC, RecordingPolicy.ALLOWED, RecordingPolicy.FORBIDDEN)
+    (RecordingPolicy.PUBLIC.value, '許可する（ボットで撮影して YouTube で公開）'),
+    (RecordingPolicy.FORBIDDEN.value, '許可しない（ボットで撮影しない）'),
 ]
+RECORDING_POLICY_FORM_VALUES = frozenset(value for value, _ in RECORDING_POLICY_FORM_CHOICES)
+RECORDING_POLICY_DISPLAY_LABELS = {
+    RecordingPolicy.PUBLIC.value: '許可する（ボットで撮影して YouTube で公開）',
+    RecordingPolicy.FORBIDDEN.value: '許可しない（ボットで撮影しない）',
+    RecordingPolicy.ALLOWED.value: '旧設定（撮影するが公開しない）',
+}
+
+
+def recording_policy_admin_choices(current_value: str | None) -> list[tuple[str, str]]:
+    """Django 管理画面向け選択肢。新規・現行値では 2 択のみ、既存 allowed 編集時のみ現在値を保持できるよう含める。"""
+    if current_value == RecordingPolicy.ALLOWED:
+        return [
+            *RECORDING_POLICY_FORM_CHOICES,
+            (RecordingPolicy.ALLOWED.value, RECORDING_POLICY_DISPLAY_LABELS[RecordingPolicy.ALLOWED.value]),
+        ]
+    return list(RECORDING_POLICY_FORM_CHOICES)

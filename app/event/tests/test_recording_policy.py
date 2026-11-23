@@ -24,14 +24,18 @@ def assert_recording_policy_html(test_case, response):
     html = response.content.decode()
     test_case.assertEqual(
         re.findall(r'<input type="radio" name="recording_policy" value="([^"]+)"', html),
-        ['public', 'allowed', 'forbidden'],
+        ['public', 'forbidden'],
     )
     for label in (
-        '公開（撮影して YouTube で公開）', '許可（撮影するが公開しない）', '禁止（撮影しない）',
+        '許可する（ボットで撮影して YouTube で公開）',
+        '許可しない（ボットで撮影しない）',
     ):
         test_case.assertContains(response, label)
+    test_case.assertNotContains(response, '許可（撮影するが公開しない）')
     test_case.assertContains(
         response,
+        'ハブの撮影ボットによる録画・YouTube 公開の可否です'
+        '（集会独自の撮影や参加者の写真撮影を制限する設定ではありません）。'
         '公開先は <a href="https://www.youtube.com/channel/UCNISeQgk2_lDF_4_UGWZ_Fw" '
         'target="_blank" rel="noopener">Hub の YouTube チャンネル</a> です。'
         '<a href="/news/2026-10-11-auto-recording-beta/" target="_blank" rel="noopener">撮影について詳しく</a>',
@@ -87,7 +91,7 @@ class LTApplicationRecordingPolicyTest(TestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '禁止（撮影しない）')
+        self.assertContains(response, '許可しない（ボットで撮影しない）')
         assert_recording_policy_html(self, response)
         self.assertRegex(
             response.content.decode(),
@@ -95,7 +99,7 @@ class LTApplicationRecordingPolicyTest(TestCase):
         )
 
     def test_selected_value_is_saved(self, _mock_send):
-        """「禁止」を選んで申請すると禁止で保存される。"""
+        """「許可しない」を選んで申請すると forbidden で保存される。"""
         detail = self._apply('禁止の発表', recording_policy='forbidden')
 
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
@@ -107,29 +111,39 @@ class LTApplicationRecordingPolicyTest(TestCase):
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_invalid_value_is_rejected(self, _mock_send):
-        """選択肢にない値はフォームのエラーになる。"""
-        form = LTApplicationForm(
-            data={'event': self.event.pk, 'theme': 't', 'speaker': 's', 'recording_policy': 'secret'},
-            community=self.community,
-            user=self.user,
-        )
+        """選択肢にない値（旧 allowed を含む）はフォームのエラーになる。"""
+        for bad_value in ('secret', 'allowed'):
+            with self.subTest(bad_value=bad_value):
+                form = LTApplicationForm(
+                    data={'event': self.event.pk, 'theme': 't', 'speaker': 's', 'recording_policy': bad_value},
+                    community=self.community,
+                    user=self.user,
+                )
 
-        self.assertFalse(form.is_valid())
-        self.assertIn('recording_policy', form.errors)
+                self.assertFalse(form.is_valid())
+                self.assertIn('recording_policy', form.errors)
 
     def test_review_page_shows_policy(self, _mock_send):
-        """主催者の審査画面に撮影の扱いが表示される。"""
+        """主催者の審査画面にボット撮影のラベル（旧 allowed を含む）が表示される。"""
         owner = make_discord_linked_user(user_name='review_owner', email='review_owner@example.com')
         community = make_community(name='審査の集会', owner=owner)
-        detail = make_event_detail(
-            make_event(community), applicant=self.user, recording_policy=RecordingPolicy.ALLOWED,
-        )
+        review_event = make_event(community)
         self.client.force_login(owner)
+        cases = (
+            (RecordingPolicy.PUBLIC, '許可する（ボットで撮影して YouTube で公開）'),
+            (RecordingPolicy.FORBIDDEN, '許可しない（ボットで撮影しない）'),
+            (RecordingPolicy.ALLOWED, '旧設定（撮影するが公開しない）'),
+        )
+        for policy, expected_label in cases:
+            with self.subTest(policy=policy):
+                detail = make_event_detail(
+                    review_event, applicant=self.user, recording_policy=policy,
+                )
+                response = self.client.get(reverse('event:lt_application_review', kwargs={'pk': detail.pk}))
 
-        response = self.client.get(reverse('event:lt_application_review', kwargs={'pk': detail.pk}))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '許可（撮影するが公開しない）')
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'ボットによる自動撮影')
+                self.assertContains(response, expected_label)
 
 
 class LTApplicationEditFormRecordingPolicyTest(TestCase):
@@ -145,13 +159,34 @@ class LTApplicationEditFormRecordingPolicyTest(TestCase):
         return LTApplicationEditForm(data=data, instance=self.detail)
 
     def test_change_policy(self):
-        """編集で「許可」に変えられる。"""
-        form = self._form(recording_policy='allowed')
+        """編集で「許可しない」に変えられ、旧「allowed」は新規選択できない。"""
+        bad = self._form(recording_policy='allowed')
+        self.assertFalse(bad.is_valid())
+        self.assertIn('recording_policy', bad.errors)
+
+        form = self._form(recording_policy='forbidden')
 
         self.assertTrue(form.is_valid(), form.errors)
         form.save()
         self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.FORBIDDEN)
+
+    def test_legacy_allowed_instance_preserves_unless_changed(self):
+        """旧設定「allowed」の既存申請は、未選択で保存すれば維持され、変更すれば更新される。"""
+        self.detail.recording_policy = RecordingPolicy.ALLOWED
+        self.detail.save(update_fields=['recording_policy'])
+
+        kept = self._form()
+        self.assertTrue(kept.is_valid(), kept.errors)
+        kept.save()
+        self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
+
+        updated = self._form(recording_policy='public')
+        self.assertTrue(updated.is_valid(), updated.errors)
+        updated.save()
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
 
     def test_edit_page_shows_radios(self):
         """申請者の編集画面に撮影のラジオボタンが出る。"""
@@ -164,8 +199,33 @@ class LTApplicationEditFormRecordingPolicyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-field="recording_policy"')
-        self.assertContains(response, '禁止（撮影しない）')
+        self.assertContains(response, '許可しない（ボットで撮影しない）')
         assert_recording_policy_html(self, response)
+
+    def test_edit_page_shows_legacy_notice_only_for_allowed(self):
+        """申請者の編集画面では、旧設定 allowed の時だけ現在値の案内を出す。"""
+        applicant = make_discord_linked_user(user_name='legacy_notice_app', email='legacy_notice_app@example.com')
+        self.detail.applicant = applicant
+        self.detail.save(update_fields=['applicant'])
+        self.client.force_login(applicant)
+        url = reverse('account:lt_application_edit', kwargs={'pk': self.detail.pk})
+        notice = '現在は「旧設定（撮影するが公開しない）」が設定されています。'
+
+        for policy, expected in (
+            (RecordingPolicy.PUBLIC, False),
+            (RecordingPolicy.FORBIDDEN, False),
+            (RecordingPolicy.ALLOWED, True),
+        ):
+            with self.subTest(policy=policy):
+                self.detail.recording_policy = policy
+                self.detail.save(update_fields=['recording_policy'])
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                if expected:
+                    self.assertContains(response, notice)
+                else:
+                    self.assertNotContains(response, notice)
+                assert_recording_policy_html(self, response)
 
     def test_missing_value_keeps_current_policy(self):
         """選択が送られなかった時は今の値を変えない。"""
@@ -222,17 +282,38 @@ class EventDetailFormRecordingPolicyTest(TestCase):
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_update_saves_selected_policy(self):
-        """編集画面で値を変えられる。"""
+        """編集画面で値を変えられ、旧「allowed」は拒否される（既存は未選択のまま保持）。"""
         detail = make_event_detail(self.event, status='approved', start_time=time(22, 30))
+
+        rejected = self.client.post(
+            reverse('event:detail_update', kwargs={'pk': detail.pk}),
+            self._data('主催編集', recording_policy='allowed'),
+        )
+        self.assertEqual(rejected.status_code, 200)
+        self.assertIn('recording_policy', rejected.context['form'].errors)
+        detail.refresh_from_db()
+        self.assertEqual(detail.recording_policy, RecordingPolicy.PUBLIC)
 
         response = self.client.post(
             reverse('event:detail_update', kwargs={'pk': detail.pk}),
-            self._data('主催編集', recording_policy='allowed'),
+            self._data('主催編集', recording_policy='forbidden'),
         )
 
         self.assertEqual(response.status_code, 302)
         detail.refresh_from_db()
-        self.assertEqual(detail.recording_policy, RecordingPolicy.ALLOWED)
+        self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
+
+        legacy = make_event_detail(
+            self.event, status='approved', start_time=time(23, 0),
+            recording_policy=RecordingPolicy.ALLOWED,
+        )
+        kept = self.client.post(
+            reverse('event:detail_update', kwargs={'pk': legacy.pk}),
+            self._data('旧設定維持'),
+        )
+        self.assertEqual(kept.status_code, 302)
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.recording_policy, RecordingPolicy.ALLOWED)
 
     def test_form_page_shows_radios(self):
         """登録画面に撮影のラジオボタンが出る。"""
@@ -240,25 +321,29 @@ class EventDetailFormRecordingPolicyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-field="recording_policy"')
-        self.assertContains(response, '公開（撮影して YouTube で公開）')
+        self.assertContains(response, '許可する（ボットで撮影して YouTube で公開）')
         assert_recording_policy_html(self, response)
 
     def test_new_form_uses_each_community_default(self):
-        """撮影を許可する集会の初期値を、新規登録画面にも反映する。"""
-        for value in RecordingPolicy.values:
-            with self.subTest(value=value):
-                self.community.default_recording_policy = value
+        """ボット撮影を許可する集会の初期値（旧 allowed は forbidden 扱い）を新規登録画面に反映する。"""
+        for saved, expected in (
+            (RecordingPolicy.PUBLIC, RecordingPolicy.PUBLIC),
+            (RecordingPolicy.FORBIDDEN, RecordingPolicy.FORBIDDEN),
+            (RecordingPolicy.ALLOWED, RecordingPolicy.FORBIDDEN),
+        ):
+            with self.subTest(saved=saved, expected=expected):
+                self.community.default_recording_policy = saved
                 self.community.save(update_fields=['default_recording_policy'])
 
                 response = self.client.get(reverse('event:detail_create', kwargs={'event_pk': self.event.pk}))
 
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.context['form']['recording_policy'].value(), value)
+                self.assertEqual(response.context['form']['recording_policy'].value(), expected)
                 self.assertRegex(
                     response.content.decode(),
-                    rf'<input type="radio" name="recording_policy" value="{value}"[^>]*checked',
+                    rf'<input type="radio" name="recording_policy" value="{expected}"[^>]*checked',
                 )
-                self.assertNotContains(response, 'この集会は撮影を許可していません。')
+                self.assertNotContains(response, 'この集会はハブの自動撮影ボットによる撮影を許可していません。')
 
     def test_edit_form_keeps_saved_policy_instead_of_community_default(self):
         """編集画面では集会の初期値で既存の選択を上書きしない。"""
@@ -269,6 +354,24 @@ class EventDetailFormRecordingPolicyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['form']['recording_policy'].value(), RecordingPolicy.ALLOWED)
         assert_recording_policy_html(self, response)
+
+    def test_edit_page_shows_legacy_notice_only_for_allowed(self):
+        """主催者の編集画面では、旧設定 allowed の時だけ現在値の案内を出す。"""
+        notice = '現在は「旧設定（撮影するが公開しない）」が設定されています。'
+        for policy, expected in (
+            (RecordingPolicy.PUBLIC, False),
+            (RecordingPolicy.FORBIDDEN, False),
+            (RecordingPolicy.ALLOWED, True),
+        ):
+            with self.subTest(policy=policy):
+                detail = make_event_detail(self.event, recording_policy=policy)
+                response = self.client.get(reverse('event:detail_update', kwargs={'pk': detail.pk}))
+                self.assertEqual(response.status_code, 200)
+                if expected:
+                    self.assertContains(response, notice)
+                else:
+                    self.assertNotContains(response, notice)
+                assert_recording_policy_html(self, response)
 
 
 class OrganizerRecordingNotAllowedTest(TestCase):
@@ -299,7 +402,7 @@ class OrganizerRecordingNotAllowedTest(TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertNotIn('recording_policy', response.context['form'].fields)
                 self.assertNotContains(response, 'name="recording_policy"')
-                self.assertContains(response, 'この集会は撮影を許可していません。')
+                self.assertContains(response, 'この集会はハブの自動撮影ボットによる撮影を許可していません。')
                 self.assertContains(
                     response,
                     f'<a href="{reverse("community:settings")}">集会設定</a>',
@@ -334,32 +437,36 @@ class OrganizerRecordingNotAllowedTest(TestCase):
 
 @patch('event.notifications.send_mail', return_value=1)
 class LTApplicationCommunityDefaultTest(TestCase):
-    """申請フォームの撮影の初期値は、集会の「撮影ステータスの初期値」になる。"""
+    """申請フォームの撮影の初期値は、集会の「ボット撮影許可の初期値」になる。"""
 
     def setUp(self):
         self.user = make_discord_linked_user(user_name='default_applicant', email='default_applicant@example.com')
         self.community = make_community(name='既定値を変えた集会', recording_allowed=True)
-        self.community.default_recording_policy = RecordingPolicy.ALLOWED
+        self.community.default_recording_policy = RecordingPolicy.FORBIDDEN
         self.community.save(update_fields=['default_recording_policy'])
         self.event = make_event(self.community)
         self.url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         self.client.force_login(self.user)
 
     def test_form_initial_is_community_default(self, _mock_send):
-        """集会の撮影ステータスの初期値が「許可」なら、申請フォームは「許可」が選択済み。"""
+        """集会のボット撮影許可の初期値が「許可しない」なら、申請フォームも「許可しない」が選択済み。"""
         html = self.client.get(self.url).content.decode()
 
-        self.assertRegex(html, r'<input type="radio" name="recording_policy" value="allowed"[^>]*checked')
+        self.assertRegex(html, r'<input type="radio" name="recording_policy" value="forbidden"[^>]*checked')
         self.assertNotRegex(html, r'<input type="radio" name="recording_policy" value="public"[^>]*checked')
 
     def test_each_community_default_becomes_initial(self, _mock_send):
-        """3 つのどの値も、そのまま申請フォームの初期値になる。"""
-        for value in RecordingPolicy.values:
-            with self.subTest(value=value):
-                self.community.default_recording_policy = value
+        """有効な初期値 2 つはそのまま反映され、旧「allowed」は安全側で forbidden になる。"""
+        for saved, expected in (
+            (RecordingPolicy.PUBLIC, RecordingPolicy.PUBLIC),
+            (RecordingPolicy.FORBIDDEN, RecordingPolicy.FORBIDDEN),
+            (RecordingPolicy.ALLOWED, RecordingPolicy.FORBIDDEN),
+        ):
+            with self.subTest(saved=saved, expected=expected):
+                self.community.default_recording_policy = saved
                 form = LTApplicationForm(community=self.community, user=self.user)
 
-                self.assertEqual(form['recording_policy'].value(), value)
+                self.assertEqual(form['recording_policy'].value(), expected)
 
     def test_missing_value_is_saved_as_forbidden(self, _mock_send):
         """選択が送られなかった（撮影の選択肢を見ていない）時は、集会の初期値ではなく「禁止」で保存される。"""
@@ -528,15 +635,96 @@ class EventDetailUpdateRecordingNotAllowedTest(TestCase):
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_applicant_can_change_policy_when_allowed(self):
-        """撮影を許可する集会なら、発表者も従来どおり選択肢を見て変えられる。"""
+        """ボット撮影を許可する集会なら、発表者も選択肢を見て変えられ、旧 allowed は選べない。"""
         community = self.detail.event.community
         community.recording_allowed = True
         community.save(update_fields=['recording_allowed'])
         self.client.force_login(self.applicant)
 
         self.assertContains(self.client.get(self.url), 'name="recording_policy"')
-        response = self._post('allowed')
+        rejected = self._post('allowed')
+        self.assertEqual(rejected.status_code, 200)
+        self.assertIn('recording_policy', rejected.context['form'].errors)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.FORBIDDEN)
+
+        response = self._post('public')
 
         self.assertEqual(response.status_code, 302)
         self.detail.refresh_from_db()
-        self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
+
+
+class EventDetailAdminFormRecordingPolicyTest(TestCase):
+    """Django 管理画面の EventDetailAdminForm でも新規 allowed 選択を禁止し、既存 allowed のみ保持する。"""
+
+    def setUp(self):
+        self.event = make_event(make_community(name='管理画面発表の集会'))
+
+    def _form(self, instance=None, **extra):
+        from event.admin import EventDetailAdminForm
+
+        data = {
+            'event': self.event.pk,
+            'detail_type': 'LT',
+            'start_time': '22:00',
+            'duration': 30,
+            'recording_policy': 'public',
+            'article_consent': 'unanswered',
+            'status': 'approved',
+            'theme': '管理画面の発表',
+            'speaker': '発表者',
+            'slide_fetch_attempts': 0,
+            'article_generation_attempts': 0,
+            'article_generation_deferrals': 0,
+        }
+        data.update(extra)
+        return EventDetailAdminForm(instance=instance, data=data)
+
+    def test_new_and_current_forms_offer_two_choices_and_reject_allowed(self):
+        from event.admin import EventDetailAdminForm
+
+        new_form = EventDetailAdminForm()
+        self.assertEqual(
+            list(new_form.fields['recording_policy'].choices),
+            [
+                ('public', '許可する（ボットで撮影して YouTube で公開）'),
+                ('forbidden', '許可しない（ボットで撮影しない）'),
+            ],
+        )
+
+        rejected_create = self._form(recording_policy='allowed')
+        self.assertFalse(rejected_create.is_valid())
+        self.assertIn('recording_policy', rejected_create.errors)
+
+        current_detail = make_event_detail(self.event, detail_type='LT', recording_policy=RecordingPolicy.PUBLIC)
+        rejected_update = self._form(current_detail, recording_policy='allowed')
+        self.assertFalse(rejected_update.is_valid())
+        self.assertIn('recording_policy', rejected_update.errors)
+
+    def test_existing_allowed_lt_keeps_choice_and_allows_preserve_or_update(self):
+        from event.admin import EventDetailAdminForm
+
+        legacy = make_event_detail(self.event, detail_type='LT', recording_policy=RecordingPolicy.ALLOWED)
+        legacy_form = EventDetailAdminForm(instance=legacy)
+        self.assertEqual(
+            list(legacy_form.fields['recording_policy'].choices),
+            [
+                ('public', '許可する（ボットで撮影して YouTube で公開）'),
+                ('forbidden', '許可しない（ボットで撮影しない）'),
+                ('allowed', '旧設定（撮影するが公開しない）'),
+            ],
+        )
+
+        kept = self._form(legacy, recording_policy='allowed', theme='テーマ微調整')
+        self.assertTrue(kept.is_valid(), kept.errors)
+        kept.save()
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.recording_policy, RecordingPolicy.ALLOWED)
+        self.assertEqual(legacy.theme, 'テーマ微調整')
+
+        updated = self._form(legacy, recording_policy='public')
+        self.assertTrue(updated.is_valid(), updated.errors)
+        updated.save()
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.recording_policy, RecordingPolicy.PUBLIC)

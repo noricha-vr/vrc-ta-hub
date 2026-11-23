@@ -3,10 +3,10 @@
 {% include 'ta_hub/admin/includes/form_field.html' with field=form.accepts_lt_application only %}
 {% include 'ta_hub/admin/includes/form_field.html' with field=form.recording_allowed only %}
 <fieldset id="create-recording-policy"{% if form.recording_allowed.value != 'true' and form.recording_allowed.value != 'on' %} disabled{% endif %} aria-describedby="create-recording-help">
-<legend class="visually-hidden">撮影の既定</legend>
+<legend class="visually-hidden">ボット撮影許可の初期値</legend>
 {% include 'ta_hub/admin/includes/form_field.html' with field=form.default_recording_policy only %}
 </fieldset>
-<p id="create-recording-help" class="form-text">撮影を許可する場合に、撮影ステータスの初期値を選べます。</p>
+<p id="create-recording-help" class="form-text">ボットによる自動撮影を許可する場合に、ボット撮影許可の初期値を選べます。</p>
 {{ form.default_recording_policy_chosen }}
 <div class="row">
 <div class="col-md-6">{% include 'ta_hub/admin/includes/form_field.html' with field=form.default_lt_duration only %}</div>

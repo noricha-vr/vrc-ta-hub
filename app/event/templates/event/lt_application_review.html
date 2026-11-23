@@ -33,7 +33,7 @@
 <dt class="col-sm-4">テーマ</dt><dd class="col-sm-8">{{ event_detail.theme }}</dd>
 <dt class="col-sm-4">発表者</dt><dd class="col-sm-8">{{ event_detail.speaker }}</dd>
 <dt class="col-sm-4">発表の持ち時間</dt><dd class="col-sm-8">{{ event_detail.duration }}分</dd>
-<dt class="col-sm-4">撮影</dt><dd class="col-sm-8">{{ event_detail.get_recording_policy_display }}</dd>
+<dt class="col-sm-4">ボットによる自動撮影</dt><dd class="col-sm-8">{{ event_detail.recording_policy_display_label }}</dd>
 <dt class="col-sm-4">発表の記事化</dt><dd class="col-sm-8">{{ event_detail.get_article_consent_display }}</dd>
 {% if event_detail.applicant and event_detail.applicant.display_label != event_detail.speaker %}
 <dt class="col-sm-4">申請者</dt><dd class="col-sm-8">{{ event_detail.applicant.display_label }}</dd>

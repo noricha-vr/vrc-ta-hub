@@ -50,8 +50,8 @@
 
 | 項目 | 出る場所 | 値 |
 |------|----------|-----|
-| `recording_allowed` | コミュニティ（`/community/`、`/event/` と `/event_detail/` の `event.community` ネストを含む） | `true` = 撮影を許可 / `false`（既定）= この集会は自動撮影の対象外 |
-| `recording_policy` | イベント詳細（`/event_detail/`、`/event-details/`） | `public` = 撮影して YouTube で公開 / `allowed` = 撮影するが公開しない / `forbidden` = 撮影しない（`POST` で省略した時の既定） |
+| `recording_allowed` | コミュニティ（`/community/`、`/event/` と `/event_detail/` の `event.community` ネストを含む） | `true` = ボットによる自動撮影を許可 / `false`（既定）= この集会は自動撮影の対象外 |
+| `recording_policy` | イベント詳細（`/event_detail/`、`/event-details/`） | `public` = ボットで撮影して YouTube で公開 / `forbidden` = ボットで撮影しない（`POST` で省略した時の既定） / `allowed` = 旧設定互換のみ（既存レコードに残る場合があり、通常の申請・編集・集会設定および管理画面フォームからは新規選択不可。API の新規登録 `POST /event-details/` のみ互換のため受付） |
 
 イベント詳細の読み取りには `detail_type`（`LT` = 発表 / `SPECIAL` = 特別企画 / `BLOG` = ブログ）も出ます。発表に加え、出演者全員への確認を済ませた特別企画も撮影の対象になりえます。集会の `recording_allowed` と各行の `recording_policy` も確認してください。特別企画の `theme` はタイトル（`h1`）の前後の空白を除き、100 文字に収めた値です。タイトルが空なら `Special Event` です。
 

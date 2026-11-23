@@ -46,7 +46,7 @@ def apply(capture):
     region(capture, ['form .mb-4:has(#id_event)', 'form .mb-4:has(#id_theme)',
                      'form .mb-4:has(#id_speaker)', 'form .mb-4:has(#id_x_account)'],
            marks=['#id_event', '#id_theme', '#id_speaker'])
-    region(capture, ['form .mb-4:has([aria-label="撮影"])', 'form .mb-4:has([aria-label="発表の記事化"])'])
+    region(capture, ['form .mb-4:has([aria-label="ボットによる自動撮影"])', 'form .mb-4:has([aria-label="発表の記事化"])'])
     page.locator('#id_additional_info').fill('【発表概要】\nワールドを作る手順を紹介します。\n【希望する時間】\n質疑応答を含めて30分です。')
     region(capture, ['#application-form .admin-card:has(#id_additional_info)', '[data-admin-action-bar]'],
            marks=['#id_additional_info', 'button[form="application-form"]'])

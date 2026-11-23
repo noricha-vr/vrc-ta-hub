@@ -3,7 +3,7 @@ from django.forms.widgets import CheckboxSelectMultiple
 
 
 from .constants import (
-    WEEKDAY_CHOICES, RECORDING_POLICY_FORM_CHOICES,
+    WEEKDAY_CHOICES, RECORDING_POLICY_FORM_CHOICES, recording_policy_admin_choices,
     MAX_LT_DURATION_MINUTES, MAX_LT_START_OFFSET_MINUTES,
 )
 from .recording_settings import _parse_recording_allowed, _resolve_default_recording_policy
@@ -85,6 +85,13 @@ class CommunityForm(VrcGroupUrlMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if 'default_recording_policy' in self.fields:
+            current_policy = (
+                self.instance.default_recording_policy
+                if self.instance and self.instance.pk
+                else None
+            )
+            self.fields['default_recording_policy'].choices = recording_policy_admin_choices(current_policy)
         if self.instance and self.instance.pk:
             self.initial['weekdays'] = self.instance.weekdays
             self.initial['tags'] = self.instance.tags  # tags の初期値を設定
@@ -211,15 +218,15 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
         initial='on',
     )
     recording_allowed = forms.CharField(
-        label='撮影許可',
+        label='ボットによる自動撮影の許可',
         required=False,
         strip=False,
         initial='false',
         widget=forms.RadioSelect(choices=[('true', '許可する'), ('false', '許可しない')]),
-        help_text='「許可しない」場合は自動撮影の対象にならず、発表申請も撮影「禁止」で受け付けます。',
+        help_text='「許可しない」場合はハブの自動撮影ボットの対象にならず、発表申請も「許可しない」で受け付けます。',
     )
     default_recording_policy = forms.CharField(
-        label='撮影ステータスの初期値',
+        label='ボット撮影許可の初期値',
         required=False,
         strip=False,
         widget=forms.RadioSelect(choices=RECORDING_POLICY_FORM_CHOICES),

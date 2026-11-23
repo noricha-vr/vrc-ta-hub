@@ -6,7 +6,7 @@ from django.urls import path
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
-from community.constants import weekday_code
+from community.constants import recording_policy_admin_choices, weekday_code
 
 from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecurrenceRule
 
@@ -20,6 +20,9 @@ class EventDetailAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self._original_detail_type = self.instance.detail_type
         self._original_recording_policy = self.instance.recording_policy
+        if 'recording_policy' in self.fields:
+            current_policy = self.instance.recording_policy if self.instance.pk else None
+            self.fields['recording_policy'].choices = recording_policy_admin_choices(current_policy)
 
     def clean(self):
         cleaned = super().clean()
