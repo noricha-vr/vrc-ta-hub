@@ -110,6 +110,26 @@ class DeployCheckConfigTest(SimpleTestCase):
                     f"{check['name']}: {check['url']}",
                 )
 
+    def test_companions_declares_migrate_job_before_canary(self):
+        """migration 用 Cloud Run Job を before_canary companion として宣言する。"""
+        companions = self.config.get('companions')
+        self.assertIsInstance(companions, list)
+        self.assertTrue(companions)
+
+        for entry in companions:
+            self.assertIsInstance(entry, dict)
+            self.assertIn(entry.get('kind'), {'cloud_run_job', 'cloud_run_service'})
+            self.assertIn(entry.get('sync_timing'), {'before_canary', 'after_100'})
+            self.assertIsInstance(entry.get('sync_image', True), bool)
+
+        migrate_entries = [
+            entry for entry in companions
+            if entry.get('kind') == 'cloud_run_job' and entry.get('name') == 'vrc-ta-hub-migrate'
+        ]
+        self.assertEqual(len(migrate_entries), 1)
+        self.assertEqual(migrate_entries[0]['sync_timing'], 'before_canary')
+        self.assertTrue(migrate_entries[0]['sync_image'])
+
 
 class ReadDeployCheckTest(SimpleTestCase):
     """scripts/read_deploy_check.py（deploy-watch が読む要約層）のテスト。"""
