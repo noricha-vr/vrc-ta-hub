@@ -264,3 +264,26 @@ class RegenerateReadyTweetsCommandTest(TestCase):
             output = self._call()
 
         self.assertIn("完了: 更新=1 件, 失敗=0 件", output)
+
+    def test_url_in_ready_lt_and_special_regenerates_without_all_while_slide_share_kept(self):
+        """--all なしでも URL 入り ready な lt/special は再生成対象、slide_share は対象外"""
+        lt_old = "11/25(水) 22:00~ 集会\n\n太郎「題目」\n\n詳細はこちら https://vrc-ta-hub.com/community/1/"
+        special_old = "11/25(水) 22:00~ 集会 特別回\n\n太郎さん「題目」\n\n詳細はこちら https://vrc-ta-hub.com/community/1/"
+        slide_url = "解説記事を公開しました\n\nhttps://vrc-ta-hub.com/event/detail/1/"
+
+        lt_item = self._create_queue(lt_old, tweet_type="lt")
+        special_item = self._create_queue(special_old, tweet_type="special")
+        slide_item = self._create_queue(slide_url, tweet_type="slide_share")
+
+        new_no_url = "11/25(水) 22:00~ 集会\n\n太郎さん「題目」\n\nVRChatグループID: GAME.2515"
+        with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
+            mock_get.return_value = lambda qi: new_no_url
+            output = self._call()
+
+        lt_item.refresh_from_db()
+        special_item.refresh_from_db()
+        slide_item.refresh_from_db()
+        self.assertEqual(lt_item.generated_text, new_no_url)
+        self.assertEqual(special_item.generated_text, new_no_url)
+        self.assertEqual(slide_item.generated_text, slide_url)
+        self.assertIn("完了: 更新=2 件, 失敗=0 件", output)

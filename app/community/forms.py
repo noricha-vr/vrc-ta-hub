@@ -1,4 +1,5 @@
 from django import forms
+from django.core.validators import MaxLengthValidator
 from django.forms.widgets import CheckboxSelectMultiple
 
 
@@ -8,7 +9,7 @@ from .constants import (
     MAX_LT_DURATION_MINUTES, MAX_LT_START_OFFSET_MINUTES,
 )
 from .recording_settings import _parse_recording_allowed, _resolve_default_recording_policy
-from .libs import resolve_vrc_group_url
+from .libs import extract_vrc_group_short_code, normalize_vrc_group_short_code, resolve_vrc_group_url
 from .models import Community, TAGS, FORM_TAGS
 
 POSTER_REQUIREMENTS_HELP_TEXT = (
@@ -23,7 +24,21 @@ ALLOWED_GROUP_URL_DOMAINS = {"vrc.group", "vrchat.com"}
 class VrcGroupUrlMixin:
     """vrc.group 短縮URLを正規URLに変換し、許可ドメインのみ受け付ける。"""
 
+    # 短縮URL (例: https://vrc.group/GAME.2515 = 25文字) の貼り付けを clean前に通すため広げる
+    GROUP_SHORT_CODE_INPUT_MAX_LENGTH = 200
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        field = self.fields.get('group_short_code')
+        if field is not None:
+            field.max_length = self.GROUP_SHORT_CODE_INPUT_MAX_LENGTH
+            field.validators = [
+                v for v in field.validators if not isinstance(v, MaxLengthValidator)
+            ] + [MaxLengthValidator(self.GROUP_SHORT_CODE_INPUT_MAX_LENGTH)]
+            field.widget.attrs['maxlength'] = str(self.GROUP_SHORT_CODE_INPUT_MAX_LENGTH)
+
     def clean_group_url(self):
+        self._extracted_group_short_code = ''
         url = self.cleaned_data.get('group_url', '')
         if not url:
             return url
@@ -34,7 +49,25 @@ class VrcGroupUrlMixin:
             raise forms.ValidationError(
                 "VRChatグループのURL（vrchat.com または vrc.group）を入力してください。"
             )
+        self._extracted_group_short_code = extract_vrc_group_short_code(url)
         return resolve_vrc_group_url(url)
+
+    def clean_group_short_code(self):
+        value = self.cleaned_data.get('group_short_code', '')
+        try:
+            return normalize_vrc_group_short_code(value)
+        except ValueError as exc:
+            raise forms.ValidationError(str(exc)) from exc
+
+    def clean(self):
+        cleaned = super().clean()
+        if (
+            'group_short_code' in self.fields
+            and not cleaned.get('group_short_code')
+            and getattr(self, '_extracted_group_short_code', '')
+        ):
+            cleaned['group_short_code'] = self._extracted_group_short_code
+        return cleaned
 
 
 class CommunitySearchForm(forms.Form):
@@ -134,7 +167,7 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
         model = Community
         fields = [
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
-            'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
+            'group_url', 'group_short_code', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost',
             'description', 'platform', 'tags',
         ]
@@ -149,6 +182,7 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
             'frequency': forms.TextInput(attrs={'class': 'form-control'}),
             'organizers': forms.TextInput(attrs={'class': 'form-control'}),
             'group_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'group_short_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'GAME.2515'}),
             'organizer_url': forms.URLInput(attrs={'class': 'form-control'}),
             'sns_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://x.com/XXXXX'}),
             'discord': forms.URLInput(attrs={'class': 'form-control'}),
@@ -275,7 +309,7 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
         model = Community
         fields = [
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
-            'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
+            'group_url', 'group_short_code', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags',
             'accepts_lt_application', 'recording_allowed', 'default_recording_policy',
             'default_lt_duration', 'lt_start_offset_minutes'
@@ -291,6 +325,7 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
             'frequency': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '隔週'}),
             'organizers': forms.TextInput(attrs={'class': 'form-control'}),
             'group_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://vrc.group/XXXXX'}),
+            'group_short_code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'GAME.2515'}),
             'organizer_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://vrchat.com/home/user/XXXXX'}),
             'sns_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://x.com/XXXXX'}),
             'discord': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://discord.gg/XXXXXXXXX'}),

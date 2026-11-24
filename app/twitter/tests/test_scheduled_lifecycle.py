@@ -131,7 +131,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
 
     @patch("twitter.views.post_tweet")
     def test_stale_daily_reminder_is_skipped(self, mock_post):
-        """当日ではない daily_reminder は投稿しない"""
+        """廃止された daily_reminder は過去イベント分も投稿せず skipped にする"""
         past_event = Event.objects.create(
             community=self.community,
             date=timezone.localdate() - datetime.timedelta(days=1),
@@ -153,8 +153,8 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
 
         self.assertEqual(response.status_code, 200)
         queue = TweetQueue.objects.first()
-        self.assertEqual(queue.status, "failed")
-        self.assertIn("当日イベントではない", queue.error_message)
+        self.assertEqual(queue.status, "skipped")
+        self.assertIn("廃止", queue.error_message)
         mock_post.assert_not_called()
 
 

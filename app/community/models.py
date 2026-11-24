@@ -55,6 +55,14 @@ class Community(models.Model):
     frequency = models.CharField('開催周期', max_length=100)
     organizers = models.CharField('主催・副主催', max_length=200)
     group_url = models.URLField('VRChatグループURL', blank=True)
+    group_short_code = models.CharField(
+        'VRChatグループID',
+        max_length=20,
+        blank=True,
+        default='',
+        db_default='',
+        help_text='例: GAME.2515（vrc.group の短縮URLを入れると自動入力されます）',
+    )
     organizer_url = models.URLField('主催プロフィールURL', blank=True)
     sns_url = models.URLField('XアカウントURL', blank=True)
     discord = models.URLField('Discordサーバー', blank=True)

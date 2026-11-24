@@ -16,6 +16,7 @@ from allauth.core import ratelimit
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
 from community.constants import WEEKDAY_CHOICES
+from community.libs import extract_vrc_group_short_code
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES
 from ta_hub.utils import get_client_ip
@@ -188,6 +189,7 @@ class CustomUserCreationForm(UserCreationForm):
             frequency=self.cleaned_data['frequency'],
             organizers=self.cleaned_data['organizers'],
             group_url=self.cleaned_data['group_url'],
+            group_short_code=extract_vrc_group_short_code(self.cleaned_data.get('group_url', '')),
             organizer_url=self.cleaned_data['organizer_url'],
             sns_url=self.cleaned_data['sns_url'],
             discord=self.cleaned_data['discord'],

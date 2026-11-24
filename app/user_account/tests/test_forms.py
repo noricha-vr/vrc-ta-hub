@@ -395,3 +395,38 @@ class CustomUserCreationFormTests(TestCase):
         self.assertEqual(form.fields['sns_url'].widget.attrs.get('placeholder'), 'https://x.com/XXXXX')
         self.assertEqual(form.fields['twitter_hashtag'].widget.attrs.get('placeholder'), '#VRChat')
         self.assertEqual(form.fields['sns_url'].help_text, 'X以外のSNSのURLも可')
+
+    def test_save_extracts_group_short_code_from_vrc_group_url(self):
+        """新規登録時に vrc.group 短縮URLから group_short_code を保存すること."""
+        from io import BytesIO
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from community.models import Community
+
+        img_buf = BytesIO()
+        Image.new('RGB', (10, 10), color='white').save(img_buf, format='PNG')
+        form = CustomUserCreationForm(
+            data={
+                'user_name': 'new_signup_community',
+                'email': 'signup@example.com',
+                'password1': 'testpass12345',
+                'password2': 'testpass12345',
+                'start_time': '22:00',
+                'duration': 60,
+                'weekdays': ['Fri'],
+                'frequency': '毎週',
+                'organizers': '登録太郎',
+                'group_url': 'https://vrc.group/game.2515',
+                'allow_poster_repost': True,
+                'description': '説明文',
+                'platform': 'All',
+                'tags': ['tech'],
+            },
+            files={
+                'poster_image': SimpleUploadedFile('poster.png', img_buf.getvalue(), content_type='image/png'),
+            },
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+        community = Community.objects.get(name=user.user_name)
+        self.assertEqual(community.group_short_code, 'GAME.2515')

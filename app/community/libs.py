@@ -1,4 +1,5 @@
 import logging
+import re
 from urllib.parse import urlparse
 
 import requests
@@ -10,6 +11,34 @@ VRCHAT_API_REDIRECT_URL = "https://api.vrchat.cloud/api/1/groups/redirect/{code}
 VRCHAT_BASE_URL = "https://vrchat.com"
 USER_AGENT = "vrc-ta-hub/1.0 noricha-vr"
 REQUEST_TIMEOUT_SECONDS = 5
+VRC_GROUP_SHORT_CODE_RE = re.compile(r"^[A-Za-z0-9]{2,12}\.\d{4}$")
+
+
+def extract_vrc_group_short_code(value: str) -> str:
+    """vrc.group 短縮URLから VRChat グループID (例: GAME.2515) を抽出する。"""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    parsed = urlparse(raw)
+    if (parsed.hostname or "").lower() != VRC_GROUP_DOMAIN:
+        return ""
+    segment = parsed.path.strip("/").split("/")[0]
+    if not VRC_GROUP_SHORT_CODE_RE.fullmatch(segment):
+        return ""
+    return segment.upper()
+
+
+def normalize_vrc_group_short_code(value: str) -> str:
+    """手入力または vrc.group URL から VRChat グループID を正規化する。"""
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    extracted = extract_vrc_group_short_code(raw)
+    if extracted:
+        return extracted
+    if VRC_GROUP_SHORT_CODE_RE.fullmatch(raw):
+        return raw.upper()
+    raise ValueError("VRChatグループIDは GAME.2515 の形式で入力してください。")
 
 
 def resolve_vrc_group_url(url: str) -> str:

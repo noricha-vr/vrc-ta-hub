@@ -10,11 +10,12 @@ from django.utils import timezone
 
 from twitter.scheduling import default_scheduled_at
 from twitter.services import tweet_generation
+from twitter.services.announcement_eligibility import LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON
 
 logger = logging.getLogger(__name__)
 
 PRESENTATION_DETAIL_TYPES = ("LT", "SPECIAL")
-SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
+SAME_DAY_INDIVIDUAL_SKIP_REASON = LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON
 NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないため投稿対象外'
 
 

@@ -127,14 +127,14 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.note_post.assert_called_once()
 
     def test_retry_rechecks_event_date_even_when_x_already_finished(self):
-        # JST 00:01: a reminder from 23:59 is not expired, but is no longer current.
+        # JST 00:01: yesterday's lt/special or any retired daily_reminder is skipped.
         self.current = timezone.make_aware(timezone.datetime(2026, 10, 30, 0, 1))
         today = timezone.localdate(self.current)
         cases = [
-            ('lt', today), ('special', today),
             ('lt', today - timedelta(days=1)),
             ('special', today - timedelta(days=1)),
             ('daily_reminder', today - timedelta(days=1)),
+            ('daily_reminder', today),
             ('daily_reminder', today + timedelta(days=1)),
         ]
         for status in ('posted', 'failed'):
@@ -155,14 +155,16 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.note_post.assert_not_called()
         self.notify.assert_not_called()
 
-    def test_retry_allows_current_reminder_and_future_individual_announcements(self):
+    def test_retry_allows_same_day_and_future_individual_announcements(self):
+        self.current = timezone.make_aware(timezone.datetime(2026, 10, 30, 15, 0))
         today = timezone.localdate(self.current)
         for tweet_type, event_date in [
-            ('daily_reminder', today),
+            ('lt', today),
+            ('special', today),
             ('lt', today + timedelta(days=1)),
             ('special', today + timedelta(days=1)),
         ]:
-            with self.subTest(tweet_type=tweet_type):
+            with self.subTest(tweet_type=tweet_type, event_date=event_date):
                 self.event.date = event_date
                 self.event.save(update_fields=['date'])
                 note = MisskeyNote.objects.create(tweet_queue=self.queue(
@@ -355,11 +357,10 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         today = timezone.localdate()
         cases = [
             ('new_community', today, self.current - timedelta(hours=25)),
-            ('lt', today, self.current),
-            ('special', today, self.current),
             ('lt', today - timedelta(days=1), self.current),
             ('special', today - timedelta(days=1), self.current),
             ('daily_reminder', today - timedelta(days=1), self.current),
+            ('daily_reminder', today, self.current),
             ('daily_reminder', today + timedelta(days=1), self.current),
         ]
         for tweet_type, event_date, scheduled_at in cases:
@@ -394,11 +395,12 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.note_post.assert_not_called()
 
     def test_unlisted_rule_does_not_skip_other_announcements(self):
-        """非掲載の集会でも、開催回の当日リマインドは今までどおり出す。"""
+        """非掲載の集会でも、開催回の発表告知は今までどおり出す。"""
         type(self.community).objects.filter(pk=self.community.pk).update(is_listed=False)
+        self.current = timezone.make_aware(timezone.datetime(2026, 10, 30, 15, 0))
         self.event.date = timezone.localdate(self.current)
         self.event.save(update_fields=['date'])
-        queue = self.queue(tweet_type='daily_reminder')
+        queue = self.queue(tweet_type='lt')
         self.process()
         queue.refresh_from_db()
         self.assertEqual(queue.status, 'posted')
@@ -497,3 +499,42 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(queue.misskey_note.status, 'posted')
         x_post.assert_called_once()
+
+    def test_pending_note_skips_when_event_started_or_detail_retracted(self):
+        """イベント開始後や発表の取り下げ・種別変更時は Misskey も投稿せず skipped にする。"""
+        from event.models import EventDetail
+        from tests.factories import make_event_detail
+
+        self.current = timezone.make_aware(timezone.datetime(2026, 10, 30, 22, 5))
+        self.event.date = timezone.localdate(self.current)
+        self.event.save(update_fields=['date'])
+
+        started_note = MisskeyNote.objects.create(
+            tweet_queue=self.queue(status='posted', tweet_type='lt'),
+        )
+        process_pending_notes(now=self.current)
+        started_note.refresh_from_db()
+        self.assertEqual(started_note.status, 'skipped')
+
+        # 未来日の発表を取り下げ/削除したケース
+        self.event.date = timezone.localdate(self.current) + timedelta(days=2)
+        self.event.save(update_fields=['date'])
+        detail = make_event_detail(self.event, detail_type='LT', status='approved', speaker='太郎', theme='発表')
+        TweetQueue.objects.all().delete()
+        note = MisskeyNote.objects.create(
+            tweet_queue=self.queue(status='posted', tweet_type='lt', event_detail=detail),
+        )
+        EventDetail.objects.filter(pk=detail.pk).update(status='pending')
+        process_pending_notes(now=self.current)
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'skipped')
+
+        EventDetail.objects.filter(pk=detail.pk).update(status='approved')
+        EventDetail.objects.filter(pk=detail.pk).delete()
+        note2 = MisskeyNote.objects.create(
+            tweet_queue=self.queue(status='posted', tweet_type='lt', event_detail=detail),
+        )
+        process_pending_notes(now=self.current)
+        note2.refresh_from_db()
+        self.assertEqual(note2.status, 'skipped')
+        self.note_post.assert_not_called()

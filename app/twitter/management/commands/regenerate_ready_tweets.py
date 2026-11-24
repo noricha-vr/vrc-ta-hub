@@ -7,8 +7,18 @@ X のスパムフィルタを避ける「本文3行以内」制約は以降の�
 import logging
 
 from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
+from django.utils import timezone
 
-from twitter.models import TweetQueue
+from event.models import Event
+from twitter.models import MisskeyNote, TweetQueue
+from twitter.scheduling import default_scheduled_at
+from twitter.services.announcement_eligibility import (
+    LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON,
+    PRESERVED_MISSKEY_STATUSES,
+    event_date_skip_reason,
+    presentation_detail_skip_reason,
+)
 from twitter.tweet_generator import (
     count_body_lines,
     count_tweet_length,
@@ -50,9 +60,101 @@ class Command(BaseCommand):
             ],
             help="tweet_type で絞り込み",
         )
+        parser.add_argument(
+            "--revive-legacy-same-day",
+            action="store_true",
+            help="旧仕様の当日リマインド統合でスキップされた未開始の発表告知キューを一度きり復帰させる",
+        )
+
+    def _revive_legacy_same_day_skipped(self, *, dry_run: bool) -> None:
+        current = timezone.now()
+        local_today = timezone.localdate(current)
+        future_event_ids = list(
+            Event.objects.filter(date__gte=local_today).values_list("pk", flat=True),
+        )
+        if future_event_ids:
+            candidates = list(
+                TweetQueue.objects.filter(
+                    event_id__in=future_event_ids,
+                    tweet_type__in=("lt", "special"),
+                    status="skipped",
+                    error_message=LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON,
+                ).select_related("community", "event", "event_detail").order_by("-pk"),
+            )
+        else:
+            candidates = []
+        targets = []
+        seen_detail_keys: set[tuple[int, str]] = set()
+        for item in candidates:
+            if event_date_skip_reason(item, now=current) or presentation_detail_skip_reason(item):
+                continue
+            if item.event_detail_id is not None:
+                key = (item.event_detail_id, item.tweet_type)
+                if key in seen_detail_keys:
+                    continue
+                if (
+                    TweetQueue.objects.filter(
+                        event_detail_id=item.event_detail_id,
+                        tweet_type=item.tweet_type,
+                    )
+                    .exclude(pk=item.pk)
+                    .filter(
+                        ~Q(status="skipped")
+                        | Q(misskey_note__status__in=PRESERVED_MISSKEY_STATUSES)
+                    )
+                    .exists()
+                ):
+                    continue
+                seen_detail_keys.add(key)
+            targets.append(item)
+
+        self.stdout.write(
+            f"LEGACY_REVIVE_CANDIDATES: count={len(targets)} dry_run={dry_run}"
+        )
+        if dry_run:
+            for item in targets:
+                self.stdout.write(f"  #{item.pk} [{item.tweet_type}] event={item.event_id} -> (dry-run)")
+            return
+
+        revived = 0
+        for item in targets:
+            item.status = "generation_failed"
+            item.scheduled_at = default_scheduled_at(
+                item.tweet_type, event=item.event, base_datetime=current,
+            )
+            item.generated_text = ""
+            item.error_message = "当日リマインド廃止に伴い個別告知へ復帰"
+            item.generation_token = ""
+            item.save(
+                update_fields=[
+                    "status",
+                    "scheduled_at",
+                    "generated_text",
+                    "error_message",
+                    "generation_token",
+                ],
+            )
+            MisskeyNote.objects.filter(
+                tweet_queue=item,
+                status="skipped",
+            ).update(
+                status="pending",
+                error_message="",
+                attempts=0,
+                updated_at=current,
+            )
+            revived += 1
+
+        self.stdout.write(
+            self.style.SUCCESS(f"LEGACY_REVIVE_APPLIED: revived={revived}")
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+        if options["revive_legacy_same_day"]:
+            self._revive_legacy_same_day_skipped(dry_run=dry_run)
+            return
+
         regenerate_all = options["all"]
         pk = options["pk"]
         tweet_type = options["tweet_type"]
@@ -72,8 +174,12 @@ class Command(BaseCommand):
 
         targets = []
         for item in candidates:
+            forbid_urls = item.tweet_type in ("lt", "special")
             body_lines = count_body_lines(item.generated_text)
-            validation_errors = validate_tweet_text(item.generated_text)
+            validation_errors = validate_tweet_text(
+                item.generated_text,
+                forbid_urls=forbid_urls,
+            )
             image_url = get_tweet_image_url(item) if item.tweet_type == "slide_share" else ""
             needs_image_sync = bool(image_url and item.image_url != image_url)
             needs_text_regen = regenerate_all or bool(validation_errors)
@@ -138,7 +244,10 @@ class Command(BaseCommand):
 
             new_lines = count_body_lines(text)
             new_weighted = count_tweet_length(text)
-            new_errors = validate_tweet_text(text)
+            new_errors = validate_tweet_text(
+                text,
+                forbid_urls=(item.tweet_type in ("lt", "special")),
+            )
             item.generated_text = text
 
             if image_url or not item.image_url:

@@ -452,7 +452,23 @@ class EventDetailQuerySet(models.QuerySet):
         return super().delete()
 
     def restore(self):
-        return self.update(deleted_at=None, updated_at=timezone.now())
+        now = timezone.now()
+        target_ids = list(
+            self.filter(deleted_at__isnull=False).values_list('pk', flat=True)
+        )
+        if not target_ids:
+            return 0
+        updated = EventDetail.all_objects.filter(
+            pk__in=target_ids,
+            deleted_at__isnull=False,
+        ).update(deleted_at=None, updated_at=now)
+        if updated:
+            from twitter.signals import sync_presentation_tweet_for_restored_detail
+            for detail in EventDetail.objects.filter(
+                pk__in=target_ids,
+            ).select_related('event', 'event__community'):
+                sync_presentation_tweet_for_restored_detail(detail)
+        return updated
 
 
 class EventDetailManager(models.Manager):

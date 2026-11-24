@@ -351,13 +351,14 @@ class EventDateUpdateViewTests(TestCase):
         self.assertContains(response, 'この親イベントの開催日だけを変更します')
         self.assertContains(response, '登録済みの子開催回と定期ルールは変更されません')
 
-    def test_unposted_daily_reminder_is_rescheduled(self):
+    def test_unposted_daily_reminder_is_skipped_on_date_move(self):
+        original_schedule = scheduled_at_for_date(self.original_date)
         queue = TweetQueue.objects.create(
             tweet_type='daily_reminder',
             community=self.community,
             event=self.event,
             status='ready',
-            scheduled_at=scheduled_at_for_date(self.original_date),
+            scheduled_at=original_schedule,
         )
         new_date = self.original_date + timedelta(days=1)
         self.client.force_login(self.owner)
@@ -365,8 +366,9 @@ class EventDateUpdateViewTests(TestCase):
         self._post_date(new_date)
 
         queue.refresh_from_db()
-        self.assertEqual(queue.scheduled_at, scheduled_at_for_date(new_date))
-        self.assertEqual(queue.status, 'ready')
+        self.assertEqual(queue.scheduled_at, original_schedule)
+        self.assertEqual(queue.status, 'skipped')
+        self.assertIn('廃止', queue.error_message)
 
     def test_posted_daily_reminder_is_unchanged(self):
         original_schedule = scheduled_at_for_date(self.original_date)
@@ -387,31 +389,446 @@ class EventDateUpdateViewTests(TestCase):
         self.assertEqual(queue.status, 'posted')
 
     def test_past_rescheduled_reminder_is_skipped(self):
-        """移動後の予約日時が既に過ぎているリマインドは skipped にする"""
+        """日付移動時、残存していた未投稿の daily_reminder も skipped にする"""
+        original_schedule = scheduled_at_for_date(self.event.date)
         queue = TweetQueue.objects.create(
             tweet_type='daily_reminder',
             community=self.community,
             event=self.event,
             status='ready',
-            scheduled_at=scheduled_at_for_date(self.event.date),
+            scheduled_at=original_schedule,
         )
         self.client.force_login(self.owner)
-        # 当日へ移動する。移動先の予約時刻を過ぎた時点を now とみなす
-        after_schedule = timezone.make_aware(
-            datetime.combine(self.today, time(20, 0)),
+
+        self._post_date(self.today)
+
+        queue.refresh_from_db()
+        self.assertEqual(queue.scheduled_at, original_schedule)
+        self.assertEqual(queue.status, 'skipped')
+
+    def test_moving_event_forward_reschedules_and_resets_unposted_lt_queue(self):
+        """開催日を当日へ前倒しした時、未投稿の lt キューが新日程向けに再予約・再生成待ちになる"""
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        old_schedule = timezone.make_aware(
+            datetime.combine(self.today + timedelta(days=1), time(12, 0)),
+            timezone.get_current_timezone(),
+        )
+        lt_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            status='ready',
+            generated_text='旧開催日の告知',
+            generation_token='old-token',
+            scheduled_at=old_schedule,
+        )
+        posted_queue = TweetQueue.objects.create(
+            tweet_type='special',
+            community=self.community,
+            event=self.event,
+            status='posted',
+            generated_text='投稿済み告知',
+            scheduled_at=old_schedule,
+            posted_at=timezone.now(),
+        )
+        self.client.force_login(self.owner)
+        move_now = timezone.make_aware(
+            datetime.combine(self.today, time(15, 0)),
             timezone.get_current_timezone(),
         )
 
-        with patch(
-            'event.services.recurrence_override.timezone.now',
-            return_value=after_schedule,
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
         ):
             self._post_date(self.today)
 
+        lt_queue.refresh_from_db()
+        posted_queue.refresh_from_db()
+        self.assertEqual(lt_queue.scheduled_at, move_now)
+        self.assertEqual(lt_queue.status, 'generation_failed')
+        self.assertEqual(lt_queue.generated_text, '')
+        self.assertEqual(lt_queue.generation_token, '')
+        self.assertEqual(posted_queue.status, 'posted')
+        self.assertEqual(posted_queue.generated_text, '投稿済み告知')
+
+    def test_moving_started_event_back_to_future_revives_past_start_skipped_queue_only_for_eligible_details(self):
+        """開始済み日程でスキップされた lt キューを未来日へ戻すと、有効な発表のみ再予約される"""
+        from event.models import EventDetail
+        from event.services.recurrence_override import MOVED_PAST_START_SKIP_REASON
+        from tests.factories import make_event_detail
+
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        active_detail = make_event_detail(
+            self.event,
+            detail_type='LT',
+            status='approved',
+            speaker='有効太郎',
+            theme='有効な発表',
+            start_time=time(22, 10),
+        )
+        deleted_detail = make_event_detail(
+            self.event,
+            detail_type='LT',
+            status='approved',
+            speaker='削除花子',
+            theme='削除される発表',
+            start_time=time(22, 30),
+        )
+        old_schedule = timezone.make_aware(
+            datetime.combine(self.today + timedelta(days=1), time(9, 0)),
+            timezone.get_current_timezone(),
+        )
+        active_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            event_detail=active_detail,
+            status='ready',
+            generated_text='元の告知文',
+            scheduled_at=old_schedule,
+        )
+        deleted_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            event_detail=deleted_detail,
+            status='ready',
+            generated_text='削除対象の告知文',
+            scheduled_at=old_schedule,
+        )
+        self.client.force_login(self.owner)
+        past_move_now = timezone.make_aware(
+            datetime.combine(self.today, time(23, 0)),
+            timezone.get_current_timezone(),
+        )
+
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=past_move_now),
+            patch('twitter.scheduling.timezone.now', return_value=past_move_now),
+        ):
+            self._post_date(self.today)
+
+        active_queue.refresh_from_db()
+        deleted_queue.refresh_from_db()
+        self.assertEqual(active_queue.status, 'skipped')
+        self.assertEqual(active_queue.error_message, MOVED_PAST_START_SKIP_REASON)
+        self.assertEqual(deleted_queue.status, 'skipped')
+
+        EventDetail.objects.filter(pk=deleted_detail.pk).delete()
+        future_date = self.today + timedelta(days=3)
+
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=past_move_now),
+            patch('twitter.scheduling.timezone.now', return_value=past_move_now),
+        ):
+            self._post_date(future_date)
+
+        active_queue.refresh_from_db()
+        deleted_queue.refresh_from_db()
+        self.assertEqual(active_queue.status, 'generation_failed')
+        self.assertEqual(active_queue.error_message, '開催日変更により再生成')
+        self.assertEqual(active_queue.generated_text, '')
+        self.assertNotEqual(active_queue.scheduled_at, old_schedule)
+        self.assertEqual(deleted_queue.status, 'skipped')
+
+    def test_moving_started_event_to_future_revives_dispatch_event_started_skip(self):
+        """通常配信でイベント開始済みスキップになった lt キューも未来日移動で再予約される"""
+        from twitter.services.announcement_eligibility import EVENT_STARTED_SKIP_MESSAGE
+
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        old_schedule = timezone.make_aware(
+            datetime.combine(self.today, time(20, 0)),
+            timezone.get_current_timezone(),
+        )
+        dispatched_skipped = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            status='skipped',
+            error_message=EVENT_STARTED_SKIP_MESSAGE,
+            scheduled_at=old_schedule,
+        )
+        future_date = self.today + timedelta(days=3)
+        move_now = timezone.make_aware(
+            datetime.combine(self.today, time(23, 0)),
+            timezone.get_current_timezone(),
+        )
+        self.client.force_login(self.owner)
+
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
+        ):
+            self._post_date(future_date)
+
+        dispatched_skipped.refresh_from_db()
+        self.assertEqual(dispatched_skipped.status, 'generation_failed')
+        self.assertEqual(dispatched_skipped.error_message, '開催日変更により再生成')
+        self.assertNotEqual(dispatched_skipped.scheduled_at, old_schedule)
+
+    def test_moving_started_event_to_future_revives_skipped_misskey_note_without_touching_posted_or_unknown(self):
+        """未来日移動で開始済みスキップの TweetQueue と MisskeyNote(skipped) は復帰し、posted/unknown は不変"""
+        from twitter.models import MisskeyNote
+        from twitter.services.announcement_eligibility import EVENT_STARTED_SKIP_MESSAGE
+
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        old_schedule = timezone.make_aware(
+            datetime.combine(self.today, time(20, 0)),
+            timezone.get_current_timezone(),
+        )
+        skipped_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            status='skipped',
+            error_message=EVENT_STARTED_SKIP_MESSAGE,
+            scheduled_at=old_schedule,
+        )
+        skipped_note = MisskeyNote.objects.create(
+            tweet_queue=skipped_queue,
+            status='skipped',
+            error_message='告知対象外のため投稿をスキップ (event_started)',
+            attempts=2,
+        )
+        posted_queue = TweetQueue.objects.create(
+            tweet_type='special',
+            community=self.community,
+            event=self.event,
+            status='ready',
+            generated_text='既存の準備済み投稿',
+            scheduled_at=old_schedule,
+        )
+        posted_note = MisskeyNote.objects.create(
+            tweet_queue=posted_queue,
+            status='posted',
+            note_id='note-posted-1',
+            posted_at=timezone.now(),
+        )
+        unknown_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            status='skipped',
+            error_message=EVENT_STARTED_SKIP_MESSAGE,
+            scheduled_at=old_schedule,
+        )
+        unknown_note = MisskeyNote.objects.create(
+            tweet_queue=unknown_queue,
+            status='unknown',
+            error_message='タイムアウト',
+            attempts=1,
+        )
+        future_date = self.today + timedelta(days=3)
+        move_now = timezone.make_aware(
+            datetime.combine(self.today, time(23, 0)),
+            timezone.get_current_timezone(),
+        )
+        self.client.force_login(self.owner)
+
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
+        ):
+            self._post_date(future_date)
+
+        skipped_queue.refresh_from_db()
+        skipped_note.refresh_from_db()
+        posted_note.refresh_from_db()
+        unknown_note.refresh_from_db()
+        self.assertEqual(skipped_queue.status, 'generation_failed')
+        self.assertEqual(skipped_note.status, 'pending')
+        self.assertEqual(skipped_note.error_message, '')
+        self.assertEqual(skipped_note.attempts, 0)
+        self.assertEqual(posted_note.status, 'posted')
+        self.assertEqual(posted_note.note_id, 'note-posted-1')
+        self.assertEqual(unknown_note.status, 'unknown')
+        self.assertEqual(unknown_note.attempts, 1)
+
+    def test_moving_event_to_future_revives_date_passed_and_expired_queues_but_keeps_api_failures(self):
+        """過去日失敗・期限切れスキップの発表告知は未来日移動で復帰し、API投稿失敗キューは触らない"""
+        from twitter.services.announcement_eligibility import (
+            EVENT_DATE_PASSED_SKIP_MESSAGE,
+            SCHEDULE_EXPIRED_SKIP_REASON,
+        )
+
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        old_schedule = timezone.make_aware(
+            datetime.combine(self.today - timedelta(days=2), time(12, 0)),
+            timezone.get_current_timezone(),
+        )
+        passed_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            status='failed',
+            error_message=EVENT_DATE_PASSED_SKIP_MESSAGE,
+            scheduled_at=old_schedule,
+        )
+        expired_queue = TweetQueue.objects.create(
+            tweet_type='special',
+            community=self.community,
+            event=self.event,
+            status='skipped',
+            error_message=SCHEDULE_EXPIRED_SKIP_REASON,
+            scheduled_at=old_schedule,
+        )
+        api_failed_queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            status='failed',
+            error_message='X API投稿に失敗 (status=500)',
+            scheduled_at=old_schedule,
+        )
+        future_date = self.today + timedelta(days=3)
+        move_now = timezone.make_aware(
+            datetime.combine(self.today, time(23, 0)),
+            timezone.get_current_timezone(),
+        )
+        self.client.force_login(self.owner)
+
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
+        ):
+            self._post_date(future_date)
+
+        passed_queue.refresh_from_db()
+        expired_queue.refresh_from_db()
+        api_failed_queue.refresh_from_db()
+        self.assertEqual(passed_queue.status, 'generation_failed')
+        self.assertEqual(passed_queue.error_message, '開催日変更により再生成')
+        self.assertNotEqual(passed_queue.scheduled_at, old_schedule)
+        self.assertEqual(expired_queue.status, 'generation_failed')
+        self.assertEqual(expired_queue.error_message, '開催日変更により再生成')
+        self.assertNotEqual(expired_queue.scheduled_at, old_schedule)
+        self.assertEqual(api_failed_queue.status, 'failed')
+        self.assertEqual(api_failed_queue.error_message, 'X API投稿に失敗 (status=500)')
+        self.assertEqual(api_failed_queue.scheduled_at, old_schedule)
+
+    def test_moving_event_to_future_does_not_revive_duplicate_legacy_or_posted_detail_queues(self):
+        """日時変更で同一発表に有効行や投稿済み行がある場合は重複して旧スキップ行を復帰させない"""
+        from tests.factories import make_event_detail
+        from twitter.services.announcement_eligibility import (
+            EVENT_STARTED_SKIP_MESSAGE,
+            LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON,
+        )
+
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        old_schedule = timezone.make_aware(
+            datetime.combine(self.today, time(20, 0)),
+            timezone.get_current_timezone(),
+        )
+        detail_ready = make_event_detail(
+            self.event, detail_type='LT', status='approved', speaker='重複A', theme='有効あり', start_time=time(22, 10),
+        )
+        detail_posted = make_event_detail(
+            self.event, detail_type='LT', status='approved', speaker='重複B', theme='投稿済みあり', start_time=time(22, 20),
+        )
+        detail_double_skip = make_event_detail(
+            self.event, detail_type='LT', status='approved', speaker='重複C', theme='スキップ2件', start_time=time(22, 30),
+        )
+        TweetQueue.objects.filter(
+            event_detail__in=(detail_ready, detail_posted, detail_double_skip),
+        ).delete()
+
+        q_ready = TweetQueue.objects.create(
+            tweet_type='lt', community=self.community, event=self.event, event_detail=detail_ready,
+            status='ready', generated_text='有効', scheduled_at=old_schedule,
+        )
+        q_ready_legacy_dup = TweetQueue.objects.create(
+            tweet_type='lt', community=self.community, event=self.event, event_detail=detail_ready,
+            status='skipped', error_message=LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON, scheduled_at=old_schedule,
+        )
+        q_posted = TweetQueue.objects.create(
+            tweet_type='lt', community=self.community, event=self.event, event_detail=detail_posted,
+            status='posted', generated_text='投稿済み', scheduled_at=old_schedule, posted_at=timezone.now(),
+        )
+        q_posted_legacy_dup = TweetQueue.objects.create(
+            tweet_type='lt', community=self.community, event=self.event, event_detail=detail_posted,
+            status='skipped', error_message=LEGACY_SAME_DAY_INDIVIDUAL_SKIP_REASON, scheduled_at=old_schedule,
+        )
+        q_skip_old = TweetQueue.objects.create(
+            tweet_type='lt', community=self.community, event=self.event, event_detail=detail_double_skip,
+            status='skipped', error_message=EVENT_STARTED_SKIP_MESSAGE, scheduled_at=old_schedule,
+        )
+        q_skip_new = TweetQueue.objects.create(
+            tweet_type='lt', community=self.community, event=self.event, event_detail=detail_double_skip,
+            status='skipped', error_message=EVENT_STARTED_SKIP_MESSAGE, scheduled_at=old_schedule,
+        )
+
+        future_date = self.today + timedelta(days=3)
+        move_now = timezone.make_aware(
+            datetime.combine(self.today, time(23, 0)),
+            timezone.get_current_timezone(),
+        )
+        self.client.force_login(self.owner)
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
+        ):
+            self._post_date(future_date)
+
+        for q in (q_ready, q_ready_legacy_dup, q_posted, q_posted_legacy_dup, q_skip_old, q_skip_new):
+            q.refresh_from_db()
+        self.assertEqual(q_ready.status, 'generation_failed')
+        self.assertEqual(q_ready_legacy_dup.status, 'skipped')
+        self.assertEqual(q_posted.status, 'posted')
+        self.assertEqual(q_posted_legacy_dup.status, 'skipped')
+        self.assertEqual(q_skip_new.status, 'generation_failed')
+        self.assertEqual(q_skip_old.status, 'skipped')
+
+    def test_bulk_delete_then_date_move_then_bulk_restore_reuses_and_revives_queue(self):
+        """一括論理削除 -> 未来日への移動 -> 一括復元の順でもキューが再利用され告知が復帰する"""
+        from event.models import EventDetail
+        from tests.factories import make_event_detail
+        from twitter.services.announcement_eligibility import RETRACTED_PRESENTATION_SKIP_MESSAGE
+
+        self.event.start_time = time(22, 0)
+        self.event.save(update_fields=['start_time'])
+        detail = make_event_detail(
+            self.event, detail_type='LT', status='approved', speaker='復元連携太郎', theme='削除移動復元テスト', start_time=time(22, 10),
+        )
+        queue = TweetQueue.objects.get(event_detail=detail, tweet_type='lt')
+        queue.status = 'ready'
+        queue.generated_text = '元の文面'
+        queue.save(update_fields=['status', 'generated_text'])
+
+        EventDetail.objects.filter(pk=detail.pk).delete()
+        future_date = self.today + timedelta(days=3)
+        move_now = timezone.make_aware(
+            datetime.combine(self.today, time(23, 0)),
+            timezone.get_current_timezone(),
+        )
+        self.client.force_login(self.owner)
+        with (
+            patch('event.services.recurrence_override.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
+        ):
+            self._post_date(future_date)
+
         queue.refresh_from_db()
-        expected_schedule = scheduled_at_for_date(self.today)
-        self.assertEqual(queue.scheduled_at, expected_schedule)
         self.assertEqual(queue.status, 'skipped')
+        self.assertEqual(queue.error_message, RETRACTED_PRESENTATION_SKIP_MESSAGE)
+
+        with (
+            patch('twitter.signals.timezone.now', return_value=move_now),
+            patch('twitter.scheduling.timezone.now', return_value=move_now),
+            patch('event.models.timezone.now', return_value=move_now),
+        ):
+            EventDetail.all_objects.filter(pk=detail.pk).restore()
+
+        queue.refresh_from_db()
+        self.assertEqual(TweetQueue.objects.filter(event_detail=detail, tweet_type='lt').count(), 1)
+        self.assertEqual(queue.status, 'generating')
+        self.assertEqual(queue.generated_text, '')
 
     def test_commit_invalidates_index_and_calendar_url_caches(self):
         request = RequestFactory().get('/')

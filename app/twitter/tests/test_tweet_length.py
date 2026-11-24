@@ -4,11 +4,15 @@
 from django.test import TestCase
 
 from twitter.tweet_generator import (
+    GROUP_ID_LINE_PREFIX,
     MAX_BODY_LINES,
+    PROFILE_LINK_FALLBACK_LINE,
     TWEET_MAX_WEIGHTED_LENGTH,
     _generate_with_retry,
+    contains_url,
     count_body_lines,
     count_tweet_length,
+    defang_urls_for_x,
     is_tweet_text_valid,
     validate_tweet_text,
 )
@@ -257,3 +261,128 @@ class GenerateWithRetryTest(TestCase):
 
         result = _generate_with_retry(fake_generator, "a", "b")
         self.assertEqual(result, "a-b-140")
+
+    def test_forbid_urls_triggers_retry_and_fallback(self):
+        """forbid_urls=True の時 URL 混入出力を拒否しリトライ→フォールバックする"""
+        feedbacks = []
+
+        def fake_generator(target_chars=140, validation_feedback=""):
+            feedbacks.append(validation_feedback)
+            return "11/25(水) 22:00~ 集会\n\n詳細はこちら https://vrc-ta-hub.com/community/1/"
+
+        result = _generate_with_retry(
+            fake_generator,
+            max_retries=1,
+            forbid_urls=True,
+            fallback_fn=lambda: f"11/25(水) 22:00~ 集会\n\n{GROUP_ID_LINE_PREFIX} GAME.2515",
+        )
+        self.assertEqual(len(feedbacks), 2)
+        self.assertIn("URL やドメイン", feedbacks[1])
+        self.assertEqual(result, "11/25(水) 22:00~ 集会\n\nVRChatグループID: GAME.2515")
+
+
+class UrlValidationAndFooterLineTest(TestCase):
+    """contains_url とグループID案内行除外のテスト"""
+
+    def test_contains_url_detects_urls_and_bare_domains(self):
+        for url_text in (
+            "詳細は https://vrc-ta-hub.com/community/1/",
+            "http://example.com",
+            "参加: vrc.group/GAME.2515",
+            "VRC.GROUP/GAME.2515",
+            "詳細 vrc-ta-hub.com",
+            "EXAMPLE.COM",
+            "https://vrchat.com/home/group/grp_1234",
+            "x.com/vrc_ta_hub",
+            "t.co/abc123",
+            "youtu.be/xyz",
+            "example.edu",
+            "example.uk",
+            "example.social",
+            "example.store",
+            "example.xn--p1ai",
+            "example.xn--vermgensberater-ctb",
+            "café.com",
+            "пример.com",
+            "twitter.みんな",
+            "example.com.",
+            "example.com.invalid",
+            "foo_bar.example.com",
+            "example.onion",
+            "example.vermögensberatung",
+            "example.vermo\u0308gensberatung",
+            "EXAMPLE.VERMÖGENSBERATUNG",
+            "cafe\u0301.com",
+            "example.みんな入門",
+            "example.कॉम",
+            "example.zippo",
+            "example.abarth",
+            "example.xperia",
+            "//example.zippo",
+            "example.zippo/path\n次の行",
+            "ASP.NET",
+            "Socket.IO",
+            "discord.py",
+        ):
+            with self.subTest(url_text=url_text):
+                self.assertTrue(contains_url(url_text))
+
+    def test_defang_urls_for_x_preserves_tech_names_and_removes_url_detection(self):
+        for raw in (
+            "ASP.NET Core 入門",
+            "Socket.IO 入門",
+            "discord.py 入門",
+            "sub.domain.co.uk",
+            "example.com.invalid",
+            "foo_bar.example.com",
+            "example.onion",
+            "example.vermögensberatung",
+            "example.vermo\u0308gensberatung",
+            "EXAMPLE.VERMÖGENSBERATUNG",
+            "cafe\u0301.com",
+            "example.みんな入門",
+            "example.कॉम",
+            "https://example.vermögensberatung",
+            "example.zippo",
+            "example.abarth",
+            "example.xperia",
+            "https://example.zippo",
+            "//example.zippo",
+        ):
+            with self.subTest(raw=raw):
+                defanged = defang_urls_for_x(raw)
+                self.assertFalse(contains_url(defanged))
+                self.assertIn("・", defanged)
+        self.assertEqual(defang_urls_for_x("Three.js入門"), "Three.js入門")
+        self.assertEqual(defang_urls_for_x(f"{GROUP_ID_LINE_PREFIX} GAME.2515"), f"{GROUP_ID_LINE_PREFIX} GAME.2515")
+
+    def test_contains_url_allows_group_id_and_tech_names(self):
+        for safe_text in (
+            f"{GROUP_ID_LINE_PREFIX} GAME.2515",
+            "Three.jsとUnityで作るワールド",
+            "Node.js入門セッション",
+            "UdonSharp.cs で書くギミック",
+            "foo_bar.com",
+            "example.vermögensberatung2",
+            "Python 3.12 の新機能",
+            PROFILE_LINK_FALLBACK_LINE,
+        ):
+            with self.subTest(safe_text=safe_text):
+                self.assertFalse(contains_url(safe_text))
+
+    def test_count_body_lines_excludes_group_id_and_profile_fallback_lines(self):
+        text = (
+            "11/25(水) 22:00~ テスト集会\n\n"
+            "太郎さん「VRChat入門」\n"
+            "基礎から丁寧に解説します\n\n"
+            f"{GROUP_ID_LINE_PREFIX} GAME.2515\n"
+            "#VRChat"
+        )
+        self.assertEqual(count_body_lines(text), 3)
+        fallback_text = text.replace(f"{GROUP_ID_LINE_PREFIX} GAME.2515", PROFILE_LINK_FALLBACK_LINE)
+        self.assertEqual(count_body_lines(fallback_text), 3)
+
+    def test_validate_tweet_text_forbid_urls(self):
+        text = "11/25(水) 22:00~ テスト集会\n\n太郎さん「VRChat入門」\n\nvrc.group/GAME.2515"
+        self.assertIn("contains_url", validate_tweet_text(text, forbid_urls=True))
+        self.assertEqual(validate_tweet_text(text, forbid_urls=False), [])
