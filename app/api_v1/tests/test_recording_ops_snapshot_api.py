@@ -145,7 +145,16 @@ class RecordingOpsSnapshotAPITest(TestCase):
             resp = client.post(self.url, payload, format="json")
             self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST, f"version={bad_version!r}")
 
-        for bad_ts in ("2026-11-24T21:00:00", "2026-11-24", "not-a-date", 1732449600, None):
+        for bad_ts in (
+            "2026-11-24T21:00:00",
+            "2026-11-24",
+            "2026-02-30T21:00:00+09:00",
+            "2026-11-24T25:00:00+09:00",
+            "2026-11-24T21:00:00+25:00",
+            "not-a-date",
+            1732449600,
+            None,
+        ):
             payload = copy.deepcopy(base)
             payload["snapshot_at"] = bad_ts
             resp = client.post(self.url, payload, format="json")

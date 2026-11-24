@@ -36,7 +36,10 @@ class AwareISO8601DateTimeField(serializers.DateTimeField):
     def to_internal_value(self, value: Any):
         if not isinstance(value, str):
             self.fail("invalid", format="ISO8601")
-        parsed = parse_datetime(value)
+        try:
+            parsed = parse_datetime(value)
+        except ValueError as exc:
+            raise serializers.ValidationError("タイムゾーン付きの ISO8601 日時文字列を指定してください。") from exc
         if parsed is None or parsed.tzinfo is None or parsed.utcoffset() is None:
             raise serializers.ValidationError("タイムゾーン付きの ISO8601 日時文字列を指定してください。")
         return parsed
