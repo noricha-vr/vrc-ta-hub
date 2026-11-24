@@ -17,6 +17,11 @@ from event.views.list import (  # noqa: F401
 )
 from event.views.my_list import EventMyList  # noqa: F401
 from event.views.my_presentations import MyPresentationsView  # noqa: F401
+from event.views.recording_ops_actions import (  # noqa: F401
+    RecordingOrderCancelView,
+    RecordingOrderRetryView,
+    RecordingStopPublishView,
+)
 from event.views.recording_review import (  # noqa: F401
     RecordingReviewDetailView,
     RecordingReviewListView,

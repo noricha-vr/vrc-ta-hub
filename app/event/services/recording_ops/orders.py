@@ -132,11 +132,27 @@ def _check_apply_edl_preconditions(
             )
 
     if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
-        if item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED or (
-            item.proxy_expires_at is not None and item.proxy_expires_at <= now
+        is_deleted_after_upload = (
+            not item.proxy_r2_key
+            and item.proxy_uploaded_at is not None
+            and item.review_status
+            not in (RecordingReviewItem.ReviewStatus.UNRECORDED, RecordingReviewItem.ReviewStatus.PROCESSING)
+        )
+        if (
+            item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED
+            or (item.proxy_expires_at is not None and item.proxy_expires_at <= now)
+            or is_deleted_after_upload
         ):
             _raise_order_conflict(
                 detail_id_for_log, order_type, "proxy_expired", "プロキシ動画の保持期限が切れています。", item
+            )
+        if not item.proxy_r2_key:
+            _raise_order_conflict(
+                detail_id_for_log,
+                order_type,
+                "proxy_not_ready",
+                "プロキシ動画がまだ登録されていないため確定指示を作成できません。",
+                item,
             )
         if item.is_public_locked:
             _raise_order_conflict(

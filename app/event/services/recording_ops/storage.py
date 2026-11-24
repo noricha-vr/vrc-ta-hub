@@ -294,7 +294,7 @@ def create_presigned_proxy_download_url(
     """スタッフ画面向けに非公開 R2 プロキシ動画の署名 GET URL を発給する。"""
     ensure_recording_consent(detail, action="download_url")
     review_item = RecordingReviewItem.objects.filter(event_detail=detail).first()
-    if review_item is None or not review_item.proxy_r2_key:
+    if review_item is None:
         logger.warning(
             "recording_proxy_url_denied",
             extra={
@@ -310,9 +310,16 @@ def create_presigned_proxy_download_url(
     remaining_sec: int | None = None
     if review_item.proxy_expires_at is not None:
         remaining_sec = int((review_item.proxy_expires_at - now).total_seconds())
+    is_deleted_after_upload = (
+        not review_item.proxy_r2_key
+        and review_item.proxy_uploaded_at is not None
+        and review_item.review_status
+        not in (RecordingReviewItem.ReviewStatus.UNRECORDED, RecordingReviewItem.ReviewStatus.PROCESSING)
+    )
     if (
         review_item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED
         or (remaining_sec is not None and remaining_sec < MIN_PRESIGNED_EXPIRES_IN)
+        or is_deleted_after_upload
     ):
         logger.warning(
             "recording_proxy_url_denied",
@@ -324,6 +331,18 @@ def create_presigned_proxy_download_url(
             },
         )
         raise RecordingProxyExpiredError("プロキシ動画の保持期限切れ、または残存時間が 15 分未満です。")
+
+    if not review_item.proxy_r2_key:
+        logger.warning(
+            "recording_proxy_url_denied",
+            extra={
+                "event_type": "recording_proxy_url_denied",
+                "event_detail_id": detail.pk,
+                "action": "download_url",
+                "reason": "proxy_not_found",
+            },
+        )
+        raise RecordingProxyNotFoundError("プロキシ動画がまだ登録されていません。")
 
     validated_key = validate_proxy_object_key(detail.pk, review_item.proxy_r2_key)
     private_bucket = resolve_private_r2_bucket()

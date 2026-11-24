@@ -348,6 +348,16 @@
             if (conflictBanner) conflictBanner.hidden = true;
         }
 
+        function syncSecondaryActionControls(disableAll, clearRevision) {
+            if (clearRevision) {
+                document.querySelectorAll('[data-recording-revision-input]').forEach(function (el) { el.value = ''; });
+            }
+            if (!disableAll) return;
+            const sel = '[data-testid="emergency-stop-trigger"], [data-testid="retry-failed-order-btn"], [data-testid="cancel-failed-order-trigger"], [data-testid="cancel-active-order-trigger"]';
+            document.querySelectorAll(sel).forEach(function (btn) { btn.disabled = true; });
+            document.querySelectorAll('#recording-stop-publish-panel, #cancel-failed-order, #cancel-active-order').forEach(function (p) { p.hidden = true; });
+        }
+
         form.addEventListener('submit', async function (event) {
             event.preventDefault();
             clearBanners();
@@ -433,6 +443,7 @@
                     }
                     submitBtn.textContent = '確定指示を処理中…';
                     submitBtn.disabled = true;
+                    syncSecondaryActionControls(true, false);
                     return;
                 }
 
@@ -441,6 +452,7 @@
                     if (cutsEditor) cutsEditor.setDisabled(true);
                     if (revInput) revInput.value = '';
                     setTrimInputsDisabled(true);
+                    syncSecondaryActionControls(true, true);
                     if (conflictBanner && conflictMsg) {
                         conflictMsg.textContent = data.detail || '他のスタッフまたは処理によって更新されました。最新の状態を再読み込みしてください。';
                         conflictBanner.hidden = false;

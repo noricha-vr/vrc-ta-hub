@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from django.db.models import OuterRef, Prefetch, Q, QuerySet, Subquery
+from django.db.models import Exists, OuterRef, Prefetch, Q, QuerySet, Subquery
 from django.utils import timezone
 
 from community.constants import RECORDING_POLICY_DISPLAY_LABELS, RecordingPolicy
@@ -15,7 +15,24 @@ from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 
 from . import edl as edl_module
 from .edl import EDLValidationError, compute_keep_spans, extract_adopted_duration_sec, validate_edl_v1
-from .errors import RecordingNotFoundError
+from .errors import (
+    RecordingNotFoundError,
+    STALLED_QUEUED_ORDER_THRESHOLD,
+    STALLED_RUNNING_ORDER_THRESHOLD,
+)
+from .state_summary import (
+    StatusBadge,
+    compute_order_action_flags,
+    estimate_stalled_minutes,
+    format_seconds_display,
+    is_item_proxy_expired,
+    is_order_stalled,
+    resolve_order_state,
+    resolve_policy_badge,
+    resolve_proxy_state,
+    resolve_publish_state,
+)
+from .stop_queue import item_has_unstopped_video
 from .storage import (
     MIN_PRESIGNED_EXPIRES_IN,
     RecordingConsentError,
@@ -36,6 +53,7 @@ STATUS_FILTER_CHOICES: tuple[tuple[str, str], ...] = (
 ORDER_STATUS_FILTER_CHOICES: tuple[tuple[str, str], ...] = (
     ("", "すべて"), ("unconfirmed", "未確定"),
     (RecordingEditOrder.Status.QUEUED, "待機中 (queued)"), (RecordingEditOrder.Status.RUNNING, "処理中 (running)"),
+    ("stalled", "滞留中 (30分超)"),
     (RecordingEditOrder.Status.SUCCEEDED, "完了 (succeeded)"), (RecordingEditOrder.Status.FAILED, "失敗 (failed)"),
 )
 POLICY_FILTER_CHOICES: tuple[tuple[str, str], ...] = (
@@ -45,19 +63,26 @@ POLICY_FILTER_CHOICES: tuple[tuple[str, str], ...] = (
 _VALID_STATUS_FILTERS = frozenset(k for k, _ in STATUS_FILTER_CHOICES if k)
 _VALID_ORDER_FILTERS = frozenset(k for k, _ in ORDER_STATUS_FILTER_CHOICES if k)
 _VALID_POLICY_FILTERS = frozenset(k for k, _ in POLICY_FILTER_CHOICES if k)
-_ORDER_BADGES: dict[str, tuple[str, str]] = {
-    RecordingEditOrder.Status.QUEUED: ("待機中 (queued)", "warning"),
-    RecordingEditOrder.Status.RUNNING: ("処理中 (running)", "warning"),
-    RecordingEditOrder.Status.SUCCEEDED: ("完了 (succeeded)", "success"),
-    RecordingEditOrder.Status.FAILED: ("失敗 (failed)", "danger"),
-    RecordingEditOrder.Status.CANCELED: ("未確定（取消済み）", ""),
-}
 
-
-@dataclass(frozen=True)
-class StatusBadge:
-    label: str
-    tone: str = ""
+__all__ = [
+    "BoundaryCandidateOption",
+    "ORDER_STATUS_FILTER_CHOICES",
+    "POLICY_FILTER_CHOICES",
+    "RecordingDetailContext",
+    "RecordingListSummary",
+    "RecordingRowSummary",
+    "STATUS_FILTER_CHOICES",
+    "StatusBadge",
+    "build_recording_detail_context",
+    "build_recording_list_queryset",
+    "build_recording_row_summary",
+    "estimate_remaining_minutes",
+    "estimate_stalled_minutes",
+    "format_seconds_display",
+    "get_recording_list_summary",
+    "is_order_stalled",
+    "needs_review_q",
+]
 
 
 @dataclass(frozen=True)
@@ -77,6 +102,11 @@ class RecordingRowSummary:
     is_public_locked: bool
     is_needs_review: bool
     can_trim_now: bool
+    is_failed_order: bool = False
+    is_stalled_order: bool = False
+    stalled_minutes: int | None = None
+    can_retry_failed: bool = False
+    can_cancel_order: bool = False
 
 
 @dataclass(frozen=True)
@@ -86,7 +116,11 @@ class RecordingListSummary:
     unlisted_scheduled_count: int
     published_count: int
     failed_order_count: int
+    stalled_order_count: int
+    action_required_count: int
     needs_review_rows: list[RecordingRowSummary]
+    failed_order_rows: list[RecordingRowSummary]
+    stalled_order_rows: list[RecordingRowSummary]
 
 
 @dataclass(frozen=True)
@@ -128,16 +162,17 @@ class RecordingDetailContext:
     policy_label: str
     publish_badge: StatusBadge
     order_badge: StatusBadge
-
-
-def format_seconds_display(sec: float) -> str:
-    """秒数を `M:SS` または `H:MM:SS`（小数部がある場合は `.d` 付き）に整形する。"""
-    tenths = round(max(0.0, float(sec)) * 10)
-    whole_sec, frac_tenth = divmod(tenths, 10)
-    minutes, rem_sec = divmod(whole_sec, 60)
-    hours, rem_min = divmod(minutes, 60)
-    base = f"{hours}:{rem_min:02d}:{rem_sec:02d}" if hours else f"{rem_min}:{rem_sec:02d}"
-    return f"{base}.{frac_tenth}" if frac_tenth else base
+    is_expired: bool = False
+    is_proxy_expiring_soon: bool = False
+    is_private_fixed: bool = False
+    has_unstopped_video: bool = False
+    can_stop_publish: bool = False
+    stalled_active_order: bool = False
+    stalled_minutes: int | None = None
+    failed_latest_order: RecordingEditOrder | None = None
+    can_retry_failed_order: bool = False
+    cancelable_order: RecordingEditOrder | None = None
+    can_cancel_latest_order: bool = False
 
 
 def needs_review_q() -> Q:
@@ -150,9 +185,29 @@ def needs_review_q() -> Q:
 
 
 def _expired_q(now: datetime) -> Q:
-    return Q(recording_review__review_status=RecordingReviewItem.ReviewStatus.EXPIRED) | (
-        ~Q(recording_review__proxy_r2_key="") & Q(recording_review__proxy_expires_at__isnull=False)
-        & Q(recording_review__proxy_expires_at__lte=now)
+    return (
+        Q(recording_review__review_status=RecordingReviewItem.ReviewStatus.EXPIRED)
+        | (Q(recording_review__proxy_expires_at__isnull=False) & Q(recording_review__proxy_expires_at__lte=now))
+        | (
+            Q(recording_review__proxy_r2_key="")
+            & Q(recording_review__proxy_uploaded_at__isnull=False)
+            & ~Q(
+                recording_review__review_status__in=(
+                    RecordingReviewItem.ReviewStatus.UNRECORDED,
+                    RecordingReviewItem.ReviewStatus.PROCESSING,
+                )
+            )
+        )
+    )
+
+
+def _stalled_order_q(now: datetime) -> Q:
+    queued_cutoff = now - STALLED_QUEUED_ORDER_THRESHOLD
+    running_cutoff = now - STALLED_RUNNING_ORDER_THRESHOLD
+    return (
+        Q(status=RecordingEditOrder.Status.QUEUED, created_at__lte=queued_cutoff)
+        | Q(status=RecordingEditOrder.Status.RUNNING, started_at__lte=running_cutoff)
+        | Q(status=RecordingEditOrder.Status.RUNNING, started_at__isnull=True, created_at__lte=running_cutoff)
     )
 
 
@@ -173,7 +228,7 @@ def _apply_status_filter(qs: QuerySet[EventDetail], status_filter: str, now: dat
         return qs.filter(recording_policy=RecordingPolicy.PUBLIC, event__community__recording_allowed=True).filter(
             Q(recording_review__isnull=True) | Q(recording_review__review_status=rs.UNRECORDED)
             | (Q(recording_review__proxy_r2_key="") & ~Q(recording_review__review_status__in=(rs.PROCESSING, rs.PUBLISHED, rs.PRIVATE_FIXED, rs.EXPIRED)))
-        )
+        ).exclude(_expired_q(now))
     if status_filter == "published":
         return qs.filter(Q(recording_review__review_status=rs.PUBLISHED) | Q(recording_review__youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PUBLIC))
     if status_filter == "unlisted_scheduled":
@@ -204,71 +259,16 @@ def build_recording_list_queryset(
     if order_filter in _VALID_ORDER_FILTERS:
         if order_filter == "unconfirmed":
             annotated = annotated.filter(Q(latest_order_status__isnull=True) | Q(latest_order_status=RecordingEditOrder.Status.CANCELED))
+        elif order_filter == "stalled":
+            stalled_subquery = RecordingEditOrder.objects.filter(review_item__event_detail_id=OuterRef("pk")).filter(
+                _stalled_order_q(current_time)
+            )
+            annotated = annotated.filter(Exists(stalled_subquery))
         else:
             annotated = annotated.filter(latest_order_status=order_filter)
 
     order_prefetch = Prefetch("recording_review__edit_orders", queryset=RecordingEditOrder.objects.order_by("-created_at", "-pk"), to_attr="prefetched_orders")
     return annotated.prefetch_related(order_prefetch).order_by("-event__date", "-start_time", "-pk")
-
-
-def _resolve_proxy_state(detail: EventDetail, item: RecordingReviewItem | None, *, can_access: bool, now: datetime) -> tuple[str, StatusBadge]:
-    if detail.recording_policy == RecordingPolicy.ALLOWED:
-        return ("restricted", StatusBadge("非公開固定（旧設定）"))
-    if detail.recording_policy == RecordingPolicy.FORBIDDEN:
-        return ("forbidden", StatusBadge("非配信（再生不可）"))
-    if not can_access:
-        return ("consent_stopped", StatusBadge("同意停止（集会許可OFF）", "danger"))
-    if item is None or not item.proxy_r2_key:
-        if item is not None and item.review_status == RecordingReviewItem.ReviewStatus.PROCESSING:
-            return ("processing", StatusBadge("処理中"))
-        return ("unregistered", StatusBadge("未登録"))
-    if item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED:
-        return ("expired", StatusBadge("期限切れ", "danger"))
-    if item.proxy_expires_at is not None:
-        remaining = (item.proxy_expires_at - now).total_seconds()
-        if remaining <= 0:
-            return ("expired", StatusBadge("期限切れ", "danger"))
-        if remaining < MIN_PRESIGNED_EXPIRES_IN:
-            return ("expired", StatusBadge("期限切れ（残15分未満）", "warning"))
-    return ("available", StatusBadge("視聴可", "success"))
-
-
-def _resolve_order_state(item: RecordingReviewItem | None) -> tuple[RecordingEditOrder | None, RecordingEditOrder | None, str, StatusBadge]:
-    if item is None:
-        return (None, None, "unconfirmed", StatusBadge("未確定"))
-    prefetched = getattr(item, "prefetched_orders", None)
-    orders = list(prefetched) if prefetched is not None else list(item.edit_orders.order_by("-created_at", "-pk")[:5])
-    latest = orders[0] if orders else None
-    active = next((o for o in orders if o.status in RecordingEditOrder.ACTIVE_STATUSES), None)
-    if active is not None:
-        label, tone = _ORDER_BADGES.get(active.status, (active.status, "warning"))
-        return (latest, active, active.status, StatusBadge(label, tone))
-    if latest is None or latest.status == RecordingEditOrder.Status.CANCELED:
-        return (latest, None, "unconfirmed", StatusBadge("未確定"))
-    label, tone = _ORDER_BADGES.get(latest.status, (latest.status, ""))
-    return (latest, None, latest.status, StatusBadge(label, tone))
-
-
-def _resolve_publish_state(detail: EventDetail, item: RecordingReviewItem | None) -> tuple[StatusBadge, bool]:
-    if detail.recording_policy == RecordingPolicy.ALLOWED:
-        return (StatusBadge("非公開固定（旧設定）"), False)
-    if detail.recording_policy == RecordingPolicy.FORBIDDEN:
-        return (StatusBadge("非配信"), False)
-    if item is not None and item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
-        return (StatusBadge("非公開確定（公開停止・再公開不可）", "danger"), True) if item.is_public_locked else (StatusBadge("非公開確定"), False)
-    if item is not None and item.is_public_locked:
-        return (StatusBadge("公開済みロック", "success"), True)
-    if item is not None and item.review_status == RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED:
-        return (StatusBadge("公開前（限定公開済み）", "success"), False)
-    return (StatusBadge("公開前"), False)
-
-
-def _resolve_policy_badge(detail: EventDetail, *, community_allowed: bool) -> StatusBadge:
-    if detail.recording_policy == RecordingPolicy.PUBLIC:
-        return StatusBadge("公開撮影 (public)", "success") if community_allowed else StatusBadge("公開同意あり（集会側OFF）", "warning")
-    if detail.recording_policy == RecordingPolicy.ALLOWED:
-        return StatusBadge("旧設定 (allowed) ・非公開固定")
-    return StatusBadge("撮影しない (forbidden)")
 
 
 def build_recording_row_summary(detail: EventDetail, *, now: datetime | None = None) -> RecordingRowSummary:
@@ -277,34 +277,59 @@ def build_recording_row_summary(detail: EventDetail, *, now: datetime | None = N
     item: RecordingReviewItem | None = getattr(detail, "recording_review", None)
     community_allowed = bool(detail.event.community.recording_allowed)
     can_access = detail.recording_policy == RecordingPolicy.PUBLIC and community_allowed
-    proxy_status, proxy_badge = _resolve_proxy_state(detail, item, can_access=can_access, now=current_time)
-    latest_order, active_order, order_status, order_badge = _resolve_order_state(item)
-    publish_badge, is_public_locked = _resolve_publish_state(detail, item)
+    proxy_status, proxy_badge = resolve_proxy_state(detail, item, can_access=can_access, now=current_time)
+    latest_order, active_order, order_status, order_badge = resolve_order_state(item)
+    publish_badge, is_public_locked = resolve_publish_state(detail, item)
     is_needs_review = can_access and item is not None and item.review_status == RecordingReviewItem.ReviewStatus.NEEDS_REVIEW and not is_public_locked
+    stalled_minutes = estimate_stalled_minutes(active_order, now=current_time)
+    is_failed_order, _, can_retry_failed, _, can_cancel_order = compute_order_action_flags(
+        item, latest_order, active_order, can_access=can_access,
+        is_expired=(proxy_status == "expired"), is_public_locked=is_public_locked,
+    )
     return RecordingRowSummary(
         detail=detail, review_item=item, latest_order=latest_order, active_order=active_order,
-        title=detail.title or "(無題の発表)", policy_badge=_resolve_policy_badge(detail, community_allowed=community_allowed),
+        title=detail.title or "(無題の発表)", policy_badge=resolve_policy_badge(detail, community_allowed=community_allowed),
         proxy_status=proxy_status, proxy_badge=proxy_badge, order_status=order_status, order_badge=order_badge,
         publish_badge=publish_badge, can_access_recording=can_access, is_public_locked=is_public_locked,
         is_needs_review=is_needs_review, can_trim_now=can_access and proxy_status == "available" and not is_public_locked and active_order is None,
+        is_failed_order=is_failed_order, is_stalled_order=(stalled_minutes is not None), stalled_minutes=stalled_minutes,
+        can_retry_failed=can_retry_failed, can_cancel_order=can_cancel_order,
     )
 
 
 def get_recording_list_summary(*, now: datetime | None = None) -> RecordingListSummary:
-    """一覧上部の集計値と `.action-required` 用の要確認先頭件数を取得する。"""
+    """一覧上部の集計値と `.action-required` 用の要対応（要確認・失敗・滞留）先頭件数を取得する。"""
     current_time = now or timezone.now()
     base = _base_recording_queryset()
-    needs_review_qs = base.filter(needs_review_q()).order_by("-event__date", "-start_time", "-pk")
+    order_prefetch = Prefetch(
+        "recording_review__edit_orders",
+        queryset=RecordingEditOrder.objects.order_by("-created_at", "-pk"),
+        to_attr="prefetched_orders",
+    )
     latest_order_subquery = Subquery(
         RecordingEditOrder.objects.filter(review_item__event_detail_id=OuterRef("pk")).order_by("-created_at", "-pk").values("status")[:1]
     )
-    failed_order_count = base.annotate(latest_order_status=latest_order_subquery).filter(latest_order_status=RecordingEditOrder.Status.FAILED).count()
+    stalled_subquery = RecordingEditOrder.objects.filter(review_item__event_detail_id=OuterRef("pk")).filter(
+        _stalled_order_q(current_time)
+    )
+    annotated = base.annotate(latest_order_status=latest_order_subquery, has_stalled_order=Exists(stalled_subquery))
+    needs_review_qs = base.filter(needs_review_q()).prefetch_related(order_prefetch).order_by("-event__date", "-start_time", "-pk")
+    failed_qs = annotated.filter(latest_order_status=RecordingEditOrder.Status.FAILED).prefetch_related(order_prefetch).order_by("-event__date", "-start_time", "-pk")
+    stalled_qs = annotated.filter(has_stalled_order=True).prefetch_related(order_prefetch).order_by("-event__date", "-start_time", "-pk")
+    action_required_count = annotated.filter(
+        needs_review_q() | Q(latest_order_status=RecordingEditOrder.Status.FAILED) | Q(has_stalled_order=True)
+    ).distinct().count()
     return RecordingListSummary(
-        total_count=base.count(), needs_review_count=needs_review_qs.count(),
+        total_count=base.count(),
+        needs_review_count=needs_review_qs.count(),
         unlisted_scheduled_count=base.filter(recording_review__review_status=RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED).exclude(_expired_q(current_time)).count(),
         published_count=base.filter(Q(recording_review__review_status=RecordingReviewItem.ReviewStatus.PUBLISHED) | Q(recording_review__youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PUBLIC)).count(),
-        failed_order_count=failed_order_count,
+        failed_order_count=failed_qs.count(),
+        stalled_order_count=stalled_qs.count(),
+        action_required_count=action_required_count,
         needs_review_rows=[build_recording_row_summary(d, now=current_time) for d in needs_review_qs[:5]],
+        failed_order_rows=[build_recording_row_summary(d, now=current_time) for d in failed_qs[:5]],
+        stalled_order_rows=[build_recording_row_summary(d, now=current_time) for d in stalled_qs[:5]],
     )
 
 
@@ -341,8 +366,22 @@ def _parse_edl_for_context(
     )
 
 
-def _issue_proxy_url_safe(detail: EventDetail, item: RecordingReviewItem | None, *, issue_presigned_url: bool) -> tuple[str, str | None, datetime | None, int | None, str, str]:
+def _issue_proxy_url_safe(
+    detail: EventDetail, item: RecordingReviewItem | None, *, issue_presigned_url: bool, now: datetime,
+) -> tuple[str, str | None, datetime | None, int | None, str, str]:
+    expired_msg = "視聴期限（公開後 30 日）経過のためプロキシ動画は削除されました。署名付き動画 URL の発給および再描画キューへの投入は行えません。"
+    short_msg = "プロキシ動画の視聴期限（残存 15 分未満）間近のため、署名付き動画 URL を発給できません。"
+    is_short_remaining = (
+        item is not None and bool(item.proxy_r2_key)
+        and item.review_status != RecordingReviewItem.ReviewStatus.EXPIRED
+        and item.proxy_expires_at is not None
+        and 0 < (item.proxy_expires_at - now).total_seconds() < MIN_PRESIGNED_EXPIRES_IN
+    )
     if not issue_presigned_url:
+        if is_item_proxy_expired(item, now=now):
+            return ("expired", None, item.proxy_expires_at if item else None, None, "proxy_expired", expired_msg)
+        if is_short_remaining and item is not None:
+            return ("expired", None, item.proxy_expires_at, None, "proxy_expired", short_msg)
         if item is None or not item.proxy_r2_key:
             return ("missing", None, None, None, "proxy_not_found", "プロキシ動画がまだ登録されていません。")
         return ("ready", None, item.proxy_expires_at, None, "", "")
@@ -352,21 +391,18 @@ def _issue_proxy_url_safe(detail: EventDetail, item: RecordingReviewItem | None,
     except RecordingProxyNotFoundError:
         return ("missing", None, None, None, "proxy_not_found", "プロキシ動画がまだ登録されていません。")
     except RecordingProxyExpiredError:
-        err_reason, err_msg = ("proxy_expired", "プロキシ動画の保持期限が切れているか、残存時間が 15 分未満のため視聴できません。")
-        state = "expired"
+        err_reason, err_msg, state = ("proxy_expired", short_msg if is_short_remaining else expired_msg, "expired")
     except RecordingStorageConfigError:
-        err_reason, err_msg = ("storage_config_error", "非公開プロキシストレージの設定が未構成または不正なため、動画 URL を発行できませんでした。")
-        state = "error"
+        err_reason, err_msg, state = ("storage_config_error", "非公開プロキシストレージの設定が未構成または不正なため、動画 URL を発行できませんでした。", "error")
     except (RecordingStorageError, Exception):
-        err_reason, err_msg = ("storage_error", "署名付き動画 URL の生成に失敗しました。時間を置いてページを再読み込みしてください。")
-        state = "error"
+        err_reason, err_msg, state = ("storage_error", "署名付き動画 URL の生成に失敗しました。時間を置いてページを再読み込みしてください。", "error")
     logger.warning("recording_review_proxy_url_error detail=%s reason=%s", detail.pk, err_reason, extra={"event_type": "recording_review_proxy_url_error", "event_detail_id": detail.pk, "reason": err_reason})
     return (state, None, None, None, err_reason, err_msg)
 
 
 def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool = True, now: datetime | None = None) -> RecordingDetailContext:
     """スタッフ詳細・トリミング編集画面のコンテキストを厳格な同意検証つきで構築する。"""
-    del now
+    current_time = now or timezone.now()
     detail = EventDetail.objects.select_related("event", "event__community", "recording_review").filter(pk=detail_id, status="approved").first()
     if detail is None:
         raise RecordingNotFoundError("対象の発表が見つかりません。")
@@ -375,14 +411,32 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
         raise RecordingConsentError("撮影公開の同意（recording_policy=public かつ集会の自動撮影許可）がないため表示できません。")
 
     item: RecordingReviewItem | None = getattr(detail, "recording_review", None)
-    proxy_state, proxy_url, proxy_expires_at, proxy_expires_in, err_code, err_msg = _issue_proxy_url_safe(detail, item, issue_presigned_url=issue_presigned_url)
+    proxy_state, proxy_url, proxy_expires_at, proxy_expires_in, err_code, err_msg = _issue_proxy_url_safe(
+        detail, item, issue_presigned_url=issue_presigned_url, now=current_time
+    )
     edl_valid, safe_min, safe_max, trim_start, trim_end, start_cands, end_cands, cuts = _parse_edl_for_context(item)
     keep_spans = compute_keep_spans(item.edl_json) if edl_valid and item is not None else []
     adopted_duration_sec = extract_adopted_duration_sec(item.edl_json) if edl_valid and item is not None else 0.0
     recent_orders = list(item.edit_orders.select_related("requested_by").order_by("-created_at", "-pk")[:5]) if item is not None else []
     active_order = next((o for o in recent_orders if o.status in RecordingEditOrder.ACTIVE_STATUSES), None)
-    _, _, _, order_badge = _resolve_order_state(item)
-    publish_badge, is_public_locked = _resolve_publish_state(detail, item)
+    latest_order = recent_orders[0] if recent_orders else None
+    _, _, _, order_badge = resolve_order_state(item)
+    publish_badge, is_public_locked = resolve_publish_state(detail, item)
+    is_expired = proxy_state == "expired"
+    is_proxy_expiring_soon = (
+        is_expired
+        and item is not None
+        and bool(item.proxy_r2_key)
+        and item.review_status != RecordingReviewItem.ReviewStatus.EXPIRED
+        and item.proxy_expires_at is not None
+        and 0 < (item.proxy_expires_at - current_time).total_seconds() < MIN_PRESIGNED_EXPIRES_IN
+    )
+    is_private_fixed = item is not None and item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+    has_unstopped = item is not None and item_has_unstopped_video(item)
+    stalled_minutes = estimate_stalled_minutes(active_order, now=current_time)
+    _, failed_latest, can_retry_failed, cancelable_order, can_cancel = compute_order_action_flags(
+        item, latest_order, active_order, can_access=True, is_expired=is_expired, is_public_locked=is_public_locked,
+    )
 
     return RecordingDetailContext(
         detail=detail, review_item=item, title=detail.title or "(無題の発表)", edl_revision=item.edl_revision if item is not None else 1,
@@ -391,10 +445,16 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
         allow_accept_cuts=edl_module.ALLOW_ACCEPT_CUTS, keep_spans=keep_spans, adopted_duration_sec=adopted_duration_sec,
         proxy_state=proxy_state, proxy_url=proxy_url,
         proxy_expires_at=proxy_expires_at, proxy_expires_in=proxy_expires_in, proxy_error_code=err_code, proxy_error_message=err_msg,
-        active_order=active_order, latest_order=recent_orders[0] if recent_orders else None, recent_orders=recent_orders,
+        active_order=active_order, latest_order=latest_order, recent_orders=recent_orders,
         is_public_locked=is_public_locked, can_submit=bool(item is not None and edl_valid and proxy_state == "ready" and not is_public_locked and active_order is None),
         policy_label=RECORDING_POLICY_DISPLAY_LABELS.get(detail.recording_policy, detail.recording_policy),
         publish_badge=publish_badge, order_badge=order_badge,
+        is_expired=is_expired, is_proxy_expiring_soon=is_proxy_expiring_soon,
+        is_private_fixed=is_private_fixed, has_unstopped_video=has_unstopped,
+        can_stop_publish=bool(has_unstopped and active_order is None),
+        stalled_active_order=(stalled_minutes is not None), stalled_minutes=stalled_minutes,
+        failed_latest_order=failed_latest, can_retry_failed_order=can_retry_failed,
+        cancelable_order=cancelable_order, can_cancel_latest_order=can_cancel,
     )
 
 

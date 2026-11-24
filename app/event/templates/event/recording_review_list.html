@@ -12,6 +12,8 @@
         .hub-admin .recording-review-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-card); margin-bottom: 1rem; background: var(--admin-surface); }
         .hub-admin .recording-review-card .card-body { padding: 1.15rem 1.25rem; }
         .hub-admin .recording-review-card.is-needs-review { border-left: 4px solid var(--admin-attention-accent); }
+        .hub-admin .recording-review-card.is-action-failed { border-left: 4px solid #dc3545; }
+        .hub-admin .recording-action-item + .recording-action-item { border-top: 1px solid #ebdfc5; margin-top: .9rem; padding-top: .9rem; }
         .hub-admin .recording-review-meta { color: var(--admin-muted); font-size: .875rem; overflow-wrap: anywhere; }
         .hub-admin .recording-chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
         .hub-admin .recording-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: .75rem; align-items: end; }
@@ -43,31 +45,129 @@
 
 {% block admin_attention %}
 {% timezone "Asia/Tokyo" %}
-    {% if summary.needs_review_count or summary.failed_order_count %}
+    {% if summary.action_required_count %}
         <section class="action-required" aria-labelledby="recording-action-heading" data-testid="recording-action-required">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <h2 id="recording-action-heading" class="h5 fw-bold mb-0">
-                    {% if summary.needs_review_count %}要対応 {{ summary.needs_review_count }}{% else %}お知らせ{% endif %}
+                    要対応 {{ summary.action_required_count }}
                 </h2>
                 <div class="d-flex flex-wrap gap-2">
                     {% if summary.needs_review_count %}
                         <a href="{% url 'event:recording_review_list' %}?status=needs_review" class="btn btn-sm btn-primary">要確認だけを表示 ({{ summary.needs_review_count }})</a>
                     {% endif %}
                     {% if summary.failed_order_count %}
-                        <a href="{% url 'event:recording_review_list' %}?order_status=failed" class="btn btn-sm btn-outline-danger">失敗キューを確認 ({{ summary.failed_order_count }})</a>
+                        <a href="{% url 'event:recording_review_list' %}?order_status=failed" class="btn btn-sm btn-outline-danger" data-testid="filter-failed-orders-btn">失敗キューを確認 ({{ summary.failed_order_count }})</a>
+                    {% endif %}
+                    {% if summary.stalled_order_count %}
+                        <a href="{% url 'event:recording_review_list' %}?order_status=stalled" class="btn btn-sm btn-outline-warning text-dark" data-testid="filter-stalled-orders-btn">滞留キューを確認 ({{ summary.stalled_order_count }})</a>
                     {% endif %}
                 </div>
             </div>
-            {% for row in summary.needs_review_rows %}
-                <div class="action-required-row">
-                    <div class="action-required-text">
-                        <span class="small text-muted">{{ row.detail.event.date|date:"Y/m/d（D）" }} {{ row.detail.start_time|time:"H:i" }} · {{ row.detail.event.community.name }}</span>
-                        <div class="fw-bold">{{ row.title }}</div>
+
+            {% for row in summary.failed_order_rows %}
+                <div class="recording-action-item" data-testid="action-required-failed-row" data-detail-id="{{ row.detail.pk }}">
+                    <div class="action-required-row">
+                        <div class="action-required-text">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                {% include 'ta_hub/admin/includes/status_chip.html' with label='失敗キュー' tone='danger' only %}
+                                <span class="small text-muted">{{ row.detail.event.date|date:"Y/m/d（D）" }} {{ row.detail.start_time|time:"H:i" }} · {{ row.detail.event.community.name }}</span>
+                            </div>
+                            <div class="fw-bold">{{ row.title }}</div>
+                            {% if row.latest_order and row.latest_order.error_message %}
+                                <div class="small text-danger mt-1">{{ row.latest_order.error_message|truncatechars:140 }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="presentation-actions">
+                            {% if row.can_retry_failed %}
+                                <form method="post" action="{% url 'event:recording_order_retry' row.detail.pk row.latest_order.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="expected_revision" value="{{ row.review_item.edl_revision }}">
+                                    <input type="hidden" name="next_view" value="list">
+                                    <button type="submit" class="btn btn-sm btn-primary" data-testid="list-retry-order-btn-{{ row.detail.pk }}">再試行</button>
+                                </form>
+                            {% endif %}
+                            {% if row.can_cancel_order %}
+                                {% with oid=row.latest_order.pk|stringformat:"d" %}
+                                    {% with panel_id='list-cancel-failed-'|add:oid %}
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                data-confirm-panel="{{ panel_id }}"
+                                                aria-controls="{{ panel_id }}"
+                                                aria-expanded="false"
+                                                data-testid="list-cancel-order-trigger-{{ row.detail.pk }}">取り消し…</button>
+                                    {% endwith %}
+                                {% endwith %}
+                            {% endif %}
+                            <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-secondary">詳細</a>
+                        </div>
                     </div>
-                    <div class="presentation-actions">
-                        <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-primary">確認・トリミング</a>
-                    </div>
+                    {% if row.can_cancel_order %}
+                        {% with oid=row.latest_order.pk|stringformat:"d" %}
+                            {% with panel_id='list-cancel-failed-'|add:oid %}
+                                {% url 'event:recording_order_cancel' row.detail.pk row.latest_order.pk as cancel_url %}
+                                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='失敗オーダーの取り消し確認' message='この失敗オーダーを取り消して未確定状態へ戻しますか？' action_url=cancel_url submit_label='取り消す' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=row.review_item.edl_revision next_view='list' csrf_token=csrf_token only %}
+                            {% endwith %}
+                        {% endwith %}
+                    {% endif %}
                 </div>
+            {% endfor %}
+
+            {% for row in summary.stalled_order_rows %}
+                <div class="recording-action-item" data-testid="action-required-stalled-row" data-detail-id="{{ row.detail.pk }}">
+                    <div class="action-required-row">
+                        <div class="action-required-text">
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                {% with mins=row.stalled_minutes|stringformat:"d" %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='滞留中（約'|add:mins|add:'分経過）' tone='warning' only %}
+                                {% endwith %}
+                                <span class="small text-muted">{{ row.detail.event.date|date:"Y/m/d（D）" }} {{ row.detail.start_time|time:"H:i" }} · {{ row.detail.event.community.name }}</span>
+                            </div>
+                            <div class="fw-bold">{{ row.title }}</div>
+                            {% if row.active_order %}
+                                <div class="small admin-muted mt-1">#{{ row.active_order.pk }} {{ row.active_order.get_order_type_display }}（{{ row.active_order.get_status_display }}）</div>
+                            {% endif %}
+                        </div>
+                        <div class="presentation-actions">
+                            {% if row.can_cancel_order %}
+                                {% with oid=row.active_order.pk|stringformat:"d" %}
+                                    {% with panel_id='list-cancel-stalled-'|add:oid %}
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                data-confirm-panel="{{ panel_id }}"
+                                                aria-controls="{{ panel_id }}"
+                                                aria-expanded="false"
+                                                data-testid="list-cancel-stalled-trigger-{{ row.detail.pk }}">待機中を取り消し…</button>
+                                    {% endwith %}
+                                {% endwith %}
+                            {% endif %}
+                            <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-primary">状態を確認</a>
+                        </div>
+                    </div>
+                    {% if row.can_cancel_order %}
+                        {% with oid=row.active_order.pk|stringformat:"d" %}
+                            {% with panel_id='list-cancel-stalled-'|add:oid %}
+                                {% url 'event:recording_order_cancel' row.detail.pk row.active_order.pk as cancel_url %}
+                                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='待機中オーダーの取り消し確認' message='滞留している待機中（queued）オーダーを取り消しますか？' action_url=cancel_url submit_label='取り消す' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=row.review_item.edl_revision next_view='list' csrf_token=csrf_token only %}
+                            {% endwith %}
+                        {% endwith %}
+                    {% endif %}
+                </div>
+            {% endfor %}
+
+            {% for row in summary.needs_review_rows %}
+                {% if not row.is_failed_order and not row.is_stalled_order %}
+                    <div class="recording-action-item">
+                        <div class="action-required-row">
+                            <div class="action-required-text">
+                                <span class="small text-muted">{{ row.detail.event.date|date:"Y/m/d（D）" }} {{ row.detail.start_time|time:"H:i" }} · {{ row.detail.event.community.name }}</span>
+                                <div class="fw-bold">{{ row.title }}</div>
+                            </div>
+                            <div class="presentation-actions">
+                                <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-primary">確認・トリミング</a>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
             {% endfor %}
         </section>
     {% endif %}
@@ -90,6 +190,16 @@
         {% with cnt=summary.published_count|stringformat:"d" %}
             {% include 'ta_hub/admin/includes/status_chip.html' with label='公開済みロック '|add:cnt|add:' 件' only %}
         {% endwith %}
+        {% if summary.failed_order_count %}
+            {% with cnt=summary.failed_order_count|stringformat:"d" %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='失敗 '|add:cnt|add:' 件' tone='danger' only %}
+            {% endwith %}
+        {% endif %}
+        {% if summary.stalled_order_count %}
+            {% with cnt=summary.stalled_order_count|stringformat:"d" %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='滞留 '|add:cnt|add:' 件' tone='warning' only %}
+            {% endwith %}
+        {% endif %}
         <span class="admin-muted ms-auto">対象全 {{ summary.total_count }} 件（表示中 {{ page_obj.paginator.count }} 件）</span>
     </div>
 
@@ -136,7 +246,7 @@
     <section aria-labelledby="recording-list-heading">
         <h2 id="recording-list-heading" class="section-title mt-0">対象発表の一覧</h2>
         {% for row in rows %}
-            <article class="card recording-review-card{% if row.is_needs_review %} is-needs-review{% endif %}" data-testid="recording-review-row" data-detail-id="{{ row.detail.pk }}">
+            <article class="card recording-review-card{% if row.is_failed_order %} is-action-failed{% elif row.is_needs_review or row.is_stalled_order %} is-needs-review{% endif %}" data-testid="recording-review-row" data-detail-id="{{ row.detail.pk }}">
                 <div class="card-body">
                     <div class="event-summary">
                         <div class="presentation-text">
@@ -155,9 +265,17 @@
                                 {% else %}
                                     {% include 'ta_hub/admin/includes/status_chip.html' with label='プロキシ: '|add:row.proxy_badge.label tone=row.proxy_badge.tone only %}
                                     {% include 'ta_hub/admin/includes/status_chip.html' with label='キュー: '|add:row.order_badge.label tone=row.order_badge.tone only %}
+                                    {% if row.is_stalled_order %}
+                                        {% with mins=row.stalled_minutes|stringformat:"d" %}
+                                            {% include 'ta_hub/admin/includes/status_chip.html' with label='滞留: 約'|add:mins|add:'分経過' tone='danger' only %}
+                                        {% endwith %}
+                                    {% endif %}
                                     {% include 'ta_hub/admin/includes/status_chip.html' with label='公開: '|add:row.publish_badge.label tone=row.publish_badge.tone only %}
                                 {% endif %}
                             </div>
+                            {% if row.is_failed_order and row.latest_order.error_message %}
+                                <p class="small text-danger mb-0 mt-2">{{ row.latest_order.error_message|truncatechars:140 }}</p>
+                            {% endif %}
                         </div>
                         <div class="event-actions">
                             {% if row.can_access_recording %}
