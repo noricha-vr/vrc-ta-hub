@@ -1,0 +1,353 @@
+{% extends 'ta_hub/admin_base.html' %}
+{% load static tz %}
+
+{% block meta %}
+    <title>{{ ctx.title }} - 録画・YouTube管理 - {% site_name_seo %}</title>
+    <meta name="robots" content="noindex,nofollow">
+{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .hub-admin .recording-video-wrap { background: #11161d; border-radius: var(--admin-radius-control); overflow: hidden; }
+        .hub-admin .recording-video-player { display: block; width: 100%; max-height: 60vh; background: #000; }
+        .hub-admin .recording-controls-bar { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; margin-top: .85rem; }
+        .hub-admin .recording-mode-group, .hub-admin .recording-offset-group { display: flex; flex-wrap: wrap; gap: .5rem; }
+        .hub-admin .recording-mode-choice { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .4rem .7rem; background: #fff; cursor: pointer; font-size: .875rem; }
+        .hub-admin .recording-mode-choice:has(input:checked) { border-color: var(--admin-primary); background: var(--admin-primary-soft); font-weight: 700; }
+        .hub-admin .recording-trim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr)); gap: 1.25rem; }
+        .hub-admin .recording-trim-panel { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: 1rem; background: var(--admin-surface-muted); min-width: 0; }
+        .hub-admin .recording-cand-list { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .75rem; }
+        .hub-admin .recording-cand-item { display: flex; align-items: flex-start; gap: .5rem; padding: .5rem .65rem; border: 1px solid var(--admin-border); border-radius: .4rem; background: #fff; cursor: pointer; font-size: .875rem; overflow-wrap: anywhere; }
+        .hub-admin .recording-cand-item:has(input:checked) { border-color: var(--admin-primary); background: var(--admin-primary-soft); }
+        .hub-admin .recording-nudge-group { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+        .hub-admin .recording-nudge-group .btn { white-space: nowrap; }
+        .hub-admin .recording-metrics { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; font-size: .875rem; color: var(--admin-muted); font-variant-numeric: tabular-nums; }
+        @media (max-width: 575.98px) {
+            .hub-admin .recording-trim-panel { padding: .85rem; }
+            .hub-admin .recording-submit-row .btn { width: 100%; }
+        }
+    </style>
+{% endblock %}
+
+{% block admin_breadcrumbs %}
+    <nav aria-label="パンくず">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'event:recording_review_list' %}">録画・YouTube管理</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ ctx.title }}</li>
+        </ol>
+    </nav>
+{% endblock %}
+
+{% block admin_header %}
+{% timezone "Asia/Tokyo" %}
+    {% url 'event:recording_review_list' as list_url %}
+    <header class="admin-page-header mylist-header mb-2">
+        <div class="admin-page-heading">
+            <h1>{{ ctx.title }}: {{ ctx.detail.event.community.name }}</h1>
+            <p class="admin-muted mb-0">
+                {{ ctx.detail.event.date|date:"Y/m/d（D）" }} {{ ctx.detail.start_time|time:"H:i" }}
+                {% if ctx.detail.speaker %} · {{ ctx.detail.speaker }}{% endif %}
+                · リビジョン r{{ ctx.edl_revision }}
+            </p>
+        </div>
+        <div class="admin-header-actions mylist-header-actions">
+            <a href="{{ list_url }}" class="btn btn-outline-secondary">一覧へ戻る</a>
+        </div>
+    </header>
+    <div class="d-flex flex-wrap gap-2 mb-3" data-testid="recording-detail-badges">
+        {% include 'ta_hub/admin/includes/status_chip.html' with label='ボットによる自動撮影: '|add:ctx.policy_label tone='success' only %}
+        {% include 'ta_hub/admin/includes/status_chip.html' with label='公開: '|add:ctx.publish_badge.label tone=ctx.publish_badge.tone only %}
+        <span id="recording-order-status-chip">
+            {% include 'ta_hub/admin/includes/status_chip.html' with label='キュー: '|add:ctx.order_badge.label tone=ctx.order_badge.tone only %}
+        </span>
+    </div>
+{% endtimezone %}
+{% endblock %}
+
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' items=admin_nav_items only %}
+{% endblock %}
+
+{% block admin_attention %}
+    <section id="recording-conflict-banner"
+             class="action-required"
+             role="alert"
+             data-testid="recording-conflict-banner"
+             {% if not conflict_message %}hidden{% endif %}>
+        <h2 class="h6 fw-bold mb-1">確定操作が競合または拒否されました（409 Conflict）</h2>
+        <p id="recording-conflict-message" class="small mb-2">{{ conflict_message }}</p>
+        <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-primary" data-testid="reload-latest-btn">最新状態を再読み込み</a>
+    </section>
+
+    {% if ctx.is_public_locked %}
+        <section class="action-required" role="status" data-testid="public-locked-banner">
+            <h2 class="h6 fw-bold mb-1">公開済みロック中（再差し替え不可）</h2>
+            <p class="small mb-0">この発表はすでに YouTube で一般公開（public）されているため、URL・再生数・記事参照を保持する目的でトリミング編集および再差し替え確定をロックしています。</p>
+        </section>
+    {% elif ctx.active_order %}
+        <section class="action-required" role="status" data-testid="active-order-banner">
+            <h2 class="h6 fw-bold mb-1">書き出し指示を処理中です（{{ ctx.active_order.get_status_display }}）</h2>
+            <p class="small mb-2">現在この発表に対する確定指示がキューで進行中のため、完了または失敗になるまで新しい確定はできません。</p>
+            <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">最新状態を再読み込み</a>
+        </section>
+    {% endif %}
+
+    {% if ctx.latest_order and ctx.latest_order.status == 'failed' and not ctx.active_order %}
+        <section class="action-required" role="alert" data-testid="last-order-failed-banner">
+            <h2 class="h6 fw-bold mb-1">前回の書き出し指示（r{{ ctx.latest_order.base_revision }}→r{{ ctx.latest_order.target_revision }}）が失敗しました</h2>
+            <p class="small mb-0">{{ ctx.latest_order.error_message|default:"詳細なエラーメッセージは記録されていません。" }}</p>
+        </section>
+    {% endif %}
+
+    <div id="recording-submit-error" class="alert alert-danger" role="alert" {% if not error_message %}hidden{% endif %}>{{ error_message }}</div>
+    <div id="recording-submit-success" class="alert alert-success" role="status" hidden></div>
+{% endblock %}
+
+{% block admin_content %}
+    <section class="admin-card" aria-labelledby="proxy-player-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='プロキシ動画プレビュー（720p）' heading_id='proxy-player-heading' only %}
+
+        {% if ctx.proxy_state == 'ready' %}
+            <div class="recording-video-wrap mb-2">
+                <video id="recording-proxy-player"
+                       class="recording-video-player"
+                       controls
+                       preload="metadata"
+                       playsinline
+                       referrerpolicy="no-referrer"
+                       src="{{ ctx.proxy_url }}"></video>
+            </div>
+            <div id="recording-player-loading" class="small admin-muted mb-2" role="status" aria-live="polite" hidden>
+                プロキシ動画を読み込み中です…
+            </div>
+            <div id="recording-player-error" class="alert alert-warning mb-2" role="alert" hidden>
+                <p class="fw-bold mb-1">プロキシ動画の読み込みに失敗しました</p>
+                <p class="small mb-2">署名付き URL の有効期限（15〜30 分）が切れたか、ネットワークエラーの可能性があります。ページを再読み込みして新しい URL を取得してください。</p>
+                <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">ページを再読み込み</a>
+            </div>
+
+            <div class="recording-controls-bar">
+                <fieldset>
+                    <legend class="visually-hidden">再生モード</legend>
+                    <div class="recording-mode-group">
+                        <label class="recording-mode-choice">
+                            <input type="radio" name="playback_mode" value="preview" checked>
+                            <span>トリミング後をプレビュー</span>
+                        </label>
+                        <label class="recording-mode-choice">
+                            <input type="radio" name="playback_mode" value="full">
+                            <span>余白込み全体を見る</span>
+                        </label>
+                    </div>
+                </fieldset>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-trim-range" data-testid="play-trim-range-btn">
+                    トリミング区間を再生
+                </button>
+            </div>
+
+            <div class="recording-metrics mt-3">
+                <span>現在位置: <strong id="recording-current-time">0:00.0</strong></span>
+                <span>採用尺: <strong id="recording-adopted-duration">-</strong></span>
+                <span>許容範囲: <strong>{{ ctx.safe_min_sec|floatformat:1 }}秒 〜 {{ ctx.safe_max_sec|floatformat:1 }}秒</strong></span>
+                {% if remaining_minutes != None %}
+                    <span>署名 URL 有効目安: 約 {{ remaining_minutes }} 分</span>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="alert {% if ctx.proxy_state == 'missing' %}alert-secondary{% else %}alert-warning{% endif %} mb-0" role="status" data-testid="proxy-state-card" data-proxy-state="{{ ctx.proxy_state }}">
+                <p class="fw-bold mb-1">
+                    {% if ctx.proxy_state == 'missing' %}プロキシ動画が未登録です
+                    {% elif ctx.proxy_state == 'expired' %}プロキシ動画の有効期限が切れています
+                    {% else %}プロキシ動画を取得できませんでした{% endif %}
+                </p>
+                <p class="small mb-2">{{ ctx.proxy_error_message }}</p>
+                <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">最新状態を再読み込み</a>
+            </div>
+        {% endif %}
+    </section>
+
+    <section class="admin-card" aria-labelledby="trim-editor-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='開始・終了トリミング確定（Phase 1）' heading_id='trim-editor-heading' only %}
+
+        <form id="recording-trim-form"
+              method="post"
+              action="{% url 'event:recording_review_detail' ctx.detail.pk %}"
+              data-admin-dirty
+              data-admin-scope="トリミング">
+            {% csrf_token %}
+            <input type="hidden" name="expected_revision" id="id_expected_revision" value="{{ ctx.edl_revision }}">
+
+            <div class="recording-trim-grid">
+                <div class="recording-trim-panel">
+                    <h3 class="h6 fw-bold mb-2">開始位置（trim.start_sec）</h3>
+                    {% if ctx.start_candidates %}
+                        <fieldset class="mb-2">
+                            <legend class="form-label small text-muted mb-1">開始候補</legend>
+                            <div class="recording-cand-list">
+                                {% for cand in ctx.start_candidates %}
+                                    <label class="recording-cand-item">
+                                        <input type="radio" name="start_candidate" value="{{ cand.sec|stringformat:'g' }}"
+                                               {% if cand.sec == form_start_sec %}checked{% endif %}
+                                               {% if not ctx.can_submit %}disabled{% endif %}>
+                                        <span>
+                                            <strong>{{ cand.sec_display }}</strong>（{{ cand.sec|floatformat:1 }}秒）
+                                            {% if cand.label %}<span class="text-muted">· {{ cand.label }}</span>{% endif %}
+                                        </span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </fieldset>
+                    {% else %}
+                        <p class="small admin-muted mb-2">自動検出された開始候補はありません。数値欄で直接指定してください。</p>
+                    {% endif %}
+
+                    <label for="id_start_sec" class="form-label small mb-1">開始時刻（秒）</label>
+                    <input type="number"
+                           id="id_start_sec"
+                           name="start_sec"
+                           class="form-control form-control-sm"
+                           step="any"
+                           min="{{ ctx.safe_min_sec|stringformat:'g' }}"
+                           max="{{ ctx.safe_max_sec|stringformat:'g' }}"
+                           value="{{ form_start_sec|stringformat:'g' }}"
+                           {% if not ctx.can_submit %}disabled{% endif %}
+                           required>
+                    <div class="recording-nudge-group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="-5" {% if not ctx.can_submit %}disabled{% endif %}>-5秒</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="5" {% if not ctx.can_submit %}disabled{% endif %}>+5秒</button>
+                        {% if ctx.proxy_state == 'ready' %}
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-from-start" data-testid="play-from-start-btn">ここから再生</button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="recording-trim-panel">
+                    <h3 class="h6 fw-bold mb-2">終了位置（trim.end_sec）</h3>
+                    <fieldset class="mb-2">
+                        <legend class="form-label small text-muted mb-1">終了確認の再生開始位置</legend>
+                        <div class="recording-offset-group">
+                            <label class="recording-mode-choice">
+                                <input type="radio" name="end_preview_offset" value="5" form="recording-preview-controls">
+                                <span>5秒前</span>
+                            </label>
+                            <label class="recording-mode-choice">
+                                <input type="radio" name="end_preview_offset" value="7" form="recording-preview-controls" checked>
+                                <span>7秒前（推奨）</span>
+                            </label>
+                            <label class="recording-mode-choice">
+                                <input type="radio" name="end_preview_offset" value="10" form="recording-preview-controls">
+                                <span>10秒前</span>
+                            </label>
+                        </div>
+                    </fieldset>
+
+                    {% if ctx.end_candidates %}
+                        <fieldset class="mb-2">
+                            <legend class="form-label small text-muted mb-1">終了候補</legend>
+                            <div class="recording-cand-list">
+                                {% for cand in ctx.end_candidates %}
+                                    <label class="recording-cand-item">
+                                        <input type="radio" name="end_candidate" value="{{ cand.sec|stringformat:'g' }}"
+                                               {% if cand.sec == form_end_sec %}checked{% endif %}
+                                               {% if not ctx.can_submit %}disabled{% endif %}>
+                                        <span>
+                                            <strong>{{ cand.sec_display }}</strong>（{{ cand.sec|floatformat:1 }}秒）
+                                            {% if cand.label %}<span class="text-muted">· {{ cand.label }}</span>{% endif %}
+                                        </span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </fieldset>
+                    {% else %}
+                        <p class="small admin-muted mb-2">自動検出された終了候補はありません。数値欄で直接指定してください。</p>
+                    {% endif %}
+
+                    <label for="id_end_sec" class="form-label small mb-1">終了時刻（秒）</label>
+                    <input type="number"
+                           id="id_end_sec"
+                           name="end_sec"
+                           class="form-control form-control-sm"
+                           step="any"
+                           min="{{ ctx.safe_min_sec|stringformat:'g' }}"
+                           max="{{ ctx.safe_max_sec|stringformat:'g' }}"
+                           value="{{ form_end_sec|stringformat:'g' }}"
+                           {% if not ctx.can_submit %}disabled{% endif %}
+                           required>
+                    <div class="recording-nudge-group">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="-5" {% if not ctx.can_submit %}disabled{% endif %}>-5秒</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="5" {% if not ctx.can_submit %}disabled{% endif %}>+5秒</button>
+                        {% if ctx.proxy_state == 'ready' %}
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-before-end" data-testid="play-before-end-btn">7秒前から再生</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <p class="small admin-muted mt-3 mb-2">
+                ※ Phase 1 では開始・終了区間のみを編集し、途中カット <code>cuts</code>（現在 {{ ctx.cuts_count }} 件）は変更せずそのまま確定送信します。
+            </p>
+
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 border-top recording-submit-row">
+                <span class="admin-dirty-status" data-admin-form-status="recording-trim-form" data-admin-scope="トリミング" aria-live="polite">トリミング: 変更はありません</span>
+                <button type="submit"
+                        id="recording-submit-btn"
+                        class="btn btn-primary"
+                        data-testid="recording-submit-btn"
+                        {% if not ctx.can_submit %}disabled{% endif %}>
+                    {% if ctx.is_public_locked %}公開済みロック中（確定不可）
+                    {% elif ctx.active_order %}確定指示を処理中…
+                    {% elif ctx.proxy_state != 'ready' %}プロキシ未準備のため確定不可
+                    {% else %}トリミングを確定して書き出しキューへ送る{% endif %}
+                </button>
+            </div>
+        </form>
+        <form id="recording-preview-controls" hidden></form>
+    </section>
+
+    <section class="admin-card" aria-labelledby="order-history-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='確定指示キュー履歴' heading_id='order-history-heading' only %}
+        {% timezone "Asia/Tokyo" %}
+        {% if ctx.recent_orders %}
+            <div class="list-group list-group-flush">
+                {% for order in ctx.recent_orders %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div>
+                                <strong>#{{ order.pk }} {{ order.get_order_type_display }}</strong>
+                                <span class="small admin-muted">（r{{ order.base_revision }} → r{{ order.target_revision }}）</span>
+                                <span class="small admin-muted"> · {{ order.created_at|date:"Y/m/d H:i" }}</span>
+                                {% if order.requested_by %}
+                                    <span class="small admin-muted"> · {{ order.requested_by.display_label }}</span>
+                                {% endif %}
+                            </div>
+                            <span class="detail-chip">{{ order.get_status_display }}</span>
+                        </div>
+                        {% if order.error_message %}
+                            <p class="small text-danger mb-0 mt-1">{{ order.error_message }}</p>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="small admin-muted mb-0">まだ確定指示の履歴はありません。</p>
+        {% endif %}
+        {% endtimezone %}
+    </section>
+
+    <script id="recording-review-config" type="application/json">
+        {
+            "safeMin": {{ ctx.safe_min_sec|stringformat:"f" }},
+            "safeMax": {{ ctx.safe_max_sec|stringformat:"f" }},
+            "canSubmit": {{ ctx.can_submit|yesno:"true,false" }},
+            "isPublicLocked": {{ ctx.is_public_locked|yesno:"true,false" }},
+            "proxyState": "{{ ctx.proxy_state|escapejs }}"
+        }
+    </script>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    <script src="{% static 'event/js/recording-review.js' %}" defer></script>
+{% endblock %}

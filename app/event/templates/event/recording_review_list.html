@@ -1,0 +1,191 @@
+{% extends 'ta_hub/admin_base.html' %}
+{% load tz %}
+
+{% block meta %}
+    <title>録画・YouTube管理 - {% site_name_seo %}</title>
+    <meta name="robots" content="noindex,nofollow">
+{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .hub-admin .recording-review-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-card); margin-bottom: 1rem; background: var(--admin-surface); }
+        .hub-admin .recording-review-card .card-body { padding: 1.15rem 1.25rem; }
+        .hub-admin .recording-review-card.is-needs-review { border-left: 4px solid var(--admin-attention-accent); }
+        .hub-admin .recording-review-meta { color: var(--admin-muted); font-size: .875rem; overflow-wrap: anywhere; }
+        .hub-admin .recording-chip-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+        .hub-admin .recording-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr)); gap: .75rem; align-items: end; }
+        .hub-admin .recording-review-card .event-actions .btn { white-space: nowrap; }
+        @media (max-width: 575.98px) {
+            .hub-admin .recording-review-card .card-body { padding: 1rem; }
+            .hub-admin .recording-review-card .event-actions { width: 100%; }
+            .hub-admin .recording-review-card .event-actions .btn { width: 100%; }
+        }
+    </style>
+{% endblock %}
+
+{% block admin_breadcrumbs %}
+    <nav aria-label="パンくず">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+            <li class="breadcrumb-item active" aria-current="page">録画・YouTube管理</li>
+        </ol>
+    </nav>
+{% endblock %}
+
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='録画・YouTube管理' target='運営用' subtitle='公開前の自動撮影プロキシ動画を確認し、開始・終了トリミングを確定します。' only %}
+{% endblock %}
+
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' items=admin_nav_items only %}
+{% endblock %}
+
+{% block admin_attention %}
+{% timezone "Asia/Tokyo" %}
+    {% if summary.needs_review_count or summary.failed_order_count %}
+        <section class="action-required" aria-labelledby="recording-action-heading" data-testid="recording-action-required">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h2 id="recording-action-heading" class="h5 fw-bold mb-0">
+                    {% if summary.needs_review_count %}要対応 {{ summary.needs_review_count }}{% else %}お知らせ{% endif %}
+                </h2>
+                <div class="d-flex flex-wrap gap-2">
+                    {% if summary.needs_review_count %}
+                        <a href="{% url 'event:recording_review_list' %}?status=needs_review" class="btn btn-sm btn-primary">要確認だけを表示 ({{ summary.needs_review_count }})</a>
+                    {% endif %}
+                    {% if summary.failed_order_count %}
+                        <a href="{% url 'event:recording_review_list' %}?order_status=failed" class="btn btn-sm btn-outline-danger">失敗キューを確認 ({{ summary.failed_order_count }})</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% for row in summary.needs_review_rows %}
+                <div class="action-required-row">
+                    <div class="action-required-text">
+                        <span class="small text-muted">{{ row.detail.event.date|date:"Y/m/d（D）" }} {{ row.detail.start_time|time:"H:i" }} · {{ row.detail.event.community.name }}</span>
+                        <div class="fw-bold">{{ row.title }}</div>
+                    </div>
+                    <div class="presentation-actions">
+                        <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-primary">確認・トリミング</a>
+                    </div>
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
+{% endtimezone %}
+{% endblock %}
+
+{% block admin_content %}
+{% timezone "Asia/Tokyo" %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small" data-testid="recording-summary-counts">
+        {% with cnt=summary.needs_review_count|stringformat:"d" %}
+            {% if summary.needs_review_count %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='要確認 '|add:cnt|add:' 件' tone='warning' only %}
+            {% else %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='要確認 0 件' only %}
+            {% endif %}
+        {% endwith %}
+        {% with cnt=summary.unlisted_scheduled_count|stringformat:"d" %}
+            {% include 'ta_hub/admin/includes/status_chip.html' with label='限定公開済み '|add:cnt|add:' 件' tone='success' only %}
+        {% endwith %}
+        {% with cnt=summary.published_count|stringformat:"d" %}
+            {% include 'ta_hub/admin/includes/status_chip.html' with label='公開済みロック '|add:cnt|add:' 件' only %}
+        {% endwith %}
+        <span class="admin-muted ms-auto">対象全 {{ summary.total_count }} 件（表示中 {{ page_obj.paginator.count }} 件）</span>
+    </div>
+
+    <section class="admin-card" aria-labelledby="recording-filter-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='絞り込み・検索' heading_id='recording-filter-heading' only %}
+        <form method="get" action="{% url 'event:recording_review_list' %}" class="recording-filter-grid" role="search">
+            <div>
+                <label for="id_q" class="form-label small mb-1">キーワード</label>
+                <input type="search" id="id_q" name="q" value="{{ search_query }}" class="form-control form-control-sm" placeholder="発表タイトル・発表者・集会名">
+            </div>
+            <div>
+                <label for="id_status" class="form-label small mb-1">動画状態</label>
+                <select id="id_status" name="status" class="form-select form-select-sm">
+                    {% for val, label in status_choices %}
+                        <option value="{{ val }}"{% if selected_status == val %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="id_order_status" class="form-label small mb-1">キュー状態</label>
+                <select id="id_order_status" name="order_status" class="form-select form-select-sm">
+                    {% for val, label in order_choices %}
+                        <option value="{{ val }}"{% if selected_order_status == val %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="id_policy" class="form-label small mb-1">ボットによる自動撮影</label>
+                <select id="id_policy" name="policy" class="form-select form-select-sm">
+                    {% for val, label in policy_choices %}
+                        <option value="{{ val }}"{% if selected_policy == val %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="submit" class="btn btn-sm btn-primary">絞り込む</button>
+                {% if has_filters %}
+                    <a href="{{ clear_filters_url }}" class="btn btn-sm btn-outline-secondary">解除</a>
+                {% endif %}
+            </div>
+        </form>
+    </section>
+
+    <section aria-labelledby="recording-list-heading">
+        <h2 id="recording-list-heading" class="section-title mt-0">対象発表の一覧</h2>
+        {% for row in rows %}
+            <article class="card recording-review-card{% if row.is_needs_review %} is-needs-review{% endif %}" data-testid="recording-review-row" data-detail-id="{{ row.detail.pk }}">
+                <div class="card-body">
+                    <div class="event-summary">
+                        <div class="presentation-text">
+                            <div class="recording-review-meta">
+                                <span>{{ row.detail.event.date|date:"Y/m/d（D）" }} {{ row.detail.start_time|time:"H:i" }}</span>
+                                · <span>{{ row.detail.event.community.name }}</span>
+                                {% if row.detail.speaker %} · <span>{{ row.detail.speaker }}</span>{% endif %}
+                            </div>
+                            <h3 class="presentation-theme mt-1 mb-0">{{ row.title }}</h3>
+                            <div class="recording-chip-row">
+                                {% include 'ta_hub/admin/includes/status_chip.html' with label='ボットによる自動撮影: '|add:row.policy_badge.label tone=row.policy_badge.tone only %}
+                                {% if row.detail.recording_policy == 'allowed' %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='非公開固定（旧設定）' only %}
+                                {% elif row.detail.recording_policy == 'forbidden' %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='非配信' only %}
+                                {% else %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='プロキシ: '|add:row.proxy_badge.label tone=row.proxy_badge.tone only %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='キュー: '|add:row.order_badge.label tone=row.order_badge.tone only %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='公開: '|add:row.publish_badge.label tone=row.publish_badge.tone only %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="event-actions">
+                            {% if row.can_access_recording %}
+                                <a href="{% url 'event:recording_review_detail' row.detail.pk %}"
+                                   class="btn btn-sm {% if row.is_needs_review %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                                   data-testid="recording-detail-link">
+                                    {% if row.is_public_locked %}詳細を見る（ロック中）{% elif row.can_trim_now %}確認・トリミング{% else %}詳細を見る{% endif %}
+                                </a>
+                            {% else %}
+                                <span class="small admin-muted" data-testid="recording-restricted-note">対象外（再生・編集不可）</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </article>
+        {% empty %}
+            <div data-testid="recording-empty-state">
+                {% if has_filters %}
+                    {% include 'ta_hub/admin/includes/empty_state.html' with title='条件に一致する発表はありません。' description='キーワードや絞り込み条件を変えて探してください。' action_url=clear_filters_url action_label='絞り込みを解除' only %}
+                {% else %}
+                    {% include 'ta_hub/admin/includes/empty_state.html' with title='録画管理の対象となる発表はまだありません。' description='ボットによる自動撮影が許可された集会の承認済み発表がここに表示されます。' only %}
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        {% if page_obj.has_other_pages %}
+            {% include 'ta_hub/pagination.html' %}
+        {% endif %}
+    </section>
+{% endtimezone %}
+{% endblock %}

@@ -3,5 +3,6 @@
     <a href="{% url 'news:list' %}"{% if admin_section == 'news' %} aria-current="page"{% endif %}>ニュース <span class="badge bg-secondary">運営</span></a>
 {% endif %}
 {% if request.user.is_staff or request.user.is_superuser %}
+    <a href="{% url 'event:recording_review_list' %}"{% if admin_section == 'recordings' %} aria-current="page"{% endif %}>録画・YouTube管理 <span class="badge bg-secondary">運営</span></a>
     <a href="{% url 'announcement:discord_list' %}"{% if admin_section == 'announcement' %} aria-current="page"{% endif %}>Discord 告知の予約 <span class="badge bg-secondary">運営</span></a>
 {% endif %}
