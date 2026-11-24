@@ -5,7 +5,7 @@ import logging
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ParseError, ValidationError
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -23,12 +23,22 @@ from .views import IsSuperuser
 logger = logging.getLogger(__name__)
 
 
+class SnapshotJSONParser(JSONParser):
+    """深いネストによる JSON デコード時の RecursionError を 400 ParseError に変換する。"""
+
+    def parse(self, stream, media_type=None, parser_context=None):
+        try:
+            return super().parse(stream, media_type=media_type, parser_context=parser_context)
+        except RecursionError as exc:
+            raise ParseError("JSON のネストが深すぎます。") from exc
+
+
 class RecordingOpsSnapshotCreateAPIView(APIView):
     """外部録画運用クライアントからの統計スナップショットを受信して保存する。"""
 
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated, IsSuperuser]
-    parser_classes = [JSONParser]
+    parser_classes = [SnapshotJSONParser]
 
     @extend_schema(
         summary="録画運用スナップショットの登録",

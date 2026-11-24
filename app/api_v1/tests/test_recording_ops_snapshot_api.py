@@ -279,7 +279,7 @@ class RecordingOpsSnapshotAPITest(TestCase):
         ok_resp = client.post(self.url, ok_payload, format="json")
         self.assertEqual(ok_resp.status_code, status.HTTP_201_CREATED, ok_resp.data)
 
-        # 上限超過（33 段および 600 段）は 500 にならず 400 で拒否する
+        # 上限超過（33 段、600 段、および JSON デコーダ限界を超える 10,000 段）は 500 にならず 400 で拒否する
         for depth in (MAX_SNAPSHOT_NESTING_DEPTH, 600):
             deep: object = "leaf"
             for _ in range(depth):
@@ -293,6 +293,12 @@ class RecordingOpsSnapshotAPITest(TestCase):
             raw_json = json.dumps(base, ensure_ascii=False)[:-1] + f', "deep_bad": {raw_deep}}}'
             resp = client.post(self.url, raw_json.encode("utf-8"), content_type="application/json")
             self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST, f"depth={depth}")
+
+        # 10,000 段の配列は JSON デコード段階で RecursionError を起こし得るため HTTP 400 になることを直接確認
+        very_deep_raw = json.dumps(base, ensure_ascii=False)[:-1] + f', "deep_bad": {("[" * 10000)}"leaf"{("]" * 10000)}}}'
+        self.assertLess(len(very_deep_raw.encode("utf-8")), MAX_SNAPSHOT_PAYLOAD_BYTES)
+        very_deep_resp = client.post(self.url, very_deep_raw.encode("utf-8"), content_type="application/json")
+        self.assertEqual(very_deep_resp.status_code, status.HTTP_400_BAD_REQUEST)
 
         self.assertEqual(RecordingOpsSnapshot.objects.count(), 1)
 
