@@ -1893,6 +1893,132 @@ class RecordingOpsAPITest(TestCase):
         )
         self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_late_public_after_stop_and_new_video_without_privacy_trigger_compensating_stop(self):
+        staff_client = self._api_client(self.staff_write_key)
+        super_client = self._api_client(self.super_write_key)
+
+        # 1) 同意有効のまま手動 stop_publish が完了した後、先行して失効した apply_edl から
+        # 遅延で public 完了報告が届いても補償 stop_publish が投入される
+        detail_late = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_late = self._register_item(detail_late, youtube_draft_video_id="", youtube_draft_privacy="")
+        old_ord = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_late.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        RecordingEditOrder.objects.filter(pk=old_ord.data["id"]).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        ord_b = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_late.pk}),
+            {"expected_revision": 2},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_b.data["id"]}),
+            {
+                "target_revision": ord_b.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "newpubB1234",
+                "youtube_draft_privacy": "public",
+            },
+            format="json",
+        )
+        item_late.refresh_from_db()
+        stop_ord = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_late.pk}),
+            {"order_type": RecordingEditOrder.OrderType.STOP_PUBLISH, "expected_revision": item_late.edl_revision},
+            format="json",
+        )
+        self.assertEqual(stop_ord.status_code, status.HTTP_201_CREATED)
+        super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_ord.data["id"]}),
+            {"target_revision": stop_ord.data["target_revision"], "status": "succeeded", "result_video_id": "newpubB1234"},
+            format="json",
+        )
+        item_late.refresh_from_db()
+        self.assertEqual(item_late.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+
+        late_resp = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": old_ord.data["id"]}),
+            {
+                "target_revision": old_ord.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "latepubA123",
+                "youtube_draft_privacy": "public",
+                "review_status": "published",
+            },
+            format="json",
+        )
+        self.assertEqual(late_resp.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(late_resp.data["code"], "order_not_running")
+        claim_comp = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNotNone(claim_comp.data["order"])
+        self.assertEqual(claim_comp.data["order"]["order_type"], RecordingEditOrder.OrderType.STOP_PUBLISH)
+        self.assertEqual(claim_comp.data["order"]["target_video_id"], "latepubA123")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": claim_comp.data["order"]["id"]}),
+            {"target_revision": claim_comp.data["order"]["target_revision"], "status": "succeeded", "result_video_id": "latepubA123"},
+            format="json",
+        )
+        item_late.refresh_from_db()
+        self.assertEqual(item_late.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_late.pending_stop_video_ids, [])
+
+        # 2) 動画 A が private_fixed/private の状態で再編集→実行中に同意撤回→別動画 B を privacy 省略で完了しても、
+        # A の private を引き継がず、B を停止待ちに入れて補償 stop_publish を発行する
+        detail_priv = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_priv = self._register_item(
+            detail_priv,
+            review_status=RecordingReviewItem.ReviewStatus.NEEDS_REVIEW,
+            youtube_draft_video_id="oldprivA123",
+            youtube_draft_privacy="private",
+        )
+        item_priv.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+        item_priv.save(update_fields=["review_status"])
+
+        ord_new_b = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_priv.pk}),
+            {"expected_revision": item_priv.edl_revision},
+            format="json",
+        )
+        self.assertEqual(ord_new_b.status_code, status.HTTP_201_CREATED)
+        super_client.post(self.order_claim_url, {}, format="json")
+
+        detail_priv.recording_policy = RecordingPolicy.FORBIDDEN
+        detail_priv.save(update_fields=["recording_policy"])
+
+        done_new_b = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_new_b.data["id"]}),
+            {
+                "target_revision": ord_new_b.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "newunkB1234",
+            },
+            format="json",
+        )
+        self.assertEqual(done_new_b.status_code, status.HTTP_200_OK)
+        item_priv.refresh_from_db()
+        self.assertNotEqual(item_priv.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_priv.youtube_draft_privacy, "")
+        self.assertEqual(item_priv.pending_stop_video_ids, ["newunkB1234"])
+
+        claim_stop_b = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNotNone(claim_stop_b.data["order"])
+        self.assertEqual(claim_stop_b.data["order"]["order_type"], RecordingEditOrder.OrderType.STOP_PUBLISH)
+        self.assertEqual(claim_stop_b.data["order"]["target_video_id"], "newunkB1234")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": claim_stop_b.data["order"]["id"]}),
+            {"target_revision": claim_stop_b.data["order"]["target_revision"], "status": "succeeded", "result_video_id": "newunkB1234"},
+            format="json",
+        )
+        item_priv.refresh_from_db()
+        self.assertEqual(item_priv.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_priv.pending_stop_video_ids, [])
+
     def test_openapi_schema_includes_recording_ops_endpoints(self):
         response = self.client.get(f"{reverse('schema')}?format=json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

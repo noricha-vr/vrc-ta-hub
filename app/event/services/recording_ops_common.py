@@ -406,3 +406,58 @@ def mark_order_lease_expired(
             "order_type": order.order_type,
         },
     )
+
+
+def apply_stop_publish_completion(
+    *,
+    detail: EventDetail | None,
+    item: RecordingReviewItem,
+    order: RecordingEditOrder,
+    result_video_id: str,
+    youtube_draft_privacy: str,
+    review_status: str,
+) -> bool:
+    """stop_publish 完了を適用し、未停止動画が残っていれば追加 stop_publish の要否を返す。"""
+    item_fields = ["review_status", "updated_at"]
+    effective_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
+    derive_review_status_on_success(
+        order_type=order.order_type,
+        privacy=effective_privacy,
+        requested_review_status=review_status,
+    )
+    if order.target_video_id and result_video_id and result_video_id != order.target_video_id:
+        raise RecordingValidationError(
+            "stop_publish の完了報告の動画 ID が指示対象（target_video_id）と一致しません。"
+        )
+    stopped_vid = result_video_id or order.target_video_id
+    order.result_video_id = stopped_vid
+    order.error_message = ""
+    if detail is not None and detail.youtube_url:
+        detail.youtube_url = None
+        detail.save(update_fields=["youtube_url", "updated_at"])
+
+    if remove_pending_stop_video_id(item, stopped_vid):
+        item_fields.append("pending_stop_video_ids")
+
+    remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
+    untracked_current = bool(item.youtube_draft_video_id) and item.youtube_draft_video_id != stopped_vid
+    if remaining_pending or untracked_current:
+        if untracked_current and add_pending_stop_video_id(item, item.youtube_draft_video_id):
+            item_fields.append("pending_stop_video_ids")
+            remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
+        elif item.youtube_draft_video_id == stopped_vid and remaining_pending:
+            item.youtube_draft_video_id = remaining_pending[0]
+            item_fields.append("youtube_draft_video_id")
+        if item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
+            item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
+        if item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE:
+            item.youtube_draft_privacy = ""
+            item_fields.append("youtube_draft_privacy")
+        item.save(update_fields=list(dict.fromkeys(item_fields)))
+        return True
+
+    item.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+    item.youtube_draft_privacy = effective_privacy
+    item_fields.append("youtube_draft_privacy")
+    item.save(update_fields=list(dict.fromkeys(item_fields)))
+    return False

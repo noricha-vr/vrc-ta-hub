@@ -15,6 +15,7 @@ from event.services.recording_ops_common import (
     RecordingNotFoundError,
     RecordingValidationError,
     add_pending_stop_video_id,
+    apply_stop_publish_completion,
     cancel_queued_apply_edl_and_compensate,
     derive_review_status_on_success,
     enqueue_compensating_stop_publish,
@@ -23,7 +24,6 @@ from event.services.recording_ops_common import (
     lock_event_detail_or_none,
     mark_order_lease_expired,
     next_stop_target_video_id,
-    remove_pending_stop_video_id,
     validate_positive_revision,
     validate_safe_youtube_url,
     validate_video_id,
@@ -45,52 +45,24 @@ def _apply_succeeded_order(
     consent_valid: bool,
 ) -> bool:
     """完了成功時の状態遷移を適用し、追加または補償 stop_publish が必要かを返す。"""
-    item_fields = ["review_status", "updated_at"]
     if order.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
-        effective_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
-        derive_review_status_on_success(
-            order_type=order.order_type,
-            privacy=effective_privacy,
-            requested_review_status=review_status,
+        return apply_stop_publish_completion(
+            detail=detail,
+            item=item,
+            order=order,
+            result_video_id=result_video_id,
+            youtube_draft_privacy=youtube_draft_privacy,
+            review_status=review_status,
         )
-        if order.target_video_id and result_video_id and result_video_id != order.target_video_id:
-            raise RecordingValidationError(
-                "stop_publish の完了報告の動画 ID が指示対象（target_video_id）と一致しません。"
-            )
-        stopped_vid = result_video_id or order.target_video_id
-        order.result_video_id = stopped_vid
-        order.error_message = ""
-        if detail is not None and detail.youtube_url:
-            detail.youtube_url = None
-            detail.save(update_fields=["youtube_url", "updated_at"])
 
-        if remove_pending_stop_video_id(item, stopped_vid):
-            item_fields.append("pending_stop_video_ids")
+    item_fields = ["review_status", "updated_at"]
 
-        remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
-        untracked_current = bool(item.youtube_draft_video_id) and item.youtube_draft_video_id != stopped_vid
-        if remaining_pending or untracked_current:
-            if untracked_current and add_pending_stop_video_id(item, item.youtube_draft_video_id):
-                item_fields.append("pending_stop_video_ids")
-                remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
-            elif item.youtube_draft_video_id == stopped_vid and remaining_pending:
-                item.youtube_draft_video_id = remaining_pending[0]
-                item_fields.append("youtube_draft_video_id")
-            if item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
-                item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
-            if item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE:
-                item.youtube_draft_privacy = ""
-                item_fields.append("youtube_draft_privacy")
-            item.save(update_fields=list(dict.fromkeys(item_fields)))
-            return True
-
-        item.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
-        item.youtube_draft_privacy = effective_privacy
-        item_fields.append("youtube_draft_privacy")
-        item.save(update_fields=list(dict.fromkeys(item_fields)))
-        return False
-
-    effective_privacy = youtube_draft_privacy or item.youtube_draft_privacy
+    is_new_video = bool(result_video_id) and result_video_id != item.youtube_draft_video_id
+    effective_privacy = (
+        youtube_draft_privacy
+        if (youtube_draft_privacy or is_new_video)
+        else item.youtube_draft_privacy
+    )
     derived_status = derive_review_status_on_success(
         order_type=order.order_type,
         privacy=effective_privacy,
@@ -118,7 +90,7 @@ def _apply_succeeded_order(
             item_fields.append("pending_stop_video_ids")
         item.youtube_draft_video_id = result_video_id
         item_fields.append("youtube_draft_video_id")
-    if youtube_draft_privacy:
+    if youtube_draft_privacy or is_new_video:
         item.youtube_draft_privacy = youtube_draft_privacy
         item_fields.append("youtube_draft_privacy")
     item.review_status = derived_status
@@ -210,6 +182,16 @@ def _record_partial_or_late_apply_edl_output(
     has_active_stop = any(
         a.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH for a in active_orders
     )
+    has_newer_stop = RecordingEditOrder.objects.filter(
+        review_item=item,
+        order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+        status__in=(
+            RecordingEditOrder.Status.QUEUED,
+            RecordingEditOrder.Status.RUNNING,
+            RecordingEditOrder.Status.SUCCEEDED,
+        ),
+        pk__gt=order.pk,
+    ).exists()
 
     if reported_video_id:
         if not order.result_video_id:
@@ -225,7 +207,7 @@ def _record_partial_or_late_apply_edl_output(
             ) and add_pending_stop_video_id(item, prior_vid):
                 item_fields.append("pending_stop_video_ids")
         if (
-            (not consent_valid or has_active_stop or (prior_vid and prior_vid != reported_video_id))
+            (not consent_valid or has_active_stop or has_newer_stop or (prior_vid and prior_vid != reported_video_id))
             and youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PRIVATE
             and add_pending_stop_video_id(item, reported_video_id)
         ):
@@ -245,9 +227,15 @@ def _record_partial_or_late_apply_edl_output(
             if item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
                 item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
                 item_fields.append("review_status")
-        elif item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
-            item.review_status = RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
-            item_fields.append("review_status")
+        elif item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED or (
+            prior_vid and prior_vid != reported_video_id and not youtube_draft_privacy
+        ):
+            if item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
+                item.review_status = RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
+                item_fields.append("review_status")
+            if not youtube_draft_privacy and item.youtube_draft_privacy:
+                item.youtube_draft_privacy = ""
+                item_fields.append("youtube_draft_privacy")
         item.save(update_fields=list(dict.fromkeys(item_fields)))
     elif (
         youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
@@ -255,7 +243,7 @@ def _record_partial_or_late_apply_edl_output(
     ):
         item_fields = ["youtube_draft_privacy", "review_status", "updated_at"]
         if (
-            (not consent_valid or has_active_stop)
+            (not consent_valid or has_active_stop or has_newer_stop)
             and item.youtube_draft_video_id
             and add_pending_stop_video_id(item, item.youtube_draft_video_id)
         ):
@@ -264,7 +252,7 @@ def _record_partial_or_late_apply_edl_output(
         item.review_status = RecordingReviewItem.ReviewStatus.PUBLISHED
         item.save(update_fields=item_fields)
 
-    if consent_valid:
+    if consent_valid and not has_newer_stop:
         return
 
     if detail is not None and detail.youtube_url:
