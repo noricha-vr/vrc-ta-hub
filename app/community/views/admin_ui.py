@@ -5,7 +5,12 @@ from django.urls import reverse
 from django.utils import timezone
 from website.discord_delivery import select_community_discord_delivery
 
-from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES
+from ..constants import (
+    DEFAULT_LT_APPLICATION_TEMPLATE,
+    LEGACY_RECORDING_POLICY_NOTICE,
+    RECORDING_POLICY_FORM_CHOICES,
+    RecordingPolicy,
+)
 from ..forms import CommunityUpdateForm
 from ..models import BotInstallation, CommunityInvitation
 from .bot_install import bot_install_enabled
@@ -49,6 +54,11 @@ def settings_display(context, community, request):
     context['bot_installations'].sort(key=lambda item: item.status != BotInstallation.Status.INSTALLED)
     context['lt_application_template_display'] = community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
     context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
+    context['default_recording_policy_legacy_notice'] = (
+        LEGACY_RECORDING_POLICY_NOTICE
+        if community.recording_allowed and community.default_recording_policy == RecordingPolicy.ALLOWED
+        else ''
+    )
     context['webhook_has_error'] = any(
         'webhook-error' in message.tags.split() for message in get_messages(request)
     )

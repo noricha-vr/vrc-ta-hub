@@ -6,7 +6,12 @@ from django.urls import path
 from django.shortcuts import render, redirect
 from django.utils import timezone
 
-from community.constants import recording_policy_admin_choices, weekday_code
+from community.constants import (
+    RECORDING_POLICY_ADMIN_HELP_TEXT,
+    RECORDING_POLICY_LABEL,
+    recording_policy_admin_choices,
+    weekday_code,
+)
 
 from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecurrenceRule
 
@@ -22,6 +27,8 @@ class EventDetailAdminForm(forms.ModelForm):
         self._original_recording_policy = self.instance.recording_policy
         if 'recording_policy' in self.fields:
             current_policy = self.instance.recording_policy if self.instance.pk else None
+            self.fields['recording_policy'].label = RECORDING_POLICY_LABEL
+            self.fields['recording_policy'].help_text = RECORDING_POLICY_ADMIN_HELP_TEXT
             self.fields['recording_policy'].choices = recording_policy_admin_choices(current_policy)
 
     def clean(self):
@@ -39,7 +46,7 @@ class EventDetailAdminForm(forms.ModelForm):
         ):
             self.add_error(
                 'recording_policy',
-                '特別企画の撮影は、主催者の発表の編集画面で出演者全員の確認をつけて設定してください',
+                '特別企画のボットによる自動撮影は、主催者の発表の編集画面で出演者全員の確認をつけて設定してください',
             )
         return cleaned
 

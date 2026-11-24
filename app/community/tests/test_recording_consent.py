@@ -61,6 +61,8 @@ class RecordingAllowedSettingsViewTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '発表申請フォームと、ボットによる自動撮影・持ち時間の初期値です。')
+        self.assertNotContains(response, '発表申請フォームと、撮影・持ち時間の初期値です。')
         self.assertContains(response, 'ハブの自動撮影ボットの対象になりません')
         html = response.content.decode()
         self.assertRegex(html, r'id="recording_allowed_true" name="recording_allowed" value="true"\s+checked')
@@ -159,6 +161,34 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         public_pos = html.index('id="default_recording_policy_public"')
         forbidden_pos = html.index('id="default_recording_policy_forbidden"')
         self.assertLess(public_pos, forbidden_pos)
+
+    def test_settings_page_shows_legacy_notice_only_for_allowed_when_recording_allowed(self):
+        """既存 allowed の集会設定では、2 択未選択と現在値案内・未変更維持の説明を出し、未選択保存で保持する。"""
+        notice = '現在は「旧設定（撮影するが公開しない）」が設定されています。選択せずに保存すると現在の設定が維持されます。'
+        for recording_allowed, policy, expected_notice in (
+            (True, RecordingPolicy.PUBLIC, False),
+            (True, RecordingPolicy.FORBIDDEN, False),
+            (False, RecordingPolicy.ALLOWED, False),
+            (True, RecordingPolicy.ALLOWED, True),
+        ):
+            with self.subTest(recording_allowed=recording_allowed, policy=policy):
+                self.community.recording_allowed = recording_allowed
+                self.community.default_recording_policy = policy
+                self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
+                html = self.client.get(reverse('community:settings')).content.decode()
+                if expected_notice:
+                    self.assertIn(notice, html)
+                    self.assertNotRegex(html, r'id="default_recording_policy_public"[^>]*checked')
+                    self.assertNotRegex(html, r'id="default_recording_policy_forbidden"[^>]*checked')
+                else:
+                    self.assertNotIn(notice, html)
+
+        self.community.recording_allowed = True
+        self.community.default_recording_policy = RecordingPolicy.ALLOWED
+        self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
+        self._post(default_recording_policy_chosen='1')
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.ALLOWED)
 
     def test_each_choice_is_saved(self):
         """2 つの値それぞれを保存できる。"""
@@ -541,6 +571,13 @@ class CommunityAdminFormRecordingPolicyTest(TestCase):
         from community.forms import CommunityForm
 
         new_form = CommunityForm()
+        self.assertEqual(new_form.fields['recording_allowed'].label, 'ボットによる自動撮影の許可')
+        self.assertIn(
+            '集会独自の撮影や写真撮影を制限する設定ではありません',
+            new_form.fields['recording_allowed'].help_text,
+        )
+        self.assertEqual(new_form.fields['default_recording_policy'].label, 'ボット撮影許可の初期値')
+        self.assertIn('ボットによる自動撮影', new_form.fields['default_recording_policy'].help_text)
         self.assertEqual(
             list(new_form.fields['default_recording_policy'].choices),
             [

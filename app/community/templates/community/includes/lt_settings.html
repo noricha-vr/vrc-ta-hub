@@ -5,6 +5,7 @@
 <label for="recording_allowed_true"><input type="radio" id="recording_allowed_true" name="recording_allowed" value="true" {% if community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()"><span>許可する</span></label>
 <label for="recording_allowed_false"><input type="radio" id="recording_allowed_false" name="recording_allowed" value="false" {% if not community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()"><span>許可しない</span></label></div></div></div>
 <div id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}"><div class="settings-field"><div class="settings-label">ボット撮影許可の初期値<small>発表申請フォームで、ボット撮影の初期値になります。登壇者は申請時に変えられます。</small></div><div class="settings-control" role="radiogroup" aria-label="ボット撮影許可の初期値">
+{% if default_recording_policy_legacy_notice %}<p class="form-text text-muted mb-2" id="default-recording-policy-legacy-notice">{{ default_recording_policy_legacy_notice }}</p>{% endif %}
 {% for value, label in recording_policy_choices %}<label><input type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}" {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyTouched()"> {{ label }}</label>{% endfor %}
 <input type="hidden" id="default_recording_policy_chosen" name="default_recording_policy_chosen" value="">
 </div></div></div>

@@ -81,6 +81,21 @@ RECORDING_POLICY_DISPLAY_LABELS = {
     RecordingPolicy.ALLOWED.value: '旧設定（撮影するが公開しない）',
 }
 
+RECORDING_POLICY_LABEL = 'ボットによる自動撮影'
+RECORDING_POLICY_ADMIN_HELP_TEXT = (
+    'ハブの撮影ボットによる録画・YouTube 公開の可否です'
+    '（集会独自の撮影や参加者の写真撮影を制限する設定ではありません）。'
+)
+RECORDING_ALLOWED_LABEL = 'ボットによる自動撮影の許可'
+DEFAULT_RECORDING_POLICY_LABEL = 'ボット撮影許可の初期値'
+DEFAULT_RECORDING_POLICY_ADMIN_HELP_TEXT = (
+    '発表申請フォームで、ボットによる自動撮影の初期値になります。登壇者は申請時に変えられます。'
+)
+LEGACY_RECORDING_POLICY_NOTICE = (
+    f'現在は「{RECORDING_POLICY_DISPLAY_LABELS[RecordingPolicy.ALLOWED.value]}」が設定されています。'
+    '選択せずに保存すると現在の設定が維持されます。'
+)
+
 
 def recording_policy_admin_choices(current_value: str | None) -> list[tuple[str, str]]:
     """Django 管理画面向け選択肢。新規・現行値では 2 択のみ、既存 allowed 編集時のみ現在値を保持できるよう含める。"""

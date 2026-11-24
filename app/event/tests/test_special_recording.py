@@ -42,7 +42,7 @@ class SpecialRecordingFormTest(TestCase):
                 form = self.form(instance=instance, recording_policy='public')
                 self.assertFalse(form.is_valid())
                 self.assertEqual(form.errors['special_recording_confirmed'], [
-                    '特別企画を撮影する時は、出演者全員に確認したことにチェックを入れてください。',
+                    '特別企画でボットによる自動撮影を許可する時は、出演者全員に確認したことにチェックを入れてください。',
                 ])
 
     def test_confirmed_saves_duration_theme_and_resets_confirmation(self):
@@ -147,8 +147,17 @@ class SpecialRecordingAdminTest(TestCase):
         })
 
     def test_both_admin_paths_use_guarded_form(self):
-        self.assertIs(EventDetailInline(Event, admin.site).form, EventDetailAdminForm)
-        self.assertIs(EventDetailAdmin(EventDetail, admin.site).form, EventDetailAdminForm)
+        inline_form_cls = EventDetailInline(Event, admin.site).form
+        admin_form_cls = EventDetailAdmin(EventDetail, admin.site).form
+        self.assertIs(inline_form_cls, EventDetailAdminForm)
+        self.assertIs(admin_form_cls, EventDetailAdminForm)
+        admin_form = admin_form_cls()
+        self.assertEqual(admin_form.fields['recording_policy'].label, 'ボットによる自動撮影')
+        self.assertIn('ハブの撮影ボット', admin_form.fields['recording_policy'].help_text)
+        self.assertIn(
+            '集会独自の撮影や参加者の写真撮影を制限する設定ではありません',
+            admin_form.fields['recording_policy'].help_text,
+        )
 
     def test_create_non_forbidden_and_type_or_policy_changes_are_rejected(self):
         for policy in ('public', 'allowed'):
@@ -161,6 +170,11 @@ class SpecialRecordingAdminTest(TestCase):
                     form = self.form(instance, recording_policy=policy)
                     self.assertFalse(form.is_valid())
                     self.assertIn('recording_policy', form.errors)
+                    if policy == 'public':
+                        self.assertEqual(
+                            form.errors['recording_policy'],
+                            ['特別企画のボットによる自動撮影は、主催者の発表の編集画面で出演者全員の確認をつけて設定してください'],
+                        )
 
     def test_forbidden_creation_and_unchanged_recording_can_be_saved(self):
         form = self.form(recording_policy='forbidden')
@@ -194,9 +208,14 @@ class SpecialRecordingScreenTest(TestCase):
         response = self.client.post(self.create_url, self.payload(special_recording_confirmed=False))
         self.assertEqual(response.status_code, 200)
         for text in ('name="recording_policy"', 'name="duration"', 'name="special_recording_confirmed"',
-                     '/guide/lt/create/#パネルを撮影する時の進め方', '出演者全員に、撮影と公開の可否を確認しました'):
+                     '/guide/lt/create/#パネルを撮影する時の進め方',
+                     '出演者全員に、ボットによる自動撮影と公開の可否を確認しました',
+                     '1 人でもボットによる自動撮影を望まない人がいる時は「許可しない（ボットで撮影しない）」を選んでください。'):
             self.assertContains(response, text)
-        self.assertContains(response, '特別企画を撮影する時は、出演者全員に確認したことにチェックを入れてください。')
+        self.assertContains(
+            response,
+            '特別企画でボットによる自動撮影を許可する時は、出演者全員に確認したことにチェックを入れてください。',
+        )
         self.assertContains(response, "show: ['h1', 'thumbnail_image', 'contents', 'start_time', 'duration', 'recording_policy', 'special_recording_confirmed']")
         self.assertContains(response, 'if (forbidden) forbidden.checked = true;')
         self.assertContains(response, "hide: ['special_recording_confirmed']")

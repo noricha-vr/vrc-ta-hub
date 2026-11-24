@@ -49,7 +49,7 @@
   },
   "community/settings": {
     "date": "2026-11-24",
-    "hash": "c1004970212b7018"
+    "hash": "e4d10d23052f5853"
   },
   "community/switch": {
     "date": "2026-10-27",
@@ -88,8 +88,8 @@
     "hash": "2b0bd76a4559a7da"
   },
   "lt/approve": {
-    "date": "2026-10-27",
-    "hash": "e466b5768f417598"
+    "date": "2026-11-24",
+    "hash": "f7be1a17548356bd"
   },
   "lt/auto-generate": {
     "date": "2026-11-05",
@@ -97,7 +97,7 @@
   },
   "lt/create": {
     "date": "2026-11-24",
-    "hash": "f7d01948768761f0"
+    "hash": "e422c596d9f8af2d"
   },
   "lt/edit-delete": {
     "date": "2026-11-05",

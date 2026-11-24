@@ -34,7 +34,7 @@ from .mixins import (
 
 class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms.ModelForm):
     special_recording_confirmed = forms.BooleanField(
-        label='出演者全員に、撮影と公開の可否を確認しました',
+        label='出演者全員に、ボットによる自動撮影と公開の可否を確認しました',
         required=False,
         initial=False,
         widget=forms.CheckboxInput(attrs={
@@ -42,7 +42,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             'aria-describedby': 'id_special_recording_confirmed_help',
         }),
         help_text=mark_safe(
-            '1 人でも撮影を望まない人がいる時は「許可しない（ボットで撮影しない）」を選んでください。'
+            '1 人でもボットによる自動撮影を望まない人がいる時は「許可しない（ボットで撮影しない）」を選んでください。'
             '開始前に、質疑などでの発言も録音されることを参加者へ案内してください。'
             '<a href="/guide/lt/create/#パネルを撮影する時の進め方" target="_blank" rel="noopener">'
             'パネルを撮影する時の進め方</a>'
@@ -293,7 +293,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             ):
                 self.add_error(
                     'special_recording_confirmed',
-                    '特別企画を撮影する時は、出演者全員に確認したことにチェックを入れてください。',
+                    '特別企画でボットによる自動撮影を許可する時は、出演者全員に確認したことにチェックを入れてください。',
                 )
         elif detail_type == 'BLOG':
             # ブログのデフォルト値（h1があればthemeにコピー）
