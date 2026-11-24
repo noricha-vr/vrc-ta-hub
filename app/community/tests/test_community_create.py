@@ -238,6 +238,11 @@ class CommunityCreateViewTest(TestCase):
         self.assertEqual(form['default_recording_policy'].value(), RecordingPolicy.PUBLIC)
         self.assertEqual(form['default_lt_duration'].value(), 30)
         self.assertEqual(form['lt_start_offset_minutes'].value(), 30)
+        self.assertIn(
+            '（集会独自の撮影や写真撮影を制限する設定ではありません）',
+            form.fields['recording_allowed'].help_text,
+        )
+        self.assertContains(response, '（集会独自の撮影や写真撮影を制限する設定ではありません）')
         for label in (
             'Discord 通知', 'VRCイベントカレンダー', 'X の告知テンプレート',
             'メンバー', 'API キー', '発表申請の追加情報テンプレート',

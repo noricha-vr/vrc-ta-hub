@@ -24,7 +24,7 @@
 {% csrf_token %}{% include 'community/includes/settings_community_fields.html' %}
 </form>
 <section class="admin-card" id="applications">
-{% include 'community/includes/settings_heading.html' with title='発表の受付' icon='mic' description='発表申請フォームと、撮影・持ち時間の初期値です。' scope='発表受付' form_id='lt-form' only %}
+{% include 'community/includes/settings_heading.html' with title='発表の受付' icon='mic' description='発表申請フォームと、ボットによる自動撮影・持ち時間の初期値です。' scope='発表受付' form_id='lt-form' only %}
 {% include 'community/includes/lt_settings.html' %}
 </section>
 <section class="admin-card" id="integrations">

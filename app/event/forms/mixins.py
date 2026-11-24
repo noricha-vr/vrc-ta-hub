@@ -16,7 +16,11 @@ from django.utils.functional import lazy
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
-from community.constants import RECORDING_POLICY_FORM_CHOICES
+from community.constants import (
+    LEGACY_RECORDING_POLICY_NOTICE,
+    RECORDING_POLICY_FORM_CHOICES,
+    RECORDING_POLICY_LABEL as RECORDING_POLICY_LABEL,
+)
 
 from ..form_validators import validate_and_sanitize_pdf, validate_thumbnail_image
 from ..models import ARTICLE_BODY_FIELDS, SLIDE_FETCH_FIELDS, EventDetail, article_body_hash
@@ -26,7 +30,6 @@ logger = logging.getLogger(__name__)
 # 編集画面を開いた時点の記事のハッシュを持たせる hidden の項目
 ARTICLE_SNAPSHOT_FIELD = 'article_snapshot'
 
-RECORDING_POLICY_LABEL = 'ボットによる自動撮影'
 # 固定の文言と URL だけを HTML として扱い、テンプレートの autoescape は維持する。
 RECORDING_POLICY_HELP_TEXT = mark_safe(
     'ハブの撮影ボットによる録画・YouTube 公開の可否です'
@@ -355,8 +358,7 @@ class RecordingPolicyFormMixin:
             and instance.recording_policy == EventDetail.RecordingPolicy.ALLOWED
         )
         self.fields['recording_policy'].legacy_notice = (
-            '現在は「旧設定（撮影するが公開しない）」が設定されています。'
-            '選択せずに保存すると現在の設定が維持されます。'
+            LEGACY_RECORDING_POLICY_NOTICE
             if is_legacy_allowed
             else ''
         )
