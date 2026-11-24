@@ -9,8 +9,12 @@ from django.test import TestCase
 
 from event.models import RecordingEditOrder, RecordingReviewItem
 from event.services.recording_ops.edl import (
+    ALLOW_ACCEPT_CUTS,
+    MAX_CUTS_COUNT,
     EDLValidationError,
+    compute_keep_spans,
     extract_adopted_duration_sec,
+    summarize_cuts,
     validate_edl_v1,
 )
 from tests.factories import make_community, make_event, make_event_detail
@@ -231,6 +235,58 @@ class EDLv1ValidationTest(TestCase):
         )
         with self.assertRaises(EDLValidationError):
             validate_edl_v1(edl)
+
+    def test_keep_spans_min_duration_and_summarize_cuts(self):
+        self.assertFalse(ALLOW_ACCEPT_CUTS)
+        edl = _valid_edl(
+            trim={"start_sec": 30.0, "end_sec": 100.0},
+            cuts=[
+                {"id": "c1", "start_sec": 30.0, "end_sec": 40.0, "kind": "silence", "label": "冒頭", "action": "accept", "source": "vad"},
+                {"id": "c2", "start_sec": 50.0, "end_sec": 60.0, "kind": "manual", "label": "手動", "action": "accept", "source": "staff"},
+                {"id": "c3", "start_sec": 70.0, "end_sec": 80.0, "kind": "trouble", "label": "保留", "action": "pending", "source": "vad"},
+                {"id": "c4", "start_sec": 85.0, "end_sec": 95.0, "kind": "silence", "label": "却下", "action": "reject", "source": "vad"},
+            ],
+        )
+        self.assertEqual(compute_keep_spans(edl), [(40.0, 50.0), (60.0, 100.0)])
+        self.assertAlmostEqual(extract_adopted_duration_sec(edl), 50.0)
+        self.assertEqual(
+            summarize_cuts(edl["cuts"]),
+            {
+                "cuts_total": 4,
+                "cuts_accept_count": 2,
+                "cuts_reject_count": 1,
+                "cuts_pending_count": 1,
+                "cuts_manual_count": 1,
+                "cuts_auto_accept_count": 1,
+                "cuts_auto_reject_count": 1,
+            },
+        )
+
+        # keep_spans 合計が 1.0 秒未満は拒否、1.0 秒ちょうどは許可
+        too_short = _valid_edl(
+            trim={"start_sec": 30.0, "end_sec": 100.0},
+            cuts=[
+                {"id": "c1", "start_sec": 30.0, "end_sec": 99.1, "kind": "silence", "label": "長すぎ", "action": "accept"},
+            ],
+        )
+        with self.assertRaises(EDLValidationError):
+            validate_edl_v1(too_short)
+
+        exact_min = _valid_edl(
+            trim={"start_sec": 30.0, "end_sec": 100.0},
+            cuts=[
+                {"id": "c1", "start_sec": 30.0, "end_sec": 99.0, "kind": "silence", "label": "境界", "action": "accept"},
+            ],
+        )
+        self.assertEqual(compute_keep_spans(exact_min), [(99.0, 100.0)])
+
+        # MAX_CUTS_COUNT 超過は拒否
+        too_many_cuts = [
+            {"id": f"p-{i}", "start_sec": 30.0, "end_sec": 31.0, "kind": "silence", "label": "x", "action": "pending"}
+            for i in range(MAX_CUTS_COUNT + 1)
+        ]
+        with self.assertRaises(EDLValidationError):
+            validate_edl_v1(_valid_edl(cuts=too_many_cuts))
 
 
 class RecordingModelsTest(TestCase):

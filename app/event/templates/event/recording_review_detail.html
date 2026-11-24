@@ -23,8 +23,31 @@
         .hub-admin .recording-nudge-group { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
         .hub-admin .recording-nudge-group .btn { white-space: nowrap; }
         .hub-admin .recording-metrics { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; font-size: .875rem; color: var(--admin-muted); font-variant-numeric: tabular-nums; }
+        .hub-admin .recording-timeline-panel { margin-top: .85rem; padding-top: .75rem; border-top: 1px solid var(--admin-border); }
+        .hub-admin .recording-timeline-bar { position: relative; width: 100%; height: 28px; background: #e9ecef; border-radius: .375rem; overflow: hidden; border: 1px solid var(--admin-border); cursor: pointer; }
+        .hub-admin .recording-tl-keep { position: absolute; top: 0; bottom: 0; background: rgba(27, 125, 230, 0.25); border-left: 1px solid rgba(27, 125, 230, 0.55); border-right: 1px solid rgba(27, 125, 230, 0.55); pointer-events: none; }
+        .hub-admin .recording-tl-cut { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; cursor: pointer; }
+        .hub-admin .recording-tl-cut.is-accept { background: rgba(220, 53, 69, 0.8); }
+        .hub-admin .recording-tl-cut.is-pending { background: rgba(255, 193, 7, 0.85); }
+        .hub-admin .recording-tl-cut.is-reject { background: rgba(108, 117, 125, 0.4); }
+        .hub-admin .recording-tl-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #11161d; pointer-events: none; }
+        .hub-admin .recording-timeline-legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; font-size: .75rem; color: var(--admin-muted); margin-top: .4rem; }
+        .hub-admin .recording-tl-swatch { display: inline-block; width: .65rem; height: .65rem; border-radius: 2px; vertical-align: middle; margin-right: .25rem; }
+        .hub-admin .recording-cut-add-panel { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .85rem; background: var(--admin-surface-muted); }
+        .hub-admin .recording-cut-add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr)); gap: .6rem; align-items: end; }
+        .hub-admin .recording-cuts-list { display: flex; flex-direction: column; gap: .6rem; }
+        .hub-admin .recording-cut-card { border: 1px solid var(--admin-border); border-radius: .5rem; padding: .75rem .9rem; background: #fff; min-width: 0; }
+        .hub-admin .recording-cut-card.is-accept { border-left: 4px solid #dc3545; background: #fffafa; }
+        .hub-admin .recording-cut-card.is-pending { border-left: 4px solid #d69620; background: #fffcf4; }
+        .hub-admin .recording-cut-card.is-reject { border-left: 4px solid #adb5bd; background: #f8f9fa; }
+        .hub-admin .recording-cut-card.is-invalid { border-color: #dc3545; box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.25); }
+        .hub-admin .recording-cut-actions { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+        .hub-admin .recording-cut-actions .btn { white-space: nowrap; }
+        .hub-admin .recording-cut-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(8.5rem, 100%), 1fr)); gap: .5rem; margin-top: .65rem; padding-top: .65rem; border-top: 1px dashed var(--admin-border); }
+        .hub-admin .recording-cuts-empty { border: 1px dashed var(--admin-border); border-radius: var(--admin-radius-control); padding: .85rem 1rem; background: var(--admin-surface-muted); }
         @media (max-width: 575.98px) {
             .hub-admin .recording-trim-panel { padding: .85rem; }
+            .hub-admin .recording-cut-card { padding: .7rem .75rem; }
             .hub-admin .recording-submit-row .btn { width: 100%; }
         }
     </style>
@@ -155,6 +178,24 @@
                     <span>署名 URL 有効目安: 約 {{ remaining_minutes }} 分</span>
                 {% endif %}
             </div>
+
+            <div class="recording-timeline-panel" data-testid="recording-timeline-panel">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1 small">
+                    <span class="fw-bold">タイムラインと維持区間（keep_spans）</span>
+                    <span id="recording-keep-spans-summary" class="admin-muted" data-testid="keep-spans-summary">-</span>
+                </div>
+                <div id="recording-timeline-bar"
+                     class="recording-timeline-bar"
+                     role="region"
+                     aria-label="タイムライン表示"
+                     data-testid="recording-timeline-bar"></div>
+                <div class="recording-timeline-legend">
+                    <span><span class="recording-tl-swatch" style="background: rgba(27, 125, 230, 0.35);"></span>採用区間（keep_spans）</span>
+                    <span><span class="recording-tl-swatch" style="background: rgba(220, 53, 69, 0.8);"></span>採用カット（accept）</span>
+                    <span><span class="recording-tl-swatch" style="background: rgba(255, 193, 7, 0.85);"></span>保留（pending）</span>
+                    <span><span class="recording-tl-swatch" style="background: rgba(108, 117, 125, 0.45);"></span>却下（reject）</span>
+                </div>
+            </div>
         {% else %}
             <div class="alert {% if ctx.proxy_state == 'missing' %}alert-secondary{% else %}alert-warning{% endif %} mb-0" role="status" data-testid="proxy-state-card" data-proxy-state="{{ ctx.proxy_state }}">
                 <p class="fw-bold mb-1">
@@ -169,15 +210,16 @@
     </section>
 
     <section class="admin-card" aria-labelledby="trim-editor-heading">
-        {% include 'ta_hub/admin/includes/section_heading.html' with title='開始・終了トリミング確定（Phase 1）' heading_id='trim-editor-heading' only %}
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='開始・終了トリミング・途中カット確定' heading_id='trim-editor-heading' only %}
 
         <form id="recording-trim-form"
               method="post"
               action="{% url 'event:recording_review_detail' ctx.detail.pk %}"
               data-admin-dirty
-              data-admin-scope="トリミング">
+              data-admin-scope="トリミング・途中カット">
             {% csrf_token %}
             <input type="hidden" name="expected_revision" id="id_expected_revision" value="{{ expected_revision_value }}">
+            <input type="hidden" name="cuts_json" id="id_cuts_json" value="{{ form_cuts_json }}">
 
             <div class="recording-trim-grid">
                 <div class="recording-trim-panel">
@@ -285,12 +327,10 @@
                 </div>
             </div>
 
-            <p class="small admin-muted mt-3 mb-2">
-                ※ Phase 1 では開始・終了区間のみを編集し、途中カット <code>cuts</code>（現在 {{ ctx.cuts_count }} 件）は変更せずそのまま確定送信します。
-            </p>
+            {% include 'event/includes/recording_cuts_editor.html' %}
 
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 border-top recording-submit-row">
-                <span class="admin-dirty-status" data-admin-form-status="recording-trim-form" data-admin-scope="トリミング" aria-live="polite">トリミング: 変更はありません</span>
+                <span class="admin-dirty-status" data-admin-form-status="recording-trim-form" data-admin-scope="トリミング・途中カット" aria-live="polite">トリミング・途中カット: 変更はありません</span>
                 <button type="submit"
                         id="recording-submit-btn"
                         class="btn btn-primary"
@@ -337,12 +377,14 @@
         {% endtimezone %}
     </section>
 
+    {{ form_cuts|json_script:"recording-cuts-initial" }}
     <script id="recording-review-config" type="application/json">
         {
             "safeMin": {{ ctx.safe_min_sec|stringformat:"f" }},
             "safeMax": {{ ctx.safe_max_sec|stringformat:"f" }},
             "canSubmit": {{ can_submit|yesno:"true,false" }},
             "isPublicLocked": {{ ctx.is_public_locked|yesno:"true,false" }},
+            "allowAcceptCuts": {{ ctx.allow_accept_cuts|yesno:"true,false" }},
             "proxyState": "{{ ctx.proxy_state|escapejs }}"
         }
     </script>
@@ -350,5 +392,7 @@
 
 {% block extra_js %}
     {{ block.super }}
+    <script src="{% static 'event/js/recording-cuts-timeline.js' %}" defer></script>
+    <script src="{% static 'event/js/recording-cuts.js' %}" defer></script>
     <script src="{% static 'event/js/recording-review.js' %}" defer></script>
 {% endblock %}

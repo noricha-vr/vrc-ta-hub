@@ -1,10 +1,8 @@
 """運営スタッフ向けの録画プロキシ確認・開始終了トリミング確定ビュー。"""
 from __future__ import annotations
 
-import copy
 import json
 import logging
-import math
 from typing import Any
 
 from django.contrib import messages
@@ -16,12 +14,12 @@ from django.views import View
 
 from community.constants import RecordingPolicy
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
+from event.services.recording_ops.edl import compute_keep_spans, extract_adopted_duration_sec
 from event.services.recording_ops.errors import (
     MAX_REVISION,
     RecordingConflictError,
     RecordingNotFoundError,
     RecordingValidationError,
-    validate_positive_revision,
 )
 from event.services.recording_ops.orders import create_edit_order
 from event.services.recording_ops.queries import (
@@ -35,6 +33,11 @@ from event.services.recording_ops.queries import (
     get_recording_list_summary,
 )
 from event.services.recording_ops.storage import RecordingConsentError
+from event.views.recording_review_helpers import (
+    build_next_edl_from_registered,
+    build_order_log_extra,
+    extract_trim_and_cuts_submission,
+)
 from ta_hub.access_mixins import StaffRequiredMixin
 
 logger = logging.getLogger(__name__)
@@ -94,89 +97,6 @@ def _wants_json(request: HttpRequest) -> bool:
     if request.content_type == "application/json":
         return True
     return "application/json" in request.headers.get("Accept", "")
-
-
-def _parse_int_revision(raw_value: Any, *, strict_json: bool) -> int:
-    if strict_json:
-        validate_positive_revision(raw_value, "expected_revision")
-        return int(raw_value)
-    if not isinstance(raw_value, str):
-        raise RecordingValidationError("expected_revision は正の整数で指定してください。")
-    stripped = raw_value.strip()
-    if not stripped or not stripped.isascii() or not stripped.isdigit():
-        raise RecordingValidationError("expected_revision は正の整数で指定してください。")
-    try:
-        parsed = int(stripped)
-    except ValueError as exc:
-        raise RecordingValidationError("expected_revision の数値が大きすぎます。") from exc
-    validate_positive_revision(parsed, "expected_revision")
-    return parsed
-
-
-def _parse_finite_seconds(raw_value: Any, field_name: str, *, strict_json: bool) -> float:
-    if strict_json:
-        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
-            raise RecordingValidationError(f"{field_name} は数値で指定してください。")
-        try:
-            val = float(raw_value)
-        except (ValueError, OverflowError) as exc:
-            raise RecordingValidationError(f"{field_name} に不正な数値は指定できません。") from exc
-    else:
-        if not isinstance(raw_value, str) or not raw_value.strip():
-            raise RecordingValidationError(f"{field_name} を入力してください。")
-        try:
-            val = float(raw_value.strip())
-        except (ValueError, OverflowError) as exc:
-            raise RecordingValidationError(f"{field_name} は数値で指定してください。") from exc
-    if not math.isfinite(val):
-        raise RecordingValidationError(f"{field_name} に不正な数値は指定できません。")
-    return round(val, 3)
-
-
-def _extract_trim_submission(request: HttpRequest) -> tuple[int, float, float]:
-    is_json_body = request.content_type == "application/json"
-    if is_json_body:
-        try:
-            payload = json.loads(request.body.decode("utf-8"))
-        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
-            raise RecordingValidationError("リクエスト JSON の形式が不正です。") from exc
-        if not isinstance(payload, dict):
-            raise RecordingValidationError("JSON オブジェクトを指定してください。")
-        rev = _parse_int_revision(payload.get("expected_revision"), strict_json=True)
-        if "edl_json" in payload and isinstance(payload["edl_json"], dict):
-            trim_obj = payload["edl_json"].get("trim")
-            if not isinstance(trim_obj, dict):
-                raise RecordingValidationError("edl_json.trim を指定してください。")
-            raw_start = trim_obj.get("start_sec")
-            raw_end = trim_obj.get("end_sec")
-        else:
-            raw_start = payload.get("start_sec")
-            raw_end = payload.get("end_sec")
-        start_sec = _parse_finite_seconds(raw_start, "開始位置（start_sec）", strict_json=True)
-        end_sec = _parse_finite_seconds(raw_end, "終了位置（end_sec）", strict_json=True)
-        return (rev, start_sec, end_sec)
-
-    rev = _parse_int_revision(request.POST.get("expected_revision"), strict_json=False)
-    start_sec = _parse_finite_seconds(request.POST.get("start_sec"), "開始位置（start_sec）", strict_json=False)
-    end_sec = _parse_finite_seconds(request.POST.get("end_sec"), "終了位置（end_sec）", strict_json=False)
-    return (rev, start_sec, end_sec)
-
-
-def _build_next_edl_from_registered(
-    item: RecordingReviewItem | None,
-    *,
-    start_sec: float,
-    end_sec: float,
-) -> dict[str, Any] | None:
-    """登録済み EDL の safe_bounds / boundary_candidates / cuts を保ったまま trim だけ差し替える。"""
-    if item is None or not isinstance(item.edl_json, dict) or not item.edl_json:
-        return None
-    next_edl = copy.deepcopy(item.edl_json)
-    next_edl["schema_version"] = 1
-    next_edl["trim"] = {"start_sec": start_sec, "end_sec": end_sec}
-    if "cuts" not in next_edl or not isinstance(next_edl["cuts"], list):
-        next_edl["cuts"] = []
-    return next_edl
 
 
 def _human_conflict_message(exc: RecordingConflictError) -> str:
@@ -252,6 +172,7 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
         error_message: str = "",
         submitted_start_sec: float | None = None,
         submitted_end_sec: float | None = None,
+        submitted_cuts: list[dict[str, Any]] | None = None,
     ) -> HttpResponse:
         try:
             detail_ctx = build_recording_detail_context(detail_id, issue_presigned_url=True)
@@ -265,6 +186,7 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
         expected_revision_value = "" if has_conflict else str(detail_ctx.edl_revision)
         start_value = submitted_start_sec if submitted_start_sec is not None else detail_ctx.trim_start_sec
         end_value = submitted_end_sec if submitted_end_sec is not None else detail_ctx.trim_end_sec
+        cuts_value = submitted_cuts if submitted_cuts is not None else detail_ctx.cuts
         return render(
             request,
             self.template_name,
@@ -280,6 +202,8 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
                 "error_message": error_message,
                 "form_start_sec": start_value,
                 "form_end_sec": end_value,
+                "form_cuts": cuts_value,
+                "form_cuts_json": json.dumps(cuts_value, ensure_ascii=False),
                 "max_revision": MAX_REVISION,
             },
             status=status_code,
@@ -311,14 +235,19 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
             return HttpResponseForbidden(msg)
 
         try:
-            expected_revision, start_sec, end_sec = _extract_trim_submission(request)
+            expected_revision, start_sec, end_sec, submitted_cuts = extract_trim_and_cuts_submission(request)
         except RecordingValidationError as exc:
             if wants_json:
                 return JsonResponse({"ok": False, "code": exc.code, "detail": exc.detail}, status=400)
             return self._render_detail(request, detail_id, status_code=400, error_message=exc.detail)
 
         item: RecordingReviewItem | None = getattr(detail, "recording_review", None)
-        next_edl = _build_next_edl_from_registered(item, start_sec=start_sec, end_sec=end_sec)
+        next_edl = build_next_edl_from_registered(
+            item,
+            start_sec=start_sec,
+            end_sec=end_sec,
+            cuts=submitted_cuts,
+        )
 
         try:
             order = create_edit_order(
@@ -347,6 +276,7 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
                 conflict_code=exc.code,
                 submitted_start_sec=start_sec,
                 submitted_end_sec=end_sec,
+                submitted_cuts=submitted_cuts,
             )
         except RecordingConsentError as exc:
             if wants_json:
@@ -362,6 +292,7 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
                 error_message=exc.detail,
                 submitted_start_sec=start_sec,
                 submitted_end_sec=end_sec,
+                submitted_cuts=submitted_cuts,
             )
         except RecordingNotFoundError as exc:
             if wants_json:
@@ -370,13 +301,13 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
 
         logger.info(
             "recording_review_trim_order_submitted",
-            extra={
-                "event_type": "recording_review_trim_order_submitted",
-                "event_detail_id": detail.pk,
-                "order_id": order.pk,
-                "base_revision": order.base_revision,
-                "target_revision": order.target_revision,
-            },
+            extra=build_order_log_extra(detail.pk, order, next_edl),
+        )
+        final_cuts = next_edl.get("cuts", []) if next_edl else []
+        success_msg = (
+            "トリミング・途中カットを確定し、書き出しキューへ登録しました。"
+            if final_cuts
+            else "トリミングを確定し、書き出しキューへ登録しました。"
         )
         if wants_json:
             return JsonResponse(
@@ -387,10 +318,13 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
                     "order_status_label": order.get_status_display(),
                     "edl_revision": order.target_revision,
                     "trim": {"start_sec": start_sec, "end_sec": end_sec},
-                    "message": "トリミングを確定し、書き出しキューへ登録しました。",
+                    "cuts": final_cuts,
+                    "keep_spans": [[s, e] for s, e in compute_keep_spans(next_edl)] if next_edl else [],
+                    "adopted_duration_sec": extract_adopted_duration_sec(next_edl) if next_edl else 0.0,
+                    "message": success_msg,
                 },
                 status=201,
             )
 
-        messages.success(request, "トリミングを確定し、書き出しキューへ登録しました。")
+        messages.success(request, success_msg)
         return redirect("event:recording_review_detail", detail_id=detail.pk)

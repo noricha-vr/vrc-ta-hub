@@ -8,6 +8,10 @@ from typing import Any
 
 EDL_SCHEMA_VERSION = 1
 EDL_CUT_ACTIONS = frozenset({"pending", "accept", "reject"})
+# 録画側ワーカーの途中カット（action="accept"）対応が完了するまで False で安全に抑止する。
+ALLOW_ACCEPT_CUTS: bool = False
+MIN_KEEP_DURATION_SEC = Decimal("1.0")
+MAX_CUTS_COUNT = 200
 _TOP_LEVEL_REQUIRED_KEYS = frozenset({"schema_version", "safe_bounds", "trim", "cuts"})
 _TOP_LEVEL_ALLOWED_KEYS = _TOP_LEVEL_REQUIRED_KEYS | {"boundary_candidates"}
 _BOUNDARY_CANDIDATE_KEYS = frozenset({"start", "end"})
@@ -81,6 +85,8 @@ def _validate_cuts(
 ) -> Decimal:
     if not isinstance(cuts, list):
         raise EDLValidationError("cuts は配列で指定してください。")
+    if len(cuts) > MAX_CUTS_COUNT:
+        raise EDLValidationError(f"cuts は {MAX_CUTS_COUNT} 件以下で指定してください。")
 
     seen_ids: set[str] = set()
     prev_accepted_end: float | None = None
@@ -185,10 +191,61 @@ def validate_edl_v1(edl_json: Any) -> dict[str, Any]:
         trim_end=trim_end,
     )
     trim_duration = Decimal(str(trim_end)) - Decimal(str(trim_start))
-    if trim_duration - accepted_duration <= Decimal("0"):
-        raise EDLValidationError("trim から accept カットを差し引いた採用尺は 0 秒より大きい必要があります。")
+    if trim_duration - accepted_duration < MIN_KEEP_DURATION_SEC:
+        raise EDLValidationError(
+            f"trim から accept カットを差し引いた維持時間（keep_spans 合計）は {MIN_KEEP_DURATION_SEC} 秒以上である必要があります。"
+        )
 
     return copy.deepcopy(edl_json)
+
+
+def compute_keep_spans(edl_json: dict[str, Any]) -> list[tuple[float, float]]:
+    """検証済み EDL v1 から accept カットを除いた維持区間（keep_spans）一覧を返す。"""
+    validated = validate_edl_v1(edl_json)
+    trim_start = float(validated["trim"]["start_sec"])
+    trim_end = float(validated["trim"]["end_sec"])
+    spans: list[tuple[float, float]] = []
+    cursor = trim_start
+    for cut in validated["cuts"]:
+        if cut["action"] != "accept":
+            continue
+        cut_start = float(cut["start_sec"])
+        cut_end = float(cut["end_sec"])
+        if cut_start > cursor:
+            spans.append((cursor, cut_start))
+        cursor = max(cursor, cut_end)
+    if cursor < trim_end:
+        spans.append((cursor, trim_end))
+    return spans
+
+
+def summarize_cuts(cuts: list[dict[str, Any]]) -> dict[str, int]:
+    """cuts 配列の件数・採否内訳・手動/自動件数を集計する。"""
+    summary = {
+        "cuts_total": len(cuts),
+        "cuts_accept_count": 0,
+        "cuts_reject_count": 0,
+        "cuts_pending_count": 0,
+        "cuts_manual_count": 0,
+        "cuts_auto_accept_count": 0,
+        "cuts_auto_reject_count": 0,
+    }
+    for cut in cuts:
+        action = cut.get("action")
+        is_manual = cut.get("source") == "staff"
+        if is_manual:
+            summary["cuts_manual_count"] += 1
+        if action == "accept":
+            summary["cuts_accept_count"] += 1
+            if not is_manual:
+                summary["cuts_auto_accept_count"] += 1
+        elif action == "reject":
+            summary["cuts_reject_count"] += 1
+            if not is_manual:
+                summary["cuts_auto_reject_count"] += 1
+        elif action == "pending":
+            summary["cuts_pending_count"] += 1
+    return summary
 
 
 def extract_adopted_duration_sec(edl_json: dict[str, Any]) -> float:

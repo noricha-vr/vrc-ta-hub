@@ -94,7 +94,7 @@
 
 - `safe_bounds`: `0 <= min_sec < max_sec`（NaN / Inf 不可）
 - `trim`: `safe_bounds.min_sec <= start_sec < end_sec <= safe_bounds.max_sec`
-- `cuts`: `trim` 範囲内で `id` が一意、`action` は `pending` / `accept` / `reject`。`accept` 区間同士の重複・接触・順序逆転、および `trim` から `accept` を除いた採用尺が 0 秒以下になる指定は無効です。
+- `cuts`: `trim` 範囲内で `id` が一意、`action` は `pending` / `accept` / `reject`。`accept` 区間同士の重複・接触・順序逆転、および `trim` から `accept` を除いた維持時間（`keep_spans` 合計）が 1.0 秒未満になる指定は無効です。
 
 ## レスポンス形式
 

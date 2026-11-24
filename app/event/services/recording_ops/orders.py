@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 
+from . import edl as edl_module
 from .edl import EDLValidationError, validate_edl_v1
 from .errors import (
     MAX_REVISION,
@@ -163,25 +164,35 @@ def _resolve_order_edl_snapshot(
         )
     if validated_incoming_edl is None:
         try:
-            return validate_edl_v1(item.edl_json)
+            snapshot = validate_edl_v1(item.edl_json)
         except EDLValidationError as exc:
             raise RecordingValidationError(str(exc)) from exc
-
-    registered_bounds = (
-        item.edl_json.get("safe_bounds") if isinstance(item.edl_json, dict) else None
-    )
-    if isinstance(registered_bounds, dict):
-        incoming_bounds = validated_incoming_edl["safe_bounds"]
-        if (
-            float(incoming_bounds["min_sec"]) != float(registered_bounds["min_sec"])
-            or float(incoming_bounds["max_sec"]) != float(registered_bounds["max_sec"])
+    else:
+        registered_bounds = (
+            item.edl_json.get("safe_bounds") if isinstance(item.edl_json, dict) else None
+        )
+        if isinstance(registered_bounds, dict):
+            incoming_bounds = validated_incoming_edl["safe_bounds"]
+            if (
+                float(incoming_bounds["min_sec"]) != float(registered_bounds["min_sec"])
+                or float(incoming_bounds["max_sec"]) != float(registered_bounds["max_sec"])
+            ):
+                raise RecordingValidationError("確定操作では登録済みの safe_bounds を変更できません。")
+        if item.proxy_duration_sec is not None and (
+            float(validated_incoming_edl["safe_bounds"]["max_sec"]) > item.proxy_duration_sec
         ):
-            raise RecordingValidationError("確定操作では登録済みの safe_bounds を変更できません。")
-    if item.proxy_duration_sec is not None and (
-        float(validated_incoming_edl["safe_bounds"]["max_sec"]) > item.proxy_duration_sec
+            raise RecordingValidationError("safe_bounds.max_sec がプロキシ再生時間を超えています。")
+        snapshot = validated_incoming_edl
+
+    if not edl_module.ALLOW_ACCEPT_CUTS and any(
+        cut.get("action") == "accept" for cut in snapshot.get("cuts", [])
     ):
-        raise RecordingValidationError("safe_bounds.max_sec がプロキシ再生時間を超えています。")
-    return validated_incoming_edl
+        raise RecordingValidationError(
+            "現在、途中カットの採用（accept）を含む確定は録画ワーカー側の対応準備中のため利用できません。"
+            "採用中のカットを「却下」または「保留」に変更してから確定してください。",
+            code="accept_cuts_disabled",
+        )
+    return snapshot
 
 
 def _save_item_for_new_order(
