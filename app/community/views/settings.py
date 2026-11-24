@@ -379,7 +379,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
                 'lt_start_offset_minutes',
             ])
             if not recording_allowed:
-                from event.services.recording_orders import revoke_recording_for_community
+                from event.services.recording_ops.revocation import revoke_recording_for_community
                 revoke_recording_for_community(community.pk)
 
         messages.success(request, '発表申請設定を保存しました。')

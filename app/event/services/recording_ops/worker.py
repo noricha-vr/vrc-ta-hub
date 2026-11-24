@@ -1,23 +1,24 @@
-"""録画編集確定指示キューのワーカー側リース（claim）処理。"""
+"""録画編集確定指示キューのワーカー側リース（claim）処理（Layer 3）。"""
 from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 from django.db import connection, transaction
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from community.constants import RecordingPolicy
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
-from event.services.recording_ops_common import (
-    ORDER_LEASE_TIMEOUT,
-    RecordingValidationError,
+
+from .errors import ORDER_LEASE_TIMEOUT, RecordingValidationError
+from .locks import is_recording_consent_valid, lock_event_detail_or_none
+from .stop_queue import (
+    clear_detail_youtube_url,
     enqueue_compensating_stop_publish,
-    is_recording_consent_valid,
     item_has_unstopped_video,
-    lock_event_detail_or_none,
     mark_order_lease_expired,
 )
 
@@ -29,7 +30,7 @@ def _claim_invalidation_reason(
     item: RecordingReviewItem,
     order: RecordingEditOrder,
     *,
-    now: Any,
+    now: datetime,
 ) -> str | None:
     """claim 時点でオーダーが無効化されている場合はキャンセル理由を返す。"""
     if order.order_type != RecordingEditOrder.OrderType.APPLY_EDL:
@@ -51,7 +52,49 @@ def _claim_invalidation_reason(
     return None
 
 
-def _expire_stale_running_orders(*, now: Any) -> int:
+def _select_order_for_update(
+    qs: QuerySet[RecordingEditOrder],
+    *,
+    use_skip_locked: bool,
+    use_select_for_update: bool,
+) -> RecordingEditOrder | None:
+    if use_skip_locked:
+        qs = qs.select_for_update(skip_locked=True)
+    elif use_select_for_update:
+        qs = qs.select_for_update()
+    return qs.first()
+
+
+def _handle_expired_order_compensation(
+    *,
+    detail: EventDetail | None,
+    item: RecordingReviewItem | None,
+    order: RecordingEditOrder,
+) -> None:
+    if (
+        order.order_type != RecordingEditOrder.OrderType.APPLY_EDL
+        or item is None
+        or (detail is not None and is_recording_consent_valid(detail) and not item.compensating_stop_pending)
+    ):
+        return
+    clear_detail_youtube_url(detail)
+    has_active = RecordingEditOrder.objects.filter(
+        review_item=item,
+        status__in=RecordingEditOrder.ACTIVE_STATUSES,
+    ).exists()
+    if not has_active and item_has_unstopped_video(item):
+        enqueue_compensating_stop_publish(
+            detail=detail,
+            item=item,
+            requested_by=order.requested_by,
+            source_order_id=order.pk,
+        )
+    elif not has_active and item.compensating_stop_pending:
+        item.compensating_stop_pending = False
+        item.save(update_fields=["compensating_stop_pending", "updated_at"])
+
+
+def _expire_stale_running_orders(*, now: datetime) -> int:
     """リース期限を超過した running オーダーを failed に遷移させて排他キーを解放する。"""
     cutoff = now - ORDER_LEASE_TIMEOUT
     stale_refs = list(
@@ -74,43 +117,70 @@ def _expire_stale_running_orders(*, now: Any) -> int:
                 else None
             )
             item = RecordingReviewItem.objects.select_for_update().filter(pk=ref["review_item_id"]).first()
-            order_qs = RecordingEditOrder.objects.filter(
-                Q(started_at__lte=cutoff) | Q(started_at__isnull=True),
-                pk=ref["id"],
-                status=RecordingEditOrder.Status.RUNNING,
+            order = _select_order_for_update(
+                RecordingEditOrder.objects.filter(
+                    Q(started_at__lte=cutoff) | Q(started_at__isnull=True),
+                    pk=ref["id"],
+                    status=RecordingEditOrder.Status.RUNNING,
+                ),
+                use_skip_locked=use_skip_locked,
+                use_select_for_update=use_select_for_update,
             )
-            if use_skip_locked:
-                order_qs = order_qs.select_for_update(skip_locked=True)
-            elif use_select_for_update:
-                order_qs = order_qs.select_for_update()
-            order = order_qs.first()
             if order is None:
                 continue
             mark_order_lease_expired(order, now=now, event_detail_id=order.event_detail_id)
-            if (
-                order.order_type == RecordingEditOrder.OrderType.APPLY_EDL
-                and item is not None
-                and (detail is None or not is_recording_consent_valid(detail) or item.compensating_stop_pending)
-            ):
-                if detail is not None and detail.youtube_url:
-                    detail.youtube_url = None
-                    detail.save(update_fields=["youtube_url", "updated_at"])
-                has_active = RecordingEditOrder.objects.filter(
-                    review_item=item,
-                    status__in=RecordingEditOrder.ACTIVE_STATUSES,
-                ).exists()
-                if not has_active and item_has_unstopped_video(item):
-                    enqueue_compensating_stop_publish(
-                        detail=detail,
-                        item=item,
-                        requested_by=order.requested_by,
-                        source_order_id=order.pk,
-                    )
-                elif not has_active and item.compensating_stop_pending:
-                    item.compensating_stop_pending = False
-                    item.save(update_fields=["compensating_stop_pending", "updated_at"])
+            _handle_expired_order_compensation(detail=detail, item=item, order=order)
             expired_count += 1
     return expired_count
+
+
+def _cancel_invalidated_claim_order(
+    *,
+    detail: EventDetail | None,
+    item: RecordingReviewItem,
+    order: RecordingEditOrder,
+    invalid_reason: str,
+    now: datetime,
+) -> None:
+    order.status = RecordingEditOrder.Status.CANCELED
+    order.active_lock_key = None
+    order.completed_at = now
+    order.error_message = f"無効化条件（{invalid_reason}）により claim 時に自動キャンセルしました。"
+    order.save(
+        update_fields=[
+            "status",
+            "active_lock_key",
+            "completed_at",
+            "error_message",
+            "updated_at",
+        ]
+    )
+    logger.warning(
+        "recording_order_canceled",
+        extra={
+            "event_type": "recording_order_canceled",
+            "order_id": order.pk,
+            "event_detail_id": order.event_detail_id,
+            "order_type": order.order_type,
+            "reason": invalid_reason,
+        },
+    )
+    if (
+        invalid_reason
+        in ("detail_not_found", "detail_deleted", "consent_revoked", "compensating_stop_pending")
+        or item.compensating_stop_pending
+    ):
+        if item_has_unstopped_video(item):
+            clear_detail_youtube_url(detail)
+            enqueue_compensating_stop_publish(
+                detail=detail,
+                item=item,
+                requested_by=order.requested_by,
+                source_order_id=order.pk,
+            )
+        elif item.compensating_stop_pending:
+            item.compensating_stop_pending = False
+            item.save(update_fields=["compensating_stop_pending", "updated_at"])
 
 
 def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> RecordingEditOrder | None:
@@ -126,7 +196,7 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
 
     _expire_stale_running_orders(now=timezone.now())
 
-    base_qs = RecordingEditOrder.objects.filter(status=RecordingEditOrder.Status.QUEUED)
+    base_qs: QuerySet[Any] = RecordingEditOrder.objects.filter(status=RecordingEditOrder.Status.QUEUED)
     if order_types:
         base_qs = base_qs.filter(order_type__in=list(order_types))
 
@@ -162,63 +232,27 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
                 if item is None:
                     continue
 
-                order_qs = RecordingEditOrder.objects.filter(
-                    pk=candidate_id,
-                    status=RecordingEditOrder.Status.QUEUED,
+                order = _select_order_for_update(
+                    RecordingEditOrder.objects.filter(
+                        pk=candidate_id,
+                        status=RecordingEditOrder.Status.QUEUED,
+                    ),
+                    use_skip_locked=use_skip_locked,
+                    use_select_for_update=use_select_for_update,
                 )
-                if use_skip_locked:
-                    order_qs = order_qs.select_for_update(skip_locked=True)
-                elif use_select_for_update:
-                    order_qs = order_qs.select_for_update()
-
-                order = order_qs.first()
                 if order is None:
                     continue
 
                 now = timezone.now()
                 invalid_reason = _claim_invalidation_reason(detail, item, order, now=now)
                 if invalid_reason is not None:
-                    order.status = RecordingEditOrder.Status.CANCELED
-                    order.active_lock_key = None
-                    order.completed_at = now
-                    order.error_message = f"無効化条件（{invalid_reason}）により claim 時に自動キャンセルしました。"
-                    order.save(
-                        update_fields=[
-                            "status",
-                            "active_lock_key",
-                            "completed_at",
-                            "error_message",
-                            "updated_at",
-                        ]
+                    _cancel_invalidated_claim_order(
+                        detail=detail,
+                        item=item,
+                        order=order,
+                        invalid_reason=invalid_reason,
+                        now=now,
                     )
-                    logger.warning(
-                        "recording_order_canceled",
-                        extra={
-                            "event_type": "recording_order_canceled",
-                            "order_id": order.pk,
-                            "event_detail_id": order.event_detail_id,
-                            "order_type": order.order_type,
-                            "reason": invalid_reason,
-                        },
-                    )
-                    if (
-                        invalid_reason
-                        in ("detail_not_found", "detail_deleted", "consent_revoked", "compensating_stop_pending")
-                        or item.compensating_stop_pending
-                    ):
-                        if item_has_unstopped_video(item):
-                            if detail is not None and detail.youtube_url:
-                                detail.youtube_url = None
-                                detail.save(update_fields=["youtube_url", "updated_at"])
-                            enqueue_compensating_stop_publish(
-                                detail=detail,
-                                item=item,
-                                requested_by=order.requested_by,
-                                source_order_id=order.pk,
-                            )
-                        elif item.compensating_stop_pending:
-                            item.compensating_stop_pending = False
-                            item.save(update_fields=["compensating_stop_pending", "updated_at"])
                     continue
 
                 order.status = RecordingEditOrder.Status.RUNNING

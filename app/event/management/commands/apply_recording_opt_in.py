@@ -181,7 +181,7 @@ class Command(BaseCommand):
                     applied['communities'][str(pk)] = True
                     from event.models import RecordingReviewItem
                     if RecordingReviewItem.objects.filter(event_detail__event__community_id=pk).exists():
-                        from event.services.recording_orders import revoke_recording_for_community
+                        from event.services.recording_ops.revocation import revoke_recording_for_community
                         revoke_recording_for_community(pk)
                 else:
                     skipped['communities'].append(pk)
@@ -200,7 +200,7 @@ class Command(BaseCommand):
                         applied['event_details'][str(row['pk'])] = row['recording_policy']
                         from event.models import RecordingReviewItem
                         if RecordingReviewItem.objects.filter(event_detail_id=row['pk']).exists():
-                            from event.services.recording_orders import revoke_recording_for_detail
+                            from event.services.recording_ops.revocation import revoke_recording_for_detail
                             revoke_recording_for_detail(row['pk'])
                     else:
                         skipped['event_details'].append(row['pk'])

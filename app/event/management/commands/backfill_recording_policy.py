@@ -85,7 +85,7 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             from event.models import RecordingReviewItem
-            from event.services.recording_orders import revoke_recording_for_detail
+            from event.services.recording_ops.revocation import revoke_recording_for_detail
             for policy, pks in changes.items():
                 EventDetail.all_objects.filter(
                     pk__in=pks, recording_policy=EventDetail.RecordingPolicy.PUBLIC,

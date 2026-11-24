@@ -8,7 +8,11 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from event.models import RecordingEditOrder, RecordingReviewItem
-from event.services.edl import EDLValidationError, extract_adopted_duration_sec, validate_edl_v1
+from event.services.recording_ops.edl import (
+    EDLValidationError,
+    extract_adopted_duration_sec,
+    validate_edl_v1,
+)
 from tests.factories import make_community, make_event, make_event_detail
 
 

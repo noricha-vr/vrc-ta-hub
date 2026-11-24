@@ -135,7 +135,7 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
         return RecordingReviewItem.objects.get(event_detail=target)
 
-    @patch("event.services.recording_storage.boto3.client")
+    @patch("event.services.recording_ops.storage.boto3.client")
     def test_auth_scope_and_permission_matrix(self, mock_boto_client):
         mock_s3 = MagicMock()
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/signed"
@@ -253,7 +253,7 @@ class RecordingOpsAPITest(TestCase):
         )
         self.assertEqual(resp_api.status_code, status.HTTP_201_CREATED)
 
-    @patch("event.services.recording_storage.boto3.client")
+    @patch("event.services.recording_ops.storage.boto3.client")
     def test_consent_boundary_rejects_allowed_forbidden_and_disallowed_community(self, mock_boto_client):
         mock_s3 = MagicMock()
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/signed"
@@ -298,7 +298,7 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(resp.data["code"], "recording_not_permitted")
 
-    @patch("event.services.recording_storage.boto3.client")
+    @patch("event.services.recording_ops.storage.boto3.client")
     def test_upload_upsert_and_proxy_get_lifecycle(self, mock_boto_client):
         mock_s3 = MagicMock()
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/vrc-ta-hub-private/signed"
