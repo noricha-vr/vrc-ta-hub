@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import filetype
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
@@ -1046,3 +1047,166 @@ class MaterialUploadReminderLog(models.Model):
         verbose_name = "発表資料アップロード依頼ログ"
         verbose_name_plural = "発表資料アップロード依頼ログ"
         db_table = "event_material_upload_reminder_log"
+
+
+class RecordingReviewItem(models.Model):
+    """撮影動画の編集プロキシ参照と EDL v1 状態を管理する。"""
+
+    class ReviewStatus(models.TextChoices):
+        UNRECORDED = "unrecorded", "未録画"
+        PROCESSING = "processing", "処理中"
+        NEEDS_REVIEW = "needs_review", "確認待ち"
+        UNLISTED_SCHEDULED = "unlisted_scheduled", "限定公開で設定済み"
+        PUBLISHED = "published", "公開済み"
+        PRIVATE_FIXED = "private_fixed", "非公開確定"
+        EXPIRED = "expired", "期限切れ"
+
+    class YouTubePrivacy(models.TextChoices):
+        UNLISTED = "unlisted", "限定公開"
+        PRIVATE = "private", "非公開"
+        PUBLIC = "public", "公開"
+
+    event_detail = models.OneToOneField(
+        EventDetail,
+        on_delete=models.CASCADE,
+        related_name="recording_review",
+        verbose_name="イベント詳細",
+    )
+    proxy_r2_key = models.CharField("プロキシ動画 R2 キー", max_length=255, blank=True, default="")
+    transcript_r2_key = models.CharField("文字起こし R2 キー", max_length=255, blank=True, default="")
+    proxy_duration_sec = models.FloatField("プロキシ再生時間（秒）", null=True, blank=True)
+    proxy_uploaded_at = models.DateTimeField("プロキシ登録日時", null=True, blank=True)
+    proxy_expires_at = models.DateTimeField("プロキシ有効期限", null=True, blank=True)
+    review_status = models.CharField(
+        "レビュー状態",
+        max_length=32,
+        choices=ReviewStatus.choices,
+        default=ReviewStatus.UNRECORDED,
+        db_index=True,
+    )
+    edl_revision = models.PositiveIntegerField("EDL リビジョン", default=1)
+    edl_json = models.JSONField("EDL v1 JSON", default=dict, blank=True)
+    youtube_draft_video_id = models.CharField("YouTube 下書き動画 ID", max_length=32, blank=True, default="")
+    youtube_draft_privacy = models.CharField(
+        "YouTube 下書き公開設定",
+        max_length=16,
+        choices=YouTubePrivacy.choices,
+        blank=True,
+        default="",
+    )
+    created_at = models.DateTimeField("作成日時", auto_now_add=True)
+    updated_at = models.DateTimeField("更新日時", auto_now=True)
+
+    class Meta:
+        verbose_name = "録画レビュー項目"
+        verbose_name_plural = "録画レビュー項目"
+        db_table = "event_recording_review_item"
+
+    def __str__(self) -> str:
+        return f"RecordingReviewItem(detail={self.event_detail_id}, rev={self.edl_revision}, status={self.review_status})"
+
+    @property
+    def is_public_locked(self) -> bool:
+        """YouTube 公開済みのため apply_edl による再差し替えを禁止するか。"""
+        return (
+            self.review_status == self.ReviewStatus.PUBLISHED
+            or self.youtube_draft_privacy == self.YouTubePrivacy.PUBLIC
+        )
+
+
+class RecordingEditOrder(models.Model):
+    """編集プロキシの確定指示を非同期ワーカーへ渡す排他キュー。"""
+
+    class OrderType(models.TextChoices):
+        APPLY_EDL = "apply_edl", "EDL 適用"
+        STOP_PUBLISH = "stop_publish", "公開停止"
+
+    class Status(models.TextChoices):
+        QUEUED = "queued", "待機中"
+        RUNNING = "running", "処理中"
+        SUCCEEDED = "succeeded", "完了"
+        FAILED = "failed", "失敗"
+        CANCELED = "canceled", "キャンセル"
+
+    ACTIVE_STATUSES = (Status.QUEUED, Status.RUNNING)
+    TERMINAL_STATUSES = (Status.SUCCEEDED, Status.FAILED, Status.CANCELED)
+
+    review_item = models.ForeignKey(
+        RecordingReviewItem,
+        on_delete=models.CASCADE,
+        related_name="edit_orders",
+        verbose_name="録画レビュー項目",
+    )
+    event_detail = models.ForeignKey(
+        EventDetail,
+        on_delete=models.CASCADE,
+        related_name="recording_edit_orders",
+        verbose_name="イベント詳細",
+    )
+    order_type = models.CharField(
+        "指示種別",
+        max_length=24,
+        choices=OrderType.choices,
+        default=OrderType.APPLY_EDL,
+        db_index=True,
+    )
+    base_revision = models.PositiveIntegerField("変更前リビジョン")
+    target_revision = models.PositiveIntegerField("対象リビジョン")
+    edl_snapshot = models.JSONField("EDL スナップショット", default=dict, blank=True)
+    status = models.CharField(
+        "状態",
+        max_length=16,
+        choices=Status.choices,
+        default=Status.QUEUED,
+        db_index=True,
+    )
+    # MySQL 8 は部分一意制約に非対応のため、進行中のみ `item:<review_item_id>` を入れ、
+    # 終端状態で NULL に戻すことで SQLite/MySQL 双方で進行中 1 件の排他制約を DB レベルで保証する。
+    active_lock_key = models.CharField(
+        "アクティブ排他キー",
+        max_length=64,
+        null=True,
+        blank=True,
+        unique=True,
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recording_edit_orders",
+        verbose_name="実行スタッフ",
+    )
+    result_video_id = models.CharField("結果動画 ID", max_length=32, blank=True, default="")
+    error_message = models.TextField("エラーメッセージ", blank=True, default="")
+    created_at = models.DateTimeField("作成日時", auto_now_add=True)
+    started_at = models.DateTimeField("開始日時", null=True, blank=True)
+    completed_at = models.DateTimeField("完了日時", null=True, blank=True)
+    updated_at = models.DateTimeField("更新日時", auto_now=True)
+
+    class Meta:
+        verbose_name = "録画編集確定キュー"
+        verbose_name_plural = "録画編集確定キュー"
+        db_table = "event_recording_edit_order"
+        indexes = [
+            models.Index(fields=["status", "created_at"]),
+            models.Index(fields=["review_item", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"RecordingEditOrder(id={self.pk}, item={self.review_item_id}, "
+            f"type={self.order_type}, target_rev={self.target_revision}, status={self.status})"
+        )
+
+    def save(self, *args, **kwargs):
+        if self.status in self.ACTIVE_STATUSES:
+            if self.review_item_id is not None:
+                self.active_lock_key = f"item:{self.review_item_id}"
+        else:
+            self.active_lock_key = None
+
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None and "status" in update_fields and "active_lock_key" not in update_fields:
+            kwargs["update_fields"] = [*update_fields, "active_lock_key"]
+        super().save(*args, **kwargs)

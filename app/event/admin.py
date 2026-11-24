@@ -13,7 +13,7 @@ from community.constants import (
     weekday_code,
 )
 
-from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecurrenceRule
+from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecordingEditOrder, RecordingReviewItem, RecurrenceRule
 
 
 class EventDetailAdminForm(forms.ModelForm):
@@ -260,3 +260,37 @@ class EventDetailAdmin(admin.ModelAdmin):
             field.help_text = '記事ページの上部に表示する画像です。アップロード時に16:9へ自動トリミングします。'
             field.widget.attrs['accept'] = 'image/*'
         return field
+
+
+@admin.register(RecordingReviewItem)
+class RecordingReviewItemAdmin(admin.ModelAdmin):
+    list_display = (
+        'event_detail',
+        'review_status',
+        'edl_revision',
+        'youtube_draft_privacy',
+        'proxy_expires_at',
+        'updated_at',
+    )
+    list_filter = ('review_status', 'youtube_draft_privacy')
+    search_fields = ('event_detail__theme', 'event_detail__speaker', 'youtube_draft_video_id')
+    raw_id_fields = ('event_detail',)
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(RecordingEditOrder)
+class RecordingEditOrderAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'review_item',
+        'event_detail',
+        'order_type',
+        'base_revision',
+        'target_revision',
+        'status',
+        'created_at',
+    )
+    list_filter = ('order_type', 'status')
+    search_fields = ('result_video_id', 'event_detail__theme')
+    raw_id_fields = ('review_item', 'event_detail', 'requested_by')
+    readonly_fields = ('active_lock_key', 'created_at', 'started_at', 'completed_at', 'updated_at')
