@@ -60,6 +60,8 @@
         let segmentStopAt = null;
         let pendingSeek = null;
         let isSyncingTrim = false;
+        let allowBeforeStartPreview = false;
+        let programmaticSeekTarget = null;
 
         function getStartSec() {
             const parsed = Number(startInput.value);
@@ -94,6 +96,18 @@
             });
         }
 
+        function enforcePreviewStartBounds() {
+            if (!video || video.readyState < 1) return false;
+            if (getPlaybackMode() !== 'preview' || allowBeforeStartPreview) return false;
+            const start = getStartSec();
+            if (video.currentTime < start - 0.05) {
+                programmaticSeekTarget = start;
+                video.currentTime = start;
+                return true;
+            }
+            return false;
+        }
+
         function setTrimValue(side, rawVal, options) {
             const emitChange = !options || options.emitChange !== false;
             let next = Number(rawVal);
@@ -105,6 +119,8 @@
                     next = roundTrim(Math.max(safeMin, Math.min(maxAllowed, next)));
                     startInput.value = formatInputVal(next);
                     syncCandidateSelection('start_candidate', next);
+                    allowBeforeStartPreview = false;
+                    enforcePreviewStartBounds();
                     if (emitChange) {
                         startInput.dispatchEvent(new Event('change', { bubbles: true }));
                     }
@@ -126,9 +142,11 @@
             updateAdoptedDuration();
         }
 
-        function seekAndPlay(targetSec, stopAtSec) {
+        function seekAndPlay(targetSec, stopAtSec, options) {
             if (!video) return;
             const bounded = Math.max(safeMin, Math.min(safeMax, targetSec));
+            allowBeforeStartPreview = Boolean(options && options.allowBeforeStart);
+            programmaticSeekTarget = bounded;
             segmentStopAt = stopAtSec !== null && stopAtSec !== undefined ? Math.max(safeMin, Math.min(safeMax, stopAtSec)) : null;
             if (video.readyState >= 1) {
                 video.currentTime = bounded;
@@ -194,7 +212,7 @@
             playBeforeEndBtn.addEventListener('click', function () {
                 const cand = getEndSec();
                 const seekTo = Math.max(safeMin, cand - getEndOffset());
-                seekAndPlay(seekTo, cand);
+                seekAndPlay(seekTo, cand, { allowBeforeStart: seekTo < getStartSec() });
             });
         }
 
@@ -207,12 +225,14 @@
         document.querySelectorAll('input[name="playback_mode"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
                 if (!video) return;
+                allowBeforeStartPreview = false;
                 if (getPlaybackMode() === 'preview') {
                     const start = getStartSec();
                     const end = getEndSec();
                     segmentStopAt = end;
                     if (video.currentTime < start || video.currentTime >= end) {
                         if (video.readyState >= 1) {
+                            programmaticSeekTarget = start;
                             video.currentTime = start;
                         }
                     }
@@ -232,11 +252,13 @@
             });
             video.addEventListener('loadedmetadata', function () {
                 if (pendingSeek !== null) {
+                    programmaticSeekTarget = pendingSeek;
                     video.currentTime = pendingSeek;
                     pendingSeek = null;
                 } else if (getPlaybackMode() === 'preview') {
                     const start = getStartSec();
                     if (start > 0 && video.currentTime < start) {
+                        programmaticSeekTarget = start;
                         video.currentTime = start;
                     }
                 }
@@ -248,12 +270,42 @@
                 if (loadingEl) loadingEl.hidden = true;
                 if (errorEl) errorEl.hidden = false;
             });
+            video.addEventListener('seeking', function () {
+                const isProgrammatic = programmaticSeekTarget !== null && Math.abs(video.currentTime - programmaticSeekTarget) <= 0.15;
+                if (!isProgrammatic) {
+                    allowBeforeStartPreview = false;
+                }
+                if (!isProgrammatic) {
+                    enforcePreviewStartBounds();
+                }
+            });
+            video.addEventListener('seeked', function () {
+                const isProgrammatic = programmaticSeekTarget !== null && Math.abs(video.currentTime - programmaticSeekTarget) <= 0.15;
+                programmaticSeekTarget = null;
+                if (!isProgrammatic) {
+                    allowBeforeStartPreview = false;
+                }
+                enforcePreviewStartBounds();
+            });
+            video.addEventListener('play', function () {
+                if (allowBeforeStartPreview && video.currentTime >= getStartSec() - 0.05) {
+                    allowBeforeStartPreview = false;
+                }
+                enforcePreviewStartBounds();
+            });
             video.addEventListener('timeupdate', function () {
                 if (currentTimeEl) currentTimeEl.textContent = formatSec(video.currentTime);
+                if (allowBeforeStartPreview && video.currentTime >= getStartSec() - 0.05) {
+                    allowBeforeStartPreview = false;
+                }
+                if (enforcePreviewStartBounds()) {
+                    return;
+                }
                 if (segmentStopAt !== null && video.currentTime >= segmentStopAt) {
                     video.pause();
                     video.currentTime = segmentStopAt;
                     segmentStopAt = null;
+                    allowBeforeStartPreview = false;
                 } else if (getPlaybackMode() === 'preview' && !video.paused) {
                     const end = getEndSec();
                     if (video.currentTime >= end) {

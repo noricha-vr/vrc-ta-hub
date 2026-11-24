@@ -257,9 +257,21 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 1.8 && v.currentTime <= 4.0; }"
         )
-        # モード切替（「余白込み全体を見る」↔「トリミング後をプレビュー」）と終端自動停止の実動作
+        # モード切替（「余白込み全体を見る」↔「トリミング後をプレビュー」）と開始/終了範囲クランプの実動作
         self.page.locator('input[name="playback_mode"][value="full"]').check()
         self.page.locator('input[name="playback_mode"][value="preview"]').check()
+        # プレビューモードで開始位置(2s -> 4s)変更時と、開始位置より前へのシーク時に 4s 以上へ戻ることを検証
+        self.page.locator('input[name="start_candidate"][value="2"]').check()
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 2.5; v.play(); }")
+        self.page.locator('input[name="start_candidate"][value="4"]').check()
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 3.9; }"
+        )
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 1.0; }")
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 3.9; }"
+        )
+        self.page.locator('input[name="start_candidate"][value="2"]').check()
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.7; v.play(); }")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.paused && Math.abs(v.currentTime - 12.0) < 0.5; }"
@@ -277,6 +289,8 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         )
         self.page.locator('input[name="end_candidate"][value="12"]').check()
         self.page.locator('input[name="playback_mode"][value="preview"]').check()
+        self.page.locator('[data-adjust-target="start"][data-adjust-delta="-5"]').click()
+        expect(self.page.locator("#id_start_sec")).to_have_value("0")
         # [ここから再生] で start_sec (0s) 付近へシークされること
         self.page.get_by_test_id("play-from-start-btn").click()
         self.page.wait_for_function(
