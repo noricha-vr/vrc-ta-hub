@@ -17,6 +17,7 @@ from event.services.recurrence_override import (
     delete_event_with_tombstones,
     get_cascade_occurrences,
     move_event_occurrence,
+    sync_tweet_queues_for_event_schedule_change,
 )
 from event.sync_to_google import build_google_event_description
 from event_calendar.calendar_utils import generate_google_calendar_url
@@ -233,21 +234,10 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                     # event.date を渡すと別キーを消してしまい実キャッシュが残るため引数なしで呼ぶ。
                     clear_index_view_cache()
 
-                    # 未投稿の TweetQueue は generated_text に旧時刻が焼き込まれているため、
-                    # 再生成対象に戻す（status='generation_failed' + generated_text='' で
-                    # 既存の retry_generation フローが拾って新時刻で再生成する。scheduled_at は
-                    # 日付基準のため変更不要）。posted / failed / skipped は触らない。
-                    from twitter.models import TweetQueue
-                    TweetQueue.objects.filter(
-                        event=self.object,
-                        status__in=('generating', 'generation_failed', 'ready'),
-                    ).update(
-                        status='generation_failed',
-                        generated_text='',
-                        error_message='開始時刻変更により再生成',
-                        # in-flight の非同期生成が旧時刻スナップショットで ready に戻すのを防ぐ
-                        # （write-back は generation_token の compare-and-set で守られている）
-                        generation_token='',
+                    # 未投稿 TweetQueue は旧時刻の本文・予約時刻が古くなるため同期する
+                    sync_tweet_queues_for_event_schedule_change(
+                        self.object,
+                        regenerate_reason='開始時刻変更により再生成',
                     )
         except IntegrityError:
             # UniqueConstraint (community, date, start_time) 競合をフォームエラーへ

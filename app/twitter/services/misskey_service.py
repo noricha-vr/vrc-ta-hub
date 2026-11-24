@@ -15,6 +15,7 @@ from twitter.x_api import _failure_result
 from .announcement_eligibility import (
     UNLISTED_COMMUNITY_SKIP_MESSAGE,
     event_date_skip_reason,
+    presentation_detail_skip_reason,
     unlisted_community_skip_reason,
 )
 
@@ -74,7 +75,7 @@ def _claim_next_note(current):
     with transaction.atomic():
         # 行ロックで重複 Cron による同時投稿を防ぐ。X 側の状態は更新しない。
         pending = MisskeyNote.objects.select_for_update().filter(status='pending').select_related(
-            'tweet_queue__community', 'tweet_queue__event',
+            'tweet_queue__community', 'tweet_queue__event', 'tweet_queue__event_detail',
         ).order_by('tweet_queue__scheduled_at', 'pk')
         for note in pending:
             queue_item = note.tweet_queue
@@ -96,10 +97,13 @@ def _claim_next_note(current):
             if queue_item.status in ('generating', 'generation_failed') or not queue_item.generated_text:
                 continue
 
-            skip_reason = event_date_skip_reason(queue_item, today=timezone.localdate(current))
+            skip_reason = (
+                event_date_skip_reason(queue_item, now=current)
+                or presentation_detail_skip_reason(queue_item)
+            )
             if skip_reason:
                 note.status = 'skipped'
-                note.error_message = f'イベント日の投稿対象外のため投稿をスキップ ({skip_reason})'
+                note.error_message = f'告知対象外のため投稿をスキップ ({skip_reason})'
                 note.save(update_fields=['status', 'error_message', 'updated_at'])
                 _log_post(note)
                 continue

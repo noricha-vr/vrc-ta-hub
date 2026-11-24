@@ -19,6 +19,7 @@
 {% include 'community/includes/settings_heading.html' with title='主催と連絡先' icon='person-badge' description='参加者が主催者や集会の場所にたどり着くためのリンクです。' scope='集会情報' form_id='community-form' only %}
 {% include 'community/includes/settings_field.html' with field=form.organizers only %}
 {% include 'community/includes/settings_field.html' with field=form.group_url only %}
+{% include 'community/includes/settings_field.html' with field=form.group_short_code only %}
 {% include 'community/includes/settings_field.html' with field=form.organizer_url only %}
 {% include 'community/includes/settings_field.html' with field=form.sns_url only %}
 {% include 'community/includes/settings_field.html' with field=form.twitter_hashtag only %}

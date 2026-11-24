@@ -300,13 +300,13 @@ class EventUpdateViewGoogleCalendarDescriptionTest(EventUpdateViewBaseMixin, Tes
 
 
 class EventUpdateViewTweetQueueResetTest(EventUpdateViewBaseMixin, TestCase):
-    """開始時刻変更で未投稿 TweetQueue を再生成対象に戻す（PR #544 Cursor 指摘）。"""
+    """開始時刻変更で未投稿 TweetQueue の再予約・再生成・廃止済みスキップを同期する。"""
 
-    def _make_queue(self, status: str) -> TweetQueue:
+    def _make_queue(self, status: str, *, tweet_type: str = 'lt', event=None) -> TweetQueue:
         return TweetQueue.objects.create(
-            tweet_type='daily_reminder',
+            tweet_type=tweet_type,
             community=self.community,
-            event=self.event,
+            event=event or self.event,
             generated_text='OLD TEXT with 22:00',
             status=status,
             generation_token='oldtoken123',
@@ -325,6 +325,197 @@ class EventUpdateViewTweetQueueResetTest(EventUpdateViewBaseMixin, TestCase):
         self.assertEqual(ready.generated_text, '')
         # in-flight 生成の write-back を無効化するためトークンも空になる
         self.assertEqual(ready.generation_token, '')
+
+    def test_tomorrow_start_time_earlier_recalculates_scheduled_at(self):
+        """翌日 11:00 -> 08:00 の開始繰上げ時に予約時刻を 09:00 から 06:00 へ再計算する。"""
+        from datetime import datetime
+        from tests.factories import make_event
+
+        today = get_vrchat_today()
+        tomorrow = today + timedelta(days=1)
+        now_1500 = timezone.make_aware(
+            datetime.combine(today, time(15, 0)),
+            timezone.get_current_timezone(),
+        )
+        tomorrow_event = make_event(
+            self.community,
+            event_date=tomorrow,
+            start_time=time(11, 0),
+            duration=60,
+        )
+        queue = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=tomorrow_event,
+            generated_text='OLD 11:00',
+            status='ready',
+            generation_token='tok-1',
+            scheduled_at=timezone.make_aware(
+                datetime.combine(tomorrow, time(9, 0)),
+                timezone.get_current_timezone(),
+            ),
+        )
+        url = reverse('event:update', kwargs={'pk': tomorrow_event.pk})
+        self.client.force_login(self.owner)
+
+        with (
+            mock.patch('event.services.recurrence_override.timezone.now', return_value=now_1500),
+            mock.patch('twitter.scheduling.timezone.now', return_value=now_1500),
+        ):
+            response = self.client.post(url, {'start_time': '08:00'})
+
+        self.assertEqual(response.status_code, 302)
+        queue.refresh_from_db()
+        expected_schedule = timezone.make_aware(
+            datetime.combine(tomorrow, time(6, 0)),
+            timezone.get_current_timezone(),
+        )
+        self.assertEqual(queue.scheduled_at, expected_schedule)
+        self.assertEqual(queue.status, 'generation_failed')
+        self.assertEqual(queue.generated_text, '')
+        self.assertEqual(queue.generation_token, '')
+
+    def test_today_start_time_earlier_than_now_skips_lt_queue(self):
+        """当日開始時刻を現在時刻以前へ変更した時は未投稿 lt キューをスキップする。"""
+        from datetime import datetime
+        from event.services.recurrence_override import MOVED_PAST_START_SKIP_REASON
+        from tests.factories import make_event
+
+        today = get_vrchat_today()
+        now_1500 = timezone.make_aware(
+            datetime.combine(today, time(15, 0)),
+            timezone.get_current_timezone(),
+        )
+        today_event = make_event(
+            self.community,
+            event_date=today,
+            start_time=time(22, 0),
+            duration=60,
+        )
+        queue = self._make_queue('ready', tweet_type='lt', event=today_event)
+        url = reverse('event:update', kwargs={'pk': today_event.pk})
+        self.client.force_login(self.owner)
+
+        with mock.patch('event.services.recurrence_override.timezone.now', return_value=now_1500):
+            response = self.client.post(url, {'start_time': '14:00'})
+
+        self.assertEqual(response.status_code, 302)
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, 'skipped')
+        self.assertEqual(queue.error_message, MOVED_PAST_START_SKIP_REASON)
+        self.assertEqual(queue.generated_text, '')
+        self.assertEqual(queue.generation_token, '')
+
+    def test_start_time_change_skips_unposted_daily_reminder(self):
+        """開始時刻変更時も廃止済みの未投稿 daily_reminder はスキップへ落とす。"""
+        daily_queue = self._make_queue('ready', tweet_type='daily_reminder')
+
+        self.client.force_login(self.owner)
+        response = self.client.post(self.url, {'start_time': '21:00'})
+        self.assertEqual(response.status_code, 302)
+
+        daily_queue.refresh_from_db()
+        self.assertEqual(daily_queue.status, 'skipped')
+        self.assertEqual(daily_queue.generated_text, '')
+
+    def test_today_start_time_round_trip_revives_detail_linked_lt_queue(self):
+        """当日開始時刻を過去へ移した後で未来へ戻しても、発表に紐づく lt キューが復帰する。"""
+        from datetime import datetime
+        from event.services.recurrence_override import MOVED_PAST_START_SKIP_REASON
+        from tests.factories import make_event, make_event_detail
+
+        today = get_vrchat_today()
+        now_1500 = timezone.make_aware(
+            datetime.combine(today, time(15, 0)),
+            timezone.get_current_timezone(),
+        )
+
+        with (
+            mock.patch('event.services.recurrence_override.timezone.now', return_value=now_1500),
+            mock.patch('twitter.scheduling.timezone.now', return_value=now_1500),
+            mock.patch('twitter.signals.timezone.now', return_value=now_1500),
+            mock.patch('twitter.signals.tweet_generation.start_tweet_generation'),
+        ):
+            today_event = make_event(
+                self.community,
+                event_date=today,
+                start_time=time(22, 0),
+                duration=60,
+            )
+            detail = make_event_detail(
+                today_event,
+                detail_type='LT',
+                status='approved',
+                speaker='往復太郎',
+                theme='往復時刻テスト',
+                start_time=time(22, 10),
+            )
+            queue = TweetQueue.objects.get(event_detail=detail, tweet_type='lt')
+            queue.status = 'ready'
+            queue.generated_text = 'OLD 22:00'
+            queue.generation_token = 'tok-rt'
+            queue.save(update_fields=['status', 'generated_text', 'generation_token'])
+
+            url = reverse('event:update', kwargs={'pk': today_event.pk})
+            self.client.force_login(self.owner)
+
+            resp_past = self.client.post(url, {'start_time': '14:00'})
+            self.assertEqual(resp_past.status_code, 302)
+            queue.refresh_from_db()
+            self.assertEqual(queue.status, 'skipped')
+            self.assertEqual(queue.error_message, MOVED_PAST_START_SKIP_REASON)
+
+            resp_back = self.client.post(url, {'start_time': '22:00'})
+            self.assertEqual(resp_back.status_code, 302)
+            queue.refresh_from_db()
+            self.assertEqual(queue.status, 'generation_failed')
+            self.assertEqual(queue.scheduled_at, now_1500)
+            self.assertEqual(queue.generated_text, '')
+            self.assertEqual(queue.error_message, '開始時刻変更により再生成')
+
+    def test_correcting_started_event_start_time_to_future_creates_missing_lt_queue(self):
+        """開始済み時刻で承認されキュー未作成だった発表も、未来時刻へ訂正すると告知キューが作られる。"""
+        from datetime import datetime
+        from tests.factories import make_event, make_event_detail
+
+        today = get_vrchat_today()
+        now_1500 = timezone.make_aware(
+            datetime.combine(today, time(15, 0)),
+            timezone.get_current_timezone(),
+        )
+
+        with (
+            mock.patch('event.services.recurrence_override.timezone.now', return_value=now_1500),
+            mock.patch('twitter.scheduling.timezone.now', return_value=now_1500),
+            mock.patch('twitter.signals.timezone.now', return_value=now_1500),
+            mock.patch('twitter.signals.tweet_generation.start_tweet_generation'),
+        ):
+            today_event = make_event(
+                self.community,
+                event_date=today,
+                start_time=time(14, 0),
+                duration=60,
+            )
+            detail = make_event_detail(
+                today_event,
+                detail_type='LT',
+                status='approved',
+                speaker='訂正太郎',
+                theme='開始後承認から時刻訂正',
+                start_time=time(14, 10),
+            )
+            self.assertEqual(TweetQueue.objects.filter(event_detail=detail).count(), 0)
+
+            url = reverse('event:update', kwargs={'pk': today_event.pk})
+            self.client.force_login(self.owner)
+            response = self.client.post(url, {'start_time': '22:00'})
+            self.assertEqual(response.status_code, 302)
+
+        created = TweetQueue.objects.get(event_detail=detail, tweet_type='lt')
+        self.assertEqual(created.status, 'generation_failed')
+        self.assertEqual(created.scheduled_at, now_1500)
+        self.assertEqual(created.generated_text, '')
+        self.assertEqual(created.error_message, '開始時刻変更により再生成')
 
     def test_posted_queue_not_touched(self):
         posted = TweetQueue.objects.create(

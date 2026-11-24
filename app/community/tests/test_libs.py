@@ -6,7 +6,9 @@ from django.test import TestCase
 
 from community.libs import (
     VRCHAT_BASE_URL,
+    extract_vrc_group_short_code,
     get_join_type,
+    normalize_vrc_group_short_code,
     resolve_vrc_group_url,
 )
 
@@ -148,3 +150,35 @@ class GetJoinTypeTest(TestCase):
 
     def test_user_name_type(self):
         self.assertEqual(get_join_type("some_user"), "user_name")
+
+
+class VrcGroupShortCodeHelperTest(TestCase):
+    """extract_vrc_group_short_code / normalize_vrc_group_short_code のテスト。"""
+
+    def test_extracts_short_code_from_vrc_group_url(self):
+        self.assertEqual(
+            extract_vrc_group_short_code("https://vrc.group/game.2515/?ref=share"),
+            "GAME.2515",
+        )
+
+    def test_extracts_empty_for_vrchat_grp_url_or_blank(self):
+        self.assertEqual(
+            extract_vrc_group_short_code("https://vrchat.com/home/group/grp_0fba4234-e046-46c5-b8a9-15044ebc7b34"),
+            "",
+        )
+        self.assertEqual(extract_vrc_group_short_code(""), "")
+
+    def test_normalizes_manual_short_code_and_vrc_group_url(self):
+        self.assertEqual(normalize_vrc_group_short_code("  game.2515 "), "GAME.2515")
+        self.assertEqual(normalize_vrc_group_short_code("https://vrc.group/ab12.0099"), "AB12.0099")
+        self.assertEqual(normalize_vrc_group_short_code(""), "")
+
+    def test_rejects_invalid_short_code(self):
+        for bad in (
+            "https://vrchat.com/home/group/grp_1234",
+            "invalid",
+            "AB.123",
+            "AB.12345",
+        ):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                normalize_vrc_group_short_code(bad)

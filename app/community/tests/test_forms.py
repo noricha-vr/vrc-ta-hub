@@ -114,7 +114,7 @@ class CommunityUpdateFormTest(TestCase):
 
     @patch('community.forms.resolve_vrc_group_url')
     def test_group_url_converts_short_url(self, mock_resolve):
-        """vrc.group 短縮URLが正規URLに変換される。"""
+        """vrc.group 短縮URLが正規URLに変換され、group_short_code も補完される。"""
         mock_resolve.return_value = 'https://vrchat.com/home/group/grp_resolved-id'
         form_data = {
             'name': 'テスト集会',
@@ -125,8 +125,82 @@ class CommunityUpdateFormTest(TestCase):
             'weekdays': ['Mon'],
             'tags': ['tech'],
             'platform': 'All',
-            'group_url': 'https://vrc.group/TEST.1234',
+            'group_url': 'https://vrc.group/test.1234',
         }
         form = CommunityUpdateForm(data=form_data, instance=self.community)
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.cleaned_data['group_url'], 'https://vrchat.com/home/group/grp_resolved-id')
+        self.assertEqual(form.cleaned_data['group_short_code'], 'TEST.1234')
+
+    @patch('community.forms.resolve_vrc_group_url')
+    def test_group_short_code_manual_value_wins_over_autofill(self, mock_resolve):
+        """手入力の group_short_code は vrc.group からの自動抽出より優先される。"""
+        mock_resolve.return_value = 'https://vrchat.com/home/group/grp_resolved-id'
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'group_url': 'https://vrc.group/OLD.1111',
+            'group_short_code': 'new.2222',
+        }
+        form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertTrue(form.is_valid(), form.errors)
+        saved = form.save()
+        self.assertEqual(saved.group_short_code, 'NEW.2222')
+
+    def test_group_short_code_rejects_invalid_format(self):
+        """不正な形式の VRChatグループID はエラーになる。"""
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'group_short_code': 'not-a-group-id',
+        }
+        form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertFalse(form.is_valid())
+        self.assertIn('group_short_code', form.errors)
+
+    def test_create_form_includes_group_short_code_with_placeholder(self):
+        """新規作成フォームにも VRChatグループID フィールドがある。"""
+        from community.forms import CommunityCreateForm
+
+        form = CommunityCreateForm()
+        self.assertIn('group_short_code', form.fields)
+        self.assertEqual(form.fields['group_short_code'].widget.attrs.get('placeholder'), 'GAME.2515')
+        self.assertEqual(form.fields['group_short_code'].widget.attrs.get('maxlength'), '200')
+
+    def test_group_short_code_accepts_short_url_over_20_chars_and_normalizes(self):
+        """20文字を超える短縮URL (25文字) をグループID欄へ貼り付けても正規化されて保存できる。"""
+        from community.forms import CommunityCreateForm
+
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'group_short_code': 'https://vrc.group/game.2515',
+        }
+        update_form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertTrue(update_form.is_valid(), update_form.errors)
+        saved = update_form.save()
+        self.assertEqual(saved.group_short_code, 'GAME.2515')
+
+        create_form = CommunityCreateForm(data=form_data)
+        self.assertIn('group_short_code', create_form.fields)
+        create_form.full_clean()
+        self.assertNotIn('group_short_code', create_form.errors)
+        self.assertEqual(create_form.cleaned_data.get('group_short_code'), 'GAME.2515')

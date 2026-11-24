@@ -42,6 +42,8 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("5/1(金)", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
+        self.assertNotIn("https://", user_prompt)
+        self.assertIn("詳細・参加方法はプロフィールのリンクへ", user_prompt)
 
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_lt_tweet_includes_applicant_x_account(self, mock_llm):
@@ -188,6 +190,92 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("5/1(金)", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
+        self.assertNotIn("https://", user_prompt)
+        self.assertIn("詳細・参加方法はプロフィールのリンクへ", user_prompt)
+
+    @patch("twitter.tweet_generator._call_llm")
+    def test_lt_and_special_include_group_short_code_footer_and_fallback_without_url(self, mock_llm):
+        """group_short_code がある時は VRChatグループID を使い、URL は一切含めない"""
+        from twitter.tweet_generator import contains_url, generate_lt_tweet, generate_special_event_tweet, get_generator
+
+        self.community.group_short_code = "GAME.2515"
+        self.community.save(update_fields=["group_short_code"])
+
+        lt_detail = make_event_detail(
+            self.event, detail_type="LT", status="approved", speaker="太郎", theme="Python入門", start_time=datetime.time(22, 15)
+        )
+        special_detail = make_event_detail(
+            self.event, detail_type="SPECIAL", status="approved", speaker="ゲスト", theme="特別講演", start_time=datetime.time(22, 30)
+        )
+
+        # 1) プロンプト確認
+        mock_llm.return_value = "dummy"
+        generate_lt_tweet(lt_detail)
+        self.assertIn("VRChatグループID: GAME.2515", mock_llm.call_args[0][1])
+        generate_special_event_tweet(special_detail)
+        self.assertIn("VRChatグループID: GAME.2515", mock_llm.call_args[0][1])
+
+        # 2) LLM が URL を出し続けた場合はリトライ後にフォールバックし、グループID付き URL なしになる
+        mock_llm.return_value = "5/1(金) 22:00~ 集会\n\n詳細はこちら https://vrc-ta-hub.com/community/1/"
+        for tweet_type, detail in (("lt", lt_detail), ("special", special_detail)):
+            with self.subTest(tweet_type=tweet_type):
+                queue = TweetQueue.objects.create(
+                    tweet_type=tweet_type,
+                    community=self.community,
+                    event=self.event,
+                    event_detail=detail,
+                    status="generating",
+                )
+                result = get_generator(tweet_type)(queue)
+                self.assertIn("VRChatグループID: GAME.2515", result)
+                self.assertFalse(contains_url(result))
+
+        # 3) group_short_code が空ならプロフィール誘導へフォールバック
+        self.community.group_short_code = ""
+        self.community.save(update_fields=["group_short_code"])
+        queue = TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,
+            event_detail=lt_detail,
+            status="generating",
+        )
+        fallback = get_generator("lt")(queue)
+        self.assertIn("詳細・参加方法はプロフィールのリンクへ", fallback)
+        self.assertFalse(contains_url(fallback))
+
+    @patch("twitter.tweet_generator._call_llm")
+    def test_lt_and_special_defang_domain_like_tech_names_without_failing(self, mock_llm):
+        """ASP.NET・Socket.IO・discord.py 等の技術名を含んでも生成失敗せず安全な非URL表記になる"""
+        from twitter.tweet_generator import contains_url, get_generator
+
+        self.community.group_short_code = "GAME.2515"
+        self.community.save(update_fields=["group_short_code"])
+
+        # LLM が旧来表記のまま返しても、フォールバックは安全な表記で必ず成功する
+        mock_llm.return_value = "5/1(金) 22:00~ 集会\n\n太郎「ASP.NET入門」\n\nVRChatグループID: GAME.2515"
+        for theme in ("ASP.NET Core 入門", "Socket.IO 入門", "discord.py 入門"):
+            for tweet_type, detail_type in (("lt", "LT"), ("special", "SPECIAL")):
+                with self.subTest(theme=theme, tweet_type=tweet_type):
+                    detail = make_event_detail(
+                        self.event,
+                        detail_type=detail_type,
+                        status="approved",
+                        speaker="太郎",
+                        theme=theme,
+                        start_time=datetime.time(22, 15),
+                    )
+                    queue = TweetQueue.objects.create(
+                        tweet_type=tweet_type,
+                        community=self.community,
+                        event=self.event,
+                        event_detail=detail,
+                        status="generating",
+                    )
+                    result = get_generator(tweet_type)(queue)
+                    self.assertIsNotNone(result)
+                    self.assertIn("VRChatグループID: GAME.2515", result)
+                    self.assertFalse(contains_url(result))
 
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_daily_reminder_tweet(self, mock_llm):

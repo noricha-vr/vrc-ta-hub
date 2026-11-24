@@ -38,5 +38,25 @@ def default_scheduled_at(tweet_type: str, event=None, base_datetime: datetime | 
     local_base = timezone.localtime(base, _current_tz())
     scheduled = scheduled_at_for_date(local_base.date(), hour=post_hour)
     if local_base >= scheduled:
+        # 当日 12:00 以降の承認は翌日に送らず即時キューへ乗せる（発表開始前の判定は signal 側）
+        if event is not None and tweet_type in ('lt', 'special') and event.date == local_base.date():
+            return local_base
         scheduled += timedelta(days=1)
+
+    if event is not None and tweet_type in ('lt', 'special'):
+        raw_start = getattr(event, 'start_time', None)
+        start_time = (
+            raw_start
+            if isinstance(raw_start, time)
+            else (time.fromisoformat(raw_start) if isinstance(raw_start, str) else None)
+        )
+        if start_time is not None:
+            event_start = timezone.make_aware(
+                datetime.combine(event.date, start_time),
+                _current_tz(),
+            )
+            if scheduled >= event_start and local_base < event_start:
+                if event.date == local_base.date():
+                    return local_base
+                return max(local_base, event_start - timedelta(hours=2))
     return scheduled

@@ -47,8 +47,12 @@ from twitter.generators.common import (  # noqa: F401
     _sanitize_for_prompt,
     _trim_to_weight,
     _validation_feedback,
+    GROUP_ID_LINE_PREFIX,
+    PROFILE_LINK_FALLBACK_LINE,
+    contains_url,
     count_body_lines,
     count_tweet_length,
+    defang_urls_for_x,
     is_tweet_text_valid,
     validate_tweet_text,
 )
@@ -135,11 +139,13 @@ def get_generator(tweet_type: str):
             generate_lt_tweet,
             qi.event_detail,
             fallback_fn=_fallback_presentation_tweet,
+            forbid_urls=True,
         ),
         "special": lambda qi: _generate_with_retry(
             generate_special_event_tweet,
             qi.event_detail,
             fallback_fn=lambda detail: _fallback_presentation_tweet(detail, special=True),
+            forbid_urls=True,
         ),
         "daily_reminder": lambda qi: _generate_with_retry(
             generate_daily_reminder_tweet,

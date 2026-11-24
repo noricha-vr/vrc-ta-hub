@@ -1,6 +1,6 @@
 """Django シグナル: 集会承認・LT/特別回承認時に TweetQueue へ自動追加。
 
-当日開催の発表は個別告知をスキップ扱いにし、同時に daily_reminder を同期する。
+当日の発表（開始前）も含め、発表ごとに個別告知を 1 回だけキューする。
 """
 
 import logging
@@ -12,13 +12,13 @@ from django.utils import timezone
 from community.models import Community
 from event.models import EventDetail
 from twitter.scheduling import default_scheduled_at
-from twitter.services.daily_reminder import (
-    PRESENTATION_DETAIL_TYPES,
-    ensure_same_day_individual_queue_skipped,
-    is_active_presentation,
-    sync_daily_reminder_for_event,
-    sync_daily_reminders_for_instance,
+from twitter.services.announcement_eligibility import (
+    EVENT_STARTED_SKIP_MESSAGE,
+    PRESERVED_MISSKEY_STATUSES,
+    RETRACTED_PRESENTATION_SKIP_MESSAGE,
+    revocable_unposted_queue_q,
 )
+from twitter.services.daily_reminder import PRESENTATION_DETAIL_TYPES
 from twitter.services import tweet_generation
 from twitter.services.tweet_generation import sync_slide_share_queue_image
 
@@ -56,6 +56,7 @@ def track_event_detail_status_change(sender, instance, **kwargs):
     instance._old_detail_type = old.get('detail_type')
     instance._old_event_id = old.get('event_id')
     instance._old_event_date = old.get('event__date')
+    instance._old_deleted_at = old.get('deleted_at')
 
 @receiver(post_save, sender=Community)
 def queue_new_community_tweet(sender, instance, created, **kwargs):
@@ -173,28 +174,155 @@ def queue_event_detail_tweet(sender, instance, created, **kwargs):
         logger.exception("Failed to queue event detail tweet for EventDetail %s", instance.pk)
 
 
+def _has_event_started(event, now=None) -> bool:
+    """当日イベントの開始時刻を過ぎているか返す。"""
+    local_now = timezone.localtime(now or timezone.now())
+    if event.date < local_now.date():
+        return True
+    if event.date > local_now.date():
+        return False
+    return local_now.time() >= event.start_time
+
+
+def _delete_unposted_presentation_queues(instance, tweet_types=('lt', 'special')) -> int:
+    """未投稿の発表告知キューを取り消す。Misskey 送信履歴がある行は CASCADE 削除せず保持する。"""
+    from twitter.models import TweetQueue
+
+    if not instance.pk:
+        return 0
+    base_qs = TweetQueue.objects.filter(
+        event_detail=instance,
+        tweet_type__in=tweet_types,
+    ).filter(
+        revocable_unposted_queue_q(),
+    )
+    preserve_ids = list(
+        base_qs.filter(misskey_note__status__in=PRESERVED_MISSKEY_STATUSES)
+        .values_list('pk', flat=True)
+    )
+    delete_ids = list(
+        base_qs.exclude(misskey_note__status__in=PRESERVED_MISSKEY_STATUSES)
+        .values_list('pk', flat=True)
+    )
+    preserved_skipped = 0
+    if preserve_ids:
+        preserved_skipped = TweetQueue.objects.filter(pk__in=preserve_ids).update(
+            status='skipped',
+            generated_text='',
+            error_message=RETRACTED_PRESENTATION_SKIP_MESSAGE,
+            generation_token='',
+        )
+    deleted = 0
+    if delete_ids:
+        deleted, _ = TweetQueue.objects.filter(pk__in=delete_ids).delete()
+    return deleted + preserved_skipped
+
+
+def _reuse_preserved_presentation_queue(instance, tweet_type: str):
+    """取り下げ・削除時にスキップ保持したキューを再承認・復元・内容変更時に再利用する。"""
+    from twitter.models import MisskeyNote, TweetQueue
+
+    preserved = (
+        TweetQueue.objects.filter(
+            event_detail=instance,
+            tweet_type=tweet_type,
+            status='skipped',
+            error_message=RETRACTED_PRESENTATION_SKIP_MESSAGE,
+        )
+        .order_by('-created_at', '-pk')
+        .first()
+    )
+    if preserved is None:
+        return None
+    now_ts = timezone.now()
+    preserved.community = instance.event.community
+    preserved.event = instance.event
+    preserved.scheduled_at = default_scheduled_at(tweet_type=tweet_type, event=instance.event)
+    preserved.status = 'generating'
+    preserved.generated_text = ''
+    preserved.error_message = ''
+    preserved.generation_token = ''
+    preserved.save(
+        update_fields=[
+            'community',
+            'event',
+            'scheduled_at',
+            'status',
+            'generated_text',
+            'error_message',
+            'generation_token',
+        ],
+    )
+    MisskeyNote.objects.filter(
+        tweet_queue=preserved,
+        status='skipped',
+    ).update(
+        status='pending',
+        error_message='',
+        attempts=0,
+        updated_at=now_ts,
+    )
+    logger.info("Reused preserved %s tweet %d: %s - %s", tweet_type, preserved.pk, instance.speaker, instance.theme)
+    tweet_generation.start_tweet_generation(preserved)
+    return preserved
+
+
+def sync_presentation_tweet_for_restored_detail(instance) -> None:
+    """一括復元など pre_save/post_save を通らない復元時に発表告知キューを同期する。"""
+    try:
+        instance._old_status = None
+        instance._old_deleted_at = timezone.now()
+        _queue_event_detail_tweet(instance, created=False)
+    except Exception:
+        logger.exception("Failed to sync presentation tweet queue for restored EventDetail %s", instance.pk)
+
+
+def _skip_unposted_presentation_queues_for_started_event(instance, tweet_types=('lt', 'special')) -> int:
+    """開始済みイベントに変わった発表の未投稿キューを復帰可能な skipped 状態で保持する。"""
+    from twitter.models import TweetQueue
+
+    if not instance.pk:
+        return 0
+    return TweetQueue.objects.filter(
+        event_detail=instance,
+        tweet_type__in=tweet_types,
+        status__in=('generating', 'generation_failed', 'ready'),
+    ).update(
+        status='skipped',
+        generated_text='',
+        error_message=EVENT_STARTED_SKIP_MESSAGE,
+        generation_token='',
+    )
+
+
 def _queue_event_detail_tweet(instance, created):
     from twitter.models import TweetQueue
 
-    if instance.detail_type not in PRESENTATION_DETAIL_TYPES:
-        sync_daily_reminders_for_instance(instance, created)
+    if (
+        instance.deleted_at is not None
+        or instance.detail_type not in PRESENTATION_DETAIL_TYPES
+        or instance.status != "approved"
+    ):
+        deleted = _delete_unposted_presentation_queues(instance)
+        if deleted:
+            logger.info("Deleted %d unposted presentation tweet(s) for detail %s", deleted, instance.pk)
         return
 
-    if instance.status != "approved":
-        sync_daily_reminders_for_instance(instance, created)
-        return
-
-    if instance.event.date < timezone.localdate():
-        sync_daily_reminders_for_instance(instance, created)
+    if _has_event_started(instance.event):
+        skipped = _skip_unposted_presentation_queues_for_started_event(instance)
+        if skipped:
+            logger.info("Skipped %d unposted presentation tweet(s) for started event detail %s", skipped, instance.pk)
         return
 
     old_status = getattr(instance, "_old_status", None)
+    old_detail_type = getattr(instance, "_old_detail_type", None)
+    old_event_id = getattr(instance, "_old_event_id", None)
+    old_deleted_at = getattr(instance, "_old_deleted_at", None)
     tweet_type = "lt" if instance.detail_type == "LT" else "special"
-
-    if instance.event.date == timezone.localdate():
-        ensure_same_day_individual_queue_skipped(instance, tweet_type)
-        sync_daily_reminders_for_instance(instance, created)
-        return
+    other_type = "special" if tweet_type == "lt" else "lt"
+    deleted_other = _delete_unposted_presentation_queues(instance, tweet_types=(other_type,))
+    if deleted_other:
+        logger.info("Deleted %d stale %s tweet(s) after type change", deleted_other, other_type)
 
     if not created and old_status == "approved":
         old_speaker = getattr(instance, "_old_speaker", "")
@@ -202,21 +330,29 @@ def _queue_event_detail_tweet(instance, created):
         new_speaker = instance.speaker or ""
         new_theme = instance.theme or ""
 
-        if old_speaker == new_speaker and old_theme == new_theme:
-            sync_daily_reminders_for_instance(instance, created)
-            return
-
-        deleted, _ = TweetQueue.objects.filter(
-            event_detail=instance,
-            tweet_type=tweet_type,
-            status__in=('generating', 'generation_failed', 'ready'),
-        ).delete()
-        if deleted:
-            logger.info("Deleted %d unposted %s tweet(s) for regeneration", deleted, tweet_type)
+        if (
+            old_detail_type == instance.detail_type
+            and old_event_id == instance.event_id
+            and old_speaker == new_speaker
+            and old_theme == new_theme
+        ):
+            if old_deleted_at is None:
+                return
+            if _reuse_preserved_presentation_queue(instance, tweet_type) is not None:
+                return
+            if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
+                return
+        else:
+            deleted = _delete_unposted_presentation_queues(instance, tweet_types=(tweet_type,))
+            if deleted:
+                logger.info("Deleted %d unposted %s tweet(s) for regeneration", deleted, tweet_type)
+            if _reuse_preserved_presentation_queue(instance, tweet_type) is not None:
+                return
 
     else:
+        if _reuse_preserved_presentation_queue(instance, tweet_type) is not None:
+            return
         if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
-            sync_daily_reminders_for_instance(instance, created)
             return
 
     queue_item = TweetQueue.objects.create(
@@ -228,16 +364,19 @@ def _queue_event_detail_tweet(instance, created):
     )
     logger.info("Queued %s tweet: %s - %s", tweet_type, instance.speaker, instance.theme)
 
-    sync_daily_reminders_for_instance(instance, created)
-
     tweet_generation.start_tweet_generation(queue_item)
 
 
 @receiver(post_delete, sender=EventDetail)
-def sync_daily_reminder_on_event_detail_delete(sender, instance, **kwargs):
-    """当日発表の削除後に daily_reminder を同期する。"""
+def cleanup_presentation_queues_on_delete(sender, instance, **kwargs):
+    """発表削除時に未投稿の個別告知キューを取り消す。"""
     try:
-        if is_active_presentation(instance.detail_type, instance.event.date):
-            sync_daily_reminder_for_event(instance.event_id)
+        deleted = _delete_unposted_presentation_queues(instance)
+        if deleted:
+            logger.info(
+                "Deleted %d unposted presentation tweet(s) after EventDetail delete %s",
+                deleted,
+                instance.pk,
+            )
     except Exception:
-        logger.exception("Failed to sync daily reminder after EventDetail delete %s", instance.pk)
+        logger.exception("Failed to cleanup presentation queues after EventDetail delete %s", instance.pk)

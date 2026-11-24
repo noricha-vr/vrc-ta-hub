@@ -13,12 +13,17 @@ from twitter.db import run_with_db_reconnect
 from twitter.misskey_api import is_misskey_enabled
 from twitter.models import MisskeyNote, TweetQueue
 from twitter.notifications import notify_tweet_post_failure
-from twitter.tweet_generator import get_generator, get_tweet_image_url
+from twitter.tweet_generator import get_generator, get_tweet_image_url, validate_tweet_text
 from twitter.x_api import PostTweetResult
 
 from .announcement_eligibility import (
+    EVENT_DATE_PASSED_SKIP_MESSAGE,
+    EVENT_STARTED_SKIP_MESSAGE,
+    RETRACTED_PRESENTATION_SKIP_MESSAGE,
+    SCHEDULE_EXPIRED_SKIP_REASON,
     UNLISTED_COMMUNITY_SKIP_MESSAGE,
     event_date_skip_reason,
+    presentation_detail_skip_reason,
     unlisted_community_skip_reason,
 )
 from .media_service import upload_media_to_x
@@ -29,8 +34,6 @@ logger = logging.getLogger(__name__)
 
 RETRY_THRESHOLD_HOURS = 1
 SCHEDULE_EXPIRY_HOURS = 24
-SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
-SCHEDULE_EXPIRED_SKIP_REASON = '予約日時から24時間以上経過したため投稿をスキップ'
 
 
 class PostTweetCallable(Protocol):
@@ -134,6 +137,33 @@ def retry_generation_async(
         close_connections_func()
 
 
+def _record_post_failure(
+    queue_item: TweetQueue,
+    *,
+    error_message: str,
+    failure_status: str | None,
+    notify_failure_func: FailureNotifier,
+    result: PostTweetResult,
+    error_code: str,
+    context: str,
+) -> dict[str, object]:
+    """投稿失敗または事前ブロックの状態を保存して failure 通知を送る."""
+    if failure_status is not None:
+        queue_item.status = failure_status
+    queue_item.error_message = error_message
+    failure_update_fields = ['error_message']
+    if failure_status is not None:
+        failure_update_fields.append('status')
+    run_with_db_reconnect(
+        lambda: queue_item.save(update_fields=failure_update_fields),
+        context=context,
+    )
+    notify_failure_func(queue_item, result)
+    return {
+        "id": queue_item.pk, "status": "failed", "error": error_code,
+    }
+
+
 def post_tweet_queue_item(
     queue_item: TweetQueue,
     *,
@@ -143,6 +173,31 @@ def post_tweet_queue_item(
     notify_failure_func: FailureNotifier = notify_tweet_post_failure,
 ) -> dict[str, object]:
     """TweetQueue 1件を X API に投稿し、結果を保存してから返す."""
+    if (
+        queue_item.tweet_type in ('lt', 'special')
+        and 'contains_url' in validate_tweet_text(queue_item.generated_text, forbid_urls=True)
+    ):
+        logger.warning(
+            "Blocked %s tweet containing URL before X API call (queue=%d)",
+            queue_item.tweet_type,
+            queue_item.pk,
+        )
+        block_message = 'URLを含むためX投稿をブロックしました（再生成してください）'
+        return _record_post_failure(
+            queue_item,
+            error_message=block_message,
+            failure_status=failure_status,
+            notify_failure_func=notify_failure_func,
+            result={
+                "ok": False,
+                "data": None,
+                "status_code": None,
+                "error_body": block_message,
+            },
+            error_code="contains_url",
+            context=f"post_tweet_queue_item_url_blocked queue={queue_item.pk}",
+        )
+
     media_ids = None
     if queue_item.image_url:
         media_id = upload_media_func(queue_item.image_url)
@@ -166,26 +221,22 @@ def post_tweet_queue_item(
             "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
         }
 
-    if failure_status is not None:
-        queue_item.status = failure_status
     status_code = result.get("status_code")
-    queue_item.error_message = (
+    error_message = (
         f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
     )
     error_body = result.get("error_body")
     if error_body:
-        queue_item.error_message = f"{queue_item.error_message}: {error_body[:300]}"
-    failure_update_fields = ['error_message']
-    if failure_status is not None:
-        failure_update_fields.append('status')
-    run_with_db_reconnect(
-        lambda: queue_item.save(update_fields=failure_update_fields),
+        error_message = f"{error_message}: {error_body[:300]}"
+    return _record_post_failure(
+        queue_item,
+        error_message=error_message,
+        failure_status=failure_status,
+        notify_failure_func=notify_failure_func,
+        result=result,
+        error_code="post_failed",
         context=f"post_tweet_queue_item_save_failure queue={queue_item.pk}",
     )
-    notify_failure_func(queue_item, result)
-    return {
-        "id": queue_item.pk, "status": "failed", "error": "post_failed",
-    }
 
 
 def _process_scheduled_tweets_for_x(
@@ -253,62 +304,48 @@ def _process_scheduled_tweets_for_x(
     )
     posted_attempted = False
     for queue_item in ready_items:
+        dispatch_now = now or timezone.now()
+        skip_status = None
+        skip_message = ''
+        skip_code = None
+
         if unlisted_community_skip_reason(queue_item):
-            queue_item.status = 'skipped'
-            queue_item.error_message = UNLISTED_COMMUNITY_SKIP_MESSAGE
+            skip_status = 'skipped'
+            skip_message = UNLISTED_COMMUNITY_SKIP_MESSAGE
+            skip_code = 'unlisted_community'
+        else:
+            date_reason = event_date_skip_reason(queue_item, now=dispatch_now)
+            detail_reason = presentation_detail_skip_reason(queue_item)
+            if date_reason == 'daily_reminder_retired':
+                skip_status = 'skipped'
+                skip_message = '当日リマインドは廃止されたため投稿スキップ'
+                skip_code = 'daily_reminder_retired'
+            elif queue_item.tweet_type in ('lt', 'special'):
+                if date_reason == 'event_date_passed':
+                    skip_status = 'failed'
+                    skip_message = EVENT_DATE_PASSED_SKIP_MESSAGE
+                    skip_code = 'event_date_passed'
+                elif date_reason == 'event_started':
+                    skip_status = 'skipped'
+                    skip_message = EVENT_STARTED_SKIP_MESSAGE
+                    skip_code = 'event_started'
+                elif detail_reason:
+                    skip_status = 'skipped'
+                    skip_message = RETRACTED_PRESENTATION_SKIP_MESSAGE
+                    skip_code = detail_reason
+
+        if skip_status is not None:
+            queue_item.status = skip_status
+            queue_item.error_message = skip_message
             run_with_db_reconnect(
                 lambda: queue_item.save(update_fields=['status', 'error_message']),
-                context=f"post_scheduled_tweets_skip_unlisted queue={queue_item.pk}",
+                context=f"post_scheduled_tweets_skip queue={queue_item.pk} reason={skip_code}",
             )
             results.append({
-                "id": queue_item.pk, "status": "skipped", "reason": "unlisted_community",
+                "id": queue_item.pk, "status": "skipped", "reason": skip_code,
             })
-            logger.info("Skipped new community tweet of unlisted community for queue %d", queue_item.pk)
+            logger.info("Skipped %s tweet for queue %d (%s)", queue_item.tweet_type, queue_item.pk, skip_code)
             continue
-
-        skip_reason = event_date_skip_reason(queue_item)
-        if queue_item.tweet_type in ('lt', 'special'):
-            if skip_reason == 'same_day_integrated':
-                queue_item.status = 'skipped'
-                queue_item.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
-                queue_item.generated_text = ''
-                run_with_db_reconnect(
-                    lambda: queue_item.save(
-                        update_fields=['status', 'error_message', 'generated_text'],
-                    ),
-                    context=f"post_scheduled_tweets_skip_same_day queue={queue_item.pk}",
-                )
-                results.append({
-                    "id": queue_item.pk, "status": "skipped", "reason": "same_day_integrated",
-                })
-                logger.info("Skipped same-day %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
-                continue
-            if skip_reason == 'event_date_passed':
-                queue_item.status = 'failed'
-                queue_item.error_message = 'イベント日が過去のため投稿スキップ'
-                run_with_db_reconnect(
-                    queue_item.save,
-                    context=f"post_scheduled_tweets_skip_past_event queue={queue_item.pk}",
-                )
-                results.append({
-                    "id": queue_item.pk, "status": "skipped", "reason": "event_date_passed",
-                })
-                logger.info("Skipped expired %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
-                continue
-
-        if queue_item.tweet_type == 'daily_reminder':
-            if skip_reason == 'not_event_day':
-                queue_item.status = 'failed'
-                queue_item.error_message = '当日イベントではないため投稿スキップ'
-                run_with_db_reconnect(
-                    queue_item.save,
-                    context=f"post_scheduled_tweets_skip_stale_daily queue={queue_item.pk}",
-                )
-                results.append({
-                    "id": queue_item.pk, "status": "skipped", "reason": "not_event_day",
-                })
-                logger.info("Skipped stale daily reminder tweet for queue %d", queue_item.pk)
-                continue
 
         if is_misskey_enabled():
             try:
