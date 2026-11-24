@@ -66,9 +66,9 @@
 - `POST /recording-ops/items/{detail_id}/proxy-upload-url/`: 外部録画クライアント向けの非公開 R2 署名 PUT URL 発給（スーパーユーザーの書き込み API キー限定。キー形式は `recording-proxy/{detail_id}/{uuid}.mp4`、有効期限は 900〜1800 秒にクランプ、既定 1200 秒）
 - `PUT /recording-ops/items/{detail_id}/`: プロキシメタ情報および EDL v1 状態の登録・更新（スーパーユーザーの書き込み API キー限定。既存項目の更新は `expected_revision` 必須、競合時は `409 Conflict`）
 - `GET /recording-ops/items/{detail_id}/proxy-url/`: 運営スタッフ向けの非公開 R2 署名 GET URL と現在 EDL v1 状態の取得（`is_staff` または `is_superuser` のセッション/API キー。期限切れは `410 Gone`）
-- `POST /recording-ops/items/{detail_id}/orders/`: EDL v1 確定指示（`apply_edl` / `stop_publish`）のキュー登録（`is_staff` または `is_superuser`、API キー利用時は書き込みスコープ必須。`expected_revision` 必須、リビジョン不一致・未完了オーダー存在・公開済みロック中の `apply_edl` は `409 Conflict`）
-- `POST /recording-ops/orders/claim/`: 待機中（`queued`）オーダーの 1 件リース取得（`running` へ遷移、スーパーユーザーの書き込み API キー限定。空の場合は `{"order": null}` を 200 で返却）
-- `POST /recording-ops/orders/{order_id}/complete/`: 処理中（`running`）オーダーの完了・失敗報告（スーパーユーザーの書き込み API キー限定。`target_revision` 不一致や非 `running` 状態は `409 Conflict`）
+- `POST /recording-ops/items/{detail_id}/orders/`: EDL v1 確定指示（`apply_edl` / `stop_publish`）のキュー登録（`is_staff` または `is_superuser`、API キー利用時は書き込みスコープ必須。`expected_revision` 必須、リビジョン不一致・未完了オーダー存在・公開済みロック中の `apply_edl` は `409 Conflict`。既存動画がある場合は同意撤回・論理削除後も `stop_publish` のみ登録可能）
+- `POST /recording-ops/orders/claim/`: 待機中（`queued`）オーダーの 1 件リース取得（`running` へ遷移、スーパーユーザーの書き込み API キー限定。空の場合は `{"order": null}` を 200 で返却。開始から 30 分を超過した `running` オーダーは自動的に `failed` へ失効しロックを解放）
+- `POST /recording-ops/orders/{order_id}/complete/`: 処理中（`running`）オーダーの完了・失敗報告（スーパーユーザーの書き込み API キー限定。`target_revision` 不一致や非 `running` 状態は `409 Conflict`。`apply_edl` が `published` + `public` で完了した場合のみ発表の `youtube_url` を更新し、`stop_publish` 完了時は非公開確定とともに発表の `youtube_url` を除去）
 
 #### EDL v1 スキーマ
 

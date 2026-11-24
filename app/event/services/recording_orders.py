@@ -12,6 +12,7 @@ from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.edl import EDLValidationError, validate_edl_v1
 from event.services.recording_ops_common import (
     MAX_REVISION,
+    ORDER_LEASE_TIMEOUT,
     RecordingConflictError,
     RecordingNotFoundError,
     RecordingValidationError,
@@ -160,10 +161,45 @@ def create_edit_order(
                 current_state=serialize_item_state(item),
             )
 
-        if RecordingEditOrder.objects.filter(
-            review_item=item,
-            status__in=RecordingEditOrder.ACTIVE_STATUSES,
-        ).exists():
+        active_orders = list(
+            RecordingEditOrder.objects.select_for_update().filter(
+                review_item=item,
+                status__in=RecordingEditOrder.ACTIVE_STATUSES,
+            )
+        )
+        still_active = False
+        for active_order in active_orders:
+            if (
+                active_order.status == RecordingEditOrder.Status.RUNNING
+                and active_order.started_at is not None
+                and active_order.started_at <= now - ORDER_LEASE_TIMEOUT
+            ):
+                active_order.status = RecordingEditOrder.Status.FAILED
+                active_order.active_lock_key = None
+                active_order.completed_at = now
+                active_order.error_message = "ワーカーのリース期限（30分）を超過したため自動失敗終了しました。"
+                active_order.save(
+                    update_fields=[
+                        "status",
+                        "active_lock_key",
+                        "completed_at",
+                        "error_message",
+                        "updated_at",
+                    ]
+                )
+                logger.warning(
+                    "recording_order_lease_expired",
+                    extra={
+                        "event_type": "recording_order_lease_expired",
+                        "order_id": active_order.pk,
+                        "event_detail_id": detail.pk,
+                        "order_type": active_order.order_type,
+                    },
+                )
+            else:
+                still_active = True
+
+        if still_active:
             logger.warning(
                 "recording_order_conflict",
                 extra={

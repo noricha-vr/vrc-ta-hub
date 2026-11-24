@@ -10,6 +10,7 @@ from event.models import EventDetail, RecordingReviewItem
 from event.youtube_urls import youtube_video_id
 
 DEFAULT_PROXY_RETENTION = timedelta(days=30)
+ORDER_LEASE_TIMEOUT = timedelta(minutes=30)
 MAX_REVISION = 2_147_483_647
 _VIDEO_ID_PATTERN = re.compile(r"\A[0-9A-Za-z_-]{1,32}\Z")
 

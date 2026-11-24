@@ -11,6 +11,7 @@ from django.utils import timezone
 from community.constants import RecordingPolicy
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.recording_ops_common import (
+    ORDER_LEASE_TIMEOUT,
     RecordingConflictError,
     RecordingNotFoundError,
     RecordingValidationError,
@@ -67,6 +68,63 @@ def _claim_invalidation_reason(
     return None
 
 
+def _expire_stale_running_orders(*, now: Any) -> int:
+    """リース期限を超過した running オーダーを failed に遷移させて排他キーを解放する。"""
+    cutoff = now - ORDER_LEASE_TIMEOUT
+    stale_refs = list(
+        RecordingEditOrder.objects.filter(
+            status=RecordingEditOrder.Status.RUNNING,
+            started_at__lte=cutoff,
+        )
+        .order_by("started_at", "pk")
+        .values("id", "review_item_id", "event_detail_id")[:20]
+    )
+    expired_count = 0
+    use_skip_locked = connection.features.has_select_for_update_skip_locked
+    use_select_for_update = connection.features.has_select_for_update
+
+    for ref in stale_refs:
+        with transaction.atomic():
+            lock_event_detail(ref["event_detail_id"], include_deleted=True)
+            RecordingReviewItem.objects.select_for_update().filter(pk=ref["review_item_id"]).first()
+            order_qs = RecordingEditOrder.objects.filter(
+                pk=ref["id"],
+                status=RecordingEditOrder.Status.RUNNING,
+                started_at__lte=cutoff,
+            )
+            if use_skip_locked:
+                order_qs = order_qs.select_for_update(skip_locked=True)
+            elif use_select_for_update:
+                order_qs = order_qs.select_for_update()
+            order = order_qs.first()
+            if order is None:
+                continue
+            order.status = RecordingEditOrder.Status.FAILED
+            order.active_lock_key = None
+            order.completed_at = now
+            order.error_message = "ワーカーのリース期限（30分）を超過したため自動失敗終了しました。"
+            order.save(
+                update_fields=[
+                    "status",
+                    "active_lock_key",
+                    "completed_at",
+                    "error_message",
+                    "updated_at",
+                ]
+            )
+            expired_count += 1
+            logger.warning(
+                "recording_order_lease_expired",
+                extra={
+                    "event_type": "recording_order_lease_expired",
+                    "order_id": order.pk,
+                    "event_detail_id": order.event_detail_id,
+                    "order_type": order.order_type,
+                },
+            )
+    return expired_count
+
+
 def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> RecordingEditOrder | None:
     """最古の有効な queued オーダーを 1 件リース（running 遷移）する。
 
@@ -77,6 +135,8 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
         valid_types = {choice for choice, _ in RecordingEditOrder.OrderType.choices}
         if any(t not in valid_types for t in order_types):
             raise RecordingValidationError("order_types に無効な指示種別が含まれています。")
+
+    _expire_stale_running_orders(now=timezone.now())
 
     base_qs = RecordingEditOrder.objects.filter(status=RecordingEditOrder.Status.QUEUED)
     if order_types:
@@ -182,11 +242,11 @@ def _derive_review_status_on_success(
     requested_review_status: str,
 ) -> str:
     if order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
-        if privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC or (
-            requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-        ):
-            raise RecordingValidationError("stop_publish の完了報告では公開状態を指定できません。")
-        return requested_review_status or RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+        if privacy not in ("", RecordingReviewItem.YouTubePrivacy.PRIVATE):
+            raise RecordingValidationError("stop_publish の完了報告では youtube_draft_privacy='private' のみ指定できます。")
+        if requested_review_status not in ("", RecordingReviewItem.ReviewStatus.PRIVATE_FIXED):
+            raise RecordingValidationError("stop_publish の完了報告では review_status='private_fixed' のみ指定できます。")
+        return RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
     if (
         requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
         and privacy != RecordingReviewItem.YouTubePrivacy.PUBLIC
@@ -307,13 +367,17 @@ def complete_edit_order(
 
             item_fields = ["review_status", "updated_at"]
             if order.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
-                item.youtube_draft_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
-                item_fields.append("youtube_draft_privacy")
+                effective_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
                 item.review_status = _derive_review_status_on_success(
                     order_type=order.order_type,
-                    privacy=item.youtube_draft_privacy,
+                    privacy=effective_privacy,
                     requested_review_status=review_status,
                 )
+                item.youtube_draft_privacy = effective_privacy
+                item_fields.append("youtube_draft_privacy")
+                if detail.youtube_url:
+                    detail.youtube_url = None
+                    detail.save(update_fields=["youtube_url", "updated_at"])
             else:
                 if result_video_id:
                     item.youtube_draft_video_id = result_video_id

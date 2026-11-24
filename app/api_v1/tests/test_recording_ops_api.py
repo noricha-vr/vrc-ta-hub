@@ -492,17 +492,28 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(stop_resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(stop_resp.data["order_type"], "stop_publish")
 
-        # stop_publish を claim & complete しても公開済みロックは維持される
+        # stop_publish を claim しても、unlisted 完了報告は 400 で拒否する
         stop_claim = super_client.post(self.order_claim_url, {}, format="json")
         self.assertEqual(stop_claim.data["order"]["id"], stop_resp.data["id"])
+        stop_unlisted = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_resp.data["id"]}),
+            {"target_revision": 3, "status": "succeeded", "youtube_draft_privacy": "unlisted"},
+            format="json",
+        )
+        self.assertEqual(stop_unlisted.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # stop_publish 完了時は private_fixed とともに EventDetail.youtube_url も除去し、公開済みロックは維持される
         stop_complete = super_client.post(
             reverse("recording-ops-order-complete", kwargs={"order_id": stop_resp.data["id"]}),
             {"target_revision": 3, "status": "succeeded"},
             format="json",
         )
         self.assertEqual(stop_complete.status_code, status.HTTP_200_OK)
+        self.detail.refresh_from_db()
+        self.assertIsNone(self.detail.youtube_url)
         item.refresh_from_db()
         self.assertEqual(item.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item.youtube_draft_privacy, RecordingReviewItem.YouTubePrivacy.PRIVATE)
         self.assertTrue(item.is_public_locked)
 
         after_stop_apply = staff_client.post(
@@ -751,6 +762,54 @@ class RecordingOpsAPITest(TestCase):
             staff_client.get(f"{self.proxy_get_url}?expires_in={'9' * 5000}").status_code,
             status.HTTP_400_BAD_REQUEST,
         )
+
+    def test_stale_running_order_expires_on_create_and_claim_and_blocks_late_complete(self):
+        staff_client = self._api_client(self.staff_write_key)
+        super_client = self._api_client(self.super_write_key)
+
+        self._register_item()
+        order_resp = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
+        order_id = order_resp.data["id"]
+        claim_resp = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(claim_resp.data["order"]["id"], order_id)
+
+        # リース期限（30分）を超過した running 状態にする
+        RecordingEditOrder.objects.filter(pk=order_id).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+
+        # 新しい stop_publish / apply_edl 登録時に期限切れ running が自動失敗化しブロックされない
+        stop_resp = staff_client.post(
+            self.order_create_url,
+            {"expected_revision": 2, "order_type": "stop_publish"},
+            format="json",
+        )
+        self.assertEqual(stop_resp.status_code, status.HTTP_201_CREATED)
+
+        old_order = RecordingEditOrder.objects.get(pk=order_id)
+        self.assertEqual(old_order.status, RecordingEditOrder.Status.FAILED)
+        self.assertIsNone(old_order.active_lock_key)
+
+        # 旧ワーカーの遅延完了報告は 409 order_not_running で拒否される
+        late_complete = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": order_id}),
+            {"target_revision": 2, "status": "succeeded"},
+            format="json",
+        )
+        self.assertEqual(late_complete.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(late_complete.data["code"], "order_not_running")
+
+        # claim 呼び出し時も別の期限切れ running を自動回収して解放する
+        new_claim = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(new_claim.data["order"]["id"], stop_resp.data["id"])
+        RecordingEditOrder.objects.filter(pk=stop_resp.data["id"]).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        empty_claim = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNone(empty_claim.data["order"])
+        stop_order = RecordingEditOrder.objects.get(pk=stop_resp.data["id"])
+        self.assertEqual(stop_order.status, RecordingEditOrder.Status.FAILED)
+        self.assertIsNone(stop_order.active_lock_key)
 
     def test_openapi_schema_includes_recording_ops_endpoints(self):
         response = self.client.get(f"{reverse('schema')}?format=json")
