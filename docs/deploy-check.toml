@@ -1,6 +1,7 @@
 # deploy-watch project checklist schema (v1)
 # - `complete_checklist`: 監視完了時に満たすべき project-level 条件
 # - `[migrations]`: デプロイ前の未適用 migration 確認・適用コマンド
+# - `[[companions]]`: 同一イメージを使う Cloud Run companion リソースの同期定義
 # - `[[checks.critical]]`: 全ステージ（即時モード含む）で実行する curl アサーション
 # - `[[checks.important]]`: Stage 2 以降で実行する curl アサーション
 # - `[[log_checks]]`: Cloud Logging で確認する project-level 指標
@@ -15,6 +16,7 @@ source_of_truth = true
 
 complete_checklist = [
   "未適用 migration がゼロであることをトラフィック切替前に確認した",
+  "companion Job（vrc-ta-hub-migrate）を @sha256 digest へ同期し、discover-companions exit 0 を確認した",
   "Critical の curl アサーションを各ステージで実行した",
   "Important の curl アサーションを Stage 2 以降で実行した",
   "/health の db と cache がどちらも ok であることを確認した",
@@ -35,6 +37,17 @@ check_command = "./scripts/check_pending_migrations.sh"
 # API が overrides を受け付けず失敗する）。
 # Job の更新と実行は、引数を差し替えるほかのスクリプトと同じロックの中で行う（scripts/apply_migrations.sh）。
 apply_command = "./scripts/apply_migrations.sh"
+
+# Cloud Run migration Job（vrc-ta-hub-migrate）。
+# カナリア切替前の Phase B（sync_timing = "before_canary"）で本体候補リビジョンの
+# @sha256:<64hex> digest へ揃え、可変タグ（:latest / :<sha>）や旧イメージのまま残るドリフトを防ぐ。
+# 一時実行用の別名 Job は作らず（run_manage_command.sh もこの Job を共有）、
+# 除外対象の一時 Job プレフィックスも存在しないため [companions_policy] は未定義（fail-closed）。
+[[companions]]
+kind = "cloud_run_job"
+name = "vrc-ta-hub-migrate"
+sync_timing = "before_canary"
+sync_image = true
 
 [[checks.critical]]
 id = "C1"
