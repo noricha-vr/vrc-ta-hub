@@ -17,9 +17,12 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
+from community.constants import RecordingPolicy
+from community.models import Community
 from event.models import (
     Event,
     EventDetail,
+    RecordingReviewItem,
     article_generation_request_values,
     article_is_empty,
     related_event_details_cache_key,
@@ -220,3 +223,31 @@ def import_approved_detail_to_vket(sender, instance, raw=False, **kwargs):
         return
     from vket.application_link import import_approved_detail
     transaction.on_commit(partial(import_approved_detail, instance.pk, instance.event_id))
+
+
+@receiver(post_save, sender=EventDetail)
+def revoke_recording_on_detail_save(sender, instance, created=False, raw=False, update_fields=None, **kwargs):
+    """発表の撮影同意撤回・論理削除時に、既存の撮影成果物の公開停止を予約する。"""
+    if raw or created:
+        return
+    if update_fields is not None and not ({'recording_policy', 'deleted_at'} & set(update_fields)):
+        return
+    if instance.recording_policy == RecordingPolicy.PUBLIC and instance.deleted_at is None:
+        return
+    if not RecordingReviewItem.objects.filter(event_detail_id=instance.pk).exists():
+        return
+    from event.services.recording_orders import revoke_recording_for_detail
+    revoke_recording_for_detail(instance.pk)
+
+
+@receiver(post_save, sender=Community)
+def revoke_recording_on_community_save(sender, instance, created=False, raw=False, update_fields=None, **kwargs):
+    """集会の撮影許可 OFF 時に、配下発表の撮影停止を予約する。"""
+    if raw or created or instance.recording_allowed:
+        return
+    if update_fields is not None and 'recording_allowed' not in update_fields:
+        return
+    if not RecordingReviewItem.objects.filter(event_detail__event__community_id=instance.pk).exists():
+        return
+    from event.services.recording_orders import revoke_recording_for_community
+    revoke_recording_for_community(instance.pk)

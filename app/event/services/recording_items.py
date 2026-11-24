@@ -45,6 +45,24 @@ _ALLOWED_UPSERT_STATUSES = frozenset(
 )
 
 
+def _validate_status_privacy_pair(review_status: str, youtube_draft_privacy: str) -> None:
+    if (
+        review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+        and youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PRIVATE
+    ):
+        raise RecordingValidationError("review_status='private_fixed' では youtube_draft_privacy='private' のみ設定できます。")
+    if (
+        youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE
+        and review_status == RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
+    ):
+        raise RecordingValidationError("youtube_draft_privacy='private' と review_status='unlisted_scheduled' は併用できません。")
+    if (
+        review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
+        and youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PUBLIC
+    ):
+        raise RecordingValidationError("review_status='published' では youtube_draft_privacy='public' のみ設定できます。")
+
+
 def _validate_upsert_inputs(
     detail_id: int,
     *,
@@ -146,6 +164,7 @@ def upsert_recording_item(
                 if privacy == RecordingReviewItem.YouTubePrivacy.UNLISTED
                 else RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
             )
+            _validate_status_privacy_pair(initial_status, privacy)
             item = RecordingReviewItem.objects.create(
                 event_detail=detail,
                 proxy_r2_key=proxy_r2_key,
@@ -281,6 +300,7 @@ def upsert_recording_item(
             item.review_status = RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
             update_fields.append("review_status")
 
+        _validate_status_privacy_pair(item.review_status, item.youtube_draft_privacy)
         item.save(update_fields=list(dict.fromkeys(update_fields)))
         logger.info(
             "recording_item_upserted",

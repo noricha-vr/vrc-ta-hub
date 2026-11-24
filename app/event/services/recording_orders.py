@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import copy
 import logging
+from datetime import datetime
 from typing import Any
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from community.models import Community
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.edl import EDLValidationError, validate_edl_v1
 from event.services.recording_ops_common import (
@@ -15,7 +17,10 @@ from event.services.recording_ops_common import (
     RecordingConflictError,
     RecordingNotFoundError,
     RecordingValidationError,
+    enqueue_compensating_stop_publish,
     is_order_lease_expired,
+    is_recording_consent_valid,
+    item_has_unstopped_video,
     lock_event_detail,
     mark_order_lease_expired,
     serialize_item_state,
@@ -270,3 +275,102 @@ def create_edit_order(
         },
     )
     return order
+
+
+def _compensate_revoked_item(
+    *,
+    detail: EventDetail,
+    item: RecordingReviewItem,
+    now: datetime,
+) -> bool:
+    """同意撤回・論理削除された項目について公開 URL を消し、未完了 apply_edl 取消と停止予約を行う。"""
+    if detail.youtube_url:
+        detail.youtube_url = None
+        detail.save(update_fields=["youtube_url", "updated_at"])
+
+    active_orders = list(
+        RecordingEditOrder.objects.select_for_update().filter(
+            review_item=item,
+            status__in=RecordingEditOrder.ACTIVE_STATUSES,
+        )
+    )
+    has_remaining_active = False
+    requested_by = None
+    for active in active_orders:
+        if (
+            active.order_type == RecordingEditOrder.OrderType.APPLY_EDL
+            and active.status == RecordingEditOrder.Status.QUEUED
+        ):
+            active.status = RecordingEditOrder.Status.CANCELED
+            active.active_lock_key = None
+            active.completed_at = now
+            active.error_message = "同意撤回または論理削除により待機中の apply_edl を自動キャンセルしました。"
+            active.save(
+                update_fields=[
+                    "status",
+                    "active_lock_key",
+                    "completed_at",
+                    "error_message",
+                    "updated_at",
+                ]
+            )
+            if requested_by is None:
+                requested_by = active.requested_by
+        else:
+            has_remaining_active = True
+
+    if not has_remaining_active and item_has_unstopped_video(item):
+        enqueue_compensating_stop_publish(
+            detail=detail,
+            item=item,
+            requested_by=requested_by,
+        )
+        return True
+    return False
+
+
+def revoke_recording_for_detail(detail_id: int) -> bool:
+    """発表単位の同意撤回・論理削除に合わせて、録画停止を予約する（EventDetail -> Item -> Order 順でロック）。"""
+    with transaction.atomic():
+        detail = (
+            EventDetail.all_objects.select_for_update(of=("self",))
+            .select_related("event__community")
+            .filter(pk=detail_id)
+            .first()
+        )
+        if detail is None or is_recording_consent_valid(detail):
+            return False
+        item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
+        if item is None:
+            return False
+        return _compensate_revoked_item(detail=detail, item=item, now=timezone.now())
+
+
+def revoke_recording_for_community(community_id: int) -> int:
+    """集会の録画許可撤回に合わせて、配下発表の録画停止を一括予約する（Community -> EventDetail -> Item -> Order 順でロック）。"""
+    queued_count = 0
+    with transaction.atomic():
+        community = Community.objects.select_for_update().filter(pk=community_id).first()
+        if community is None or community.recording_allowed:
+            return 0
+        detail_ids = list(
+            RecordingReviewItem.objects.filter(event_detail__event__community_id=community_id)
+            .order_by("event_detail_id")
+            .values_list("event_detail_id", flat=True)
+        )
+        now = timezone.now()
+        for detail_id in detail_ids:
+            detail = (
+                EventDetail.all_objects.select_for_update(of=("self",))
+                .select_related("event__community")
+                .filter(pk=detail_id)
+                .first()
+            )
+            if detail is None or is_recording_consent_valid(detail):
+                continue
+            item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
+            if item is None:
+                continue
+            if _compensate_revoked_item(detail=detail, item=item, now=now):
+                queued_count += 1
+    return queued_count

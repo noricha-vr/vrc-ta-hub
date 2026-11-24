@@ -1,12 +1,15 @@
 """録画編集プロキシ・確定指示キューサービスの共通例外と検証ヘルパー。"""
 from __future__ import annotations
 
+import copy
 import logging
 import re
 from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
+from community.constants import RecordingPolicy
+from community.models import Community
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.youtube_urls import youtube_video_id
 
@@ -15,7 +18,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_PROXY_RETENTION = timedelta(days=30)
 ORDER_LEASE_TIMEOUT = timedelta(minutes=30)
 MAX_REVISION = 2_147_483_647
-_VIDEO_ID_PATTERN = re.compile(r"\A[0-9A-Za-z_-]{1,32}\Z")
+_VIDEO_ID_PATTERN = re.compile(r"\A[0-9A-Za-z_-]{11}\Z")
 
 
 class RecordingOpsError(Exception):
@@ -107,13 +110,99 @@ def validate_positive_revision(value: Any, field_name: str) -> int:
 
 
 def lock_event_detail(detail_id: int, *, include_deleted: bool = False) -> EventDetail:
-    """EventDetail 行を select_for_update で排他ロックして取得する。"""
+    """Community -> EventDetail の統一順で select_for_update ロックして取得する。"""
+    community_id = (
+        EventDetail.all_objects.filter(pk=detail_id)
+        .values_list("event__community_id", flat=True)
+        .first()
+    )
+    if community_id is None:
+        raise RecordingNotFoundError("対象の発表が見つかりません。")
+    Community.objects.select_for_update().filter(pk=community_id).first()
+
     manager = EventDetail.all_objects if include_deleted else EventDetail.objects
     qs = manager.select_for_update(of=("self",)).select_related("event__community")
     try:
         return qs.get(pk=detail_id)
     except EventDetail.DoesNotExist as exc:
         raise RecordingNotFoundError("対象の発表が見つかりません。") from exc
+
+
+def lock_event_detail_or_none(detail_id: int, *, include_deleted: bool = False) -> EventDetail | None:
+    """Community -> EventDetail の統一順でロック取得し、存在しない場合は None を返す。"""
+    try:
+        return lock_event_detail(detail_id, include_deleted=include_deleted)
+    except RecordingNotFoundError:
+        return None
+
+
+def is_recording_consent_valid(detail: EventDetail) -> bool:
+    """発表が録画公開同意および集会許可を満たしており未削除かを返す。"""
+    return (
+        detail.deleted_at is None
+        and detail.recording_policy == RecordingPolicy.PUBLIC
+        and bool(detail.event.community.recording_allowed)
+    )
+
+
+def item_has_unstopped_video(item: RecordingReviewItem) -> bool:
+    """非公開確定済みではなく、停止対象となり得る外部動画または公開状態が存在するか。"""
+    if (
+        item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+        and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE
+    ):
+        return False
+    return (
+        bool(item.youtube_draft_video_id)
+        or item.review_status
+        in (
+            RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+            RecordingReviewItem.ReviewStatus.PUBLISHED,
+        )
+        or item.youtube_draft_privacy
+        in (
+            RecordingReviewItem.YouTubePrivacy.UNLISTED,
+            RecordingReviewItem.YouTubePrivacy.PUBLIC,
+        )
+    )
+
+
+def enqueue_compensating_stop_publish(
+    *,
+    detail: EventDetail,
+    item: RecordingReviewItem,
+    requested_by: Any = None,
+    source_order_id: int | None = None,
+) -> RecordingEditOrder:
+    """同意撤回・論理削除等に際して補償 stop_publish 指示を自動投入する。"""
+    base_revision = item.edl_revision
+    if base_revision < MAX_REVISION:
+        target_revision = base_revision + 1
+        item.edl_revision = target_revision
+        item.save(update_fields=["edl_revision", "updated_at"])
+    else:
+        target_revision = base_revision
+    compensating = RecordingEditOrder.objects.create(
+        review_item=item,
+        event_detail=detail,
+        order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+        base_revision=base_revision,
+        target_revision=target_revision,
+        edl_snapshot=copy.deepcopy(item.edl_json or {}),
+        status=RecordingEditOrder.Status.QUEUED,
+        active_lock_key=f"item:{item.pk}",
+        requested_by=requested_by if getattr(requested_by, "is_authenticated", False) else None,
+    )
+    logger.warning(
+        "recording_order_compensating_stop_publish_queued",
+        extra={
+            "event_type": "recording_order_compensating_stop_publish_queued",
+            "order_id": compensating.pk,
+            "source_order_id": source_order_id,
+            "event_detail_id": detail.pk,
+        },
+    )
+    return compensating
 
 
 def is_order_lease_expired(order: RecordingEditOrder, *, now: datetime) -> bool:
