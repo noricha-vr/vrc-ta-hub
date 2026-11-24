@@ -6,6 +6,7 @@ import socket
 import sys
 import threading
 import traceback
+import unittest
 from collections.abc import Iterator, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
@@ -175,8 +176,63 @@ def _is_allowed_address(address: object) -> bool:
     return isinstance(address, tuple) and bool(address) and _is_loopback_host(address[0])
 
 
+def _iter_suite_tests(suite: unittest.TestSuite) -> Iterator[unittest.TestCase]:
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from _iter_suite_tests(item)
+        else:
+            yield item
+
+
+def _parse_shard_env() -> tuple[int, int] | None:
+    raw_index = os.environ.get("TEST_SHARD_INDEX")
+    raw_total = os.environ.get("TEST_SHARD_TOTAL")
+    if raw_index is None and raw_total is None:
+        return None
+    if raw_index is None or raw_total is None:
+        raise ValueError("TEST_SHARD_INDEX と TEST_SHARD_TOTAL は両方同時に指定してください")
+    shard_index = int(raw_index)
+    shard_total = int(raw_total)
+    if shard_total < 1 or not (0 <= shard_index < shard_total):
+        raise ValueError(f"不正なシャード指定です: index={shard_index}, total={shard_total}")
+    return shard_index, shard_total
+
+
+def _shard_test_suite(
+    suite: unittest.TestSuite, shard_index: int, shard_total: int,
+) -> unittest.TestSuite:
+    """テストクラス単位で件数が均等になるようシャード分割する。"""
+    all_tests = list(_iter_suite_tests(suite))
+    counts: dict[tuple[str, str], int] = {}
+    for test in all_tests:
+        cls_key = (test.__class__.__module__, test.__class__.__qualname__)
+        counts[cls_key] = counts.get(cls_key, 0) + 1
+
+    # 件数が多いクラスから順に、現在の合計件数が最小のシャードへ割り当てる（決定論的）
+    sorted_classes = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    shard_loads = [0] * shard_total
+    shard_of: dict[tuple[str, str], int] = {}
+    for cls_key, count in sorted_classes:
+        target_shard = min(range(shard_total), key=lambda idx: (shard_loads[idx], idx))
+        shard_of[cls_key] = target_shard
+        shard_loads[target_shard] += count
+
+    kept = [
+        test for test in all_tests
+        if shard_of[(test.__class__.__module__, test.__class__.__qualname__)] == shard_index
+    ]
+    return suite.__class__(kept)
+
+
 class OfflineNetworkDiscoverRunner(DiscoverRunner):
     """Unix socketとloopbackを許可し、それ以外のsocket接続を拒否する。"""
+
+    def build_suite(self, test_labels=None, extra_tests=None, **kwargs):
+        suite = super().build_suite(test_labels=test_labels, extra_tests=extra_tests, **kwargs)
+        shard = _parse_shard_env()
+        if shard is not None:
+            suite = _shard_test_suite(suite, *shard)
+        return suite
 
     def run_tests(self, test_labels, **kwargs):
         """外向き通信を遮断した状態でDjango test suiteを実行する。

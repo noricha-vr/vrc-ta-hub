@@ -67,7 +67,7 @@ jobs:
           python -m unittest scripts.tests.test_requirements_layout
 
   test:
-    needs: [isolation-gate, lint]
+    needs: isolation-gate
     runs-on: ubuntu-latest
 
     env:
@@ -76,6 +76,8 @@ jobs:
       TESTING: "1"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
       CSRF_TRUSTED_ORIGIN: "https://localhost"
+      # Python 3.12 の sys.monitoring ベース計測で coverage の実行オーバーヘッドを削減する
+      COVERAGE_CORE: "sysmon"
       # Required environment variables (dummy values for CI)
       GOOGLE_API_KEY: "dummy-google-api-key"
       GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
@@ -111,22 +113,40 @@ jobs:
         working-directory: app
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (4 parallel shards)
         working-directory: app
-        env:
-          EMAIL_FILE_PATH: "/tmp/emails"
         run: |
           # 実サービスへ接続する live smoke とブラウザE2Eだけを除外する。
           # 遮断runner (OfflineNetworkDiscoverRunner) は settings の TEST_RUNNER 既定で有効になるため、
           # ここでCLI指定しない（ローカルとCIで同じ遮断条件にする）。
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
-          coverage run --rcfile=../pyproject.toml -m tests.offline_manage test \
-            --exclude-tag=live_smoke --exclude-tag=e2e \
-            --noinput
+          pids=()
+          for shard in 0 1 2 3; do
+            mkdir -p "/tmp/emails-${shard}"
+            TEST_SHARD_INDEX="${shard}" \
+            TEST_SHARD_TOTAL="4" \
+            EMAIL_FILE_PATH="/tmp/emails-${shard}" \
+            coverage run -p --rcfile=../pyproject.toml -m tests.offline_manage test \
+              --exclude-tag=live_smoke --exclude-tag=e2e \
+              --noinput > "/tmp/test-shard-${shard}.log" 2>&1 &
+            pids+=($!)
+          done
+          failed=0
+          for shard in 0 1 2 3; do
+            if ! wait "${pids[$shard]}"; then
+              failed=1
+            fi
+            echo "=== Shard ${shard} ==="
+            cat "/tmp/test-shard-${shard}.log"
+          done
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          coverage combine
           coverage report --rcfile=../pyproject.toml
 
   e2e:
-    needs: [isolation-gate, lint]
+    needs: isolation-gate
     runs-on: ubuntu-latest
 
     env:
@@ -181,7 +201,7 @@ jobs:
           retention-days: 14
 
   mypy:
-    needs: [isolation-gate, lint]
+    needs: isolation-gate
     runs-on: ubuntu-latest
     # warn-only は continue-on-error で維持しつつ、型エラーは job 単位の失敗として可視化する (docs/mypy.md 参照)
     continue-on-error: true
