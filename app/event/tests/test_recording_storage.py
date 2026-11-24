@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from community.constants import RecordingPolicy
 from event.models import RecordingReviewItem
-from event.services.recording_storage import (
+from event.services.recording_ops.storage import (
     DEFAULT_PRESIGNED_EXPIRES_IN,
     MAX_PRESIGNED_EXPIRES_IN,
     MIN_PRESIGNED_EXPIRES_IN,
@@ -113,14 +113,14 @@ class RecordingStoragePresignTest(TestCase):
             create_presigned_proxy_upload_url(self.detail)
 
     @_storage_settings()
-    @patch("event.services.recording_storage.boto3.client")
+    @patch("event.services.recording_ops.storage.boto3.client")
     def test_upload_url_issues_s3v4_private_bucket_and_does_not_log_secrets(self, mock_boto_client):
         mock_s3 = MagicMock()
         presigned = "https://r2.example.invalid/vrc-ta-hub-private/signed?X-Amz-Signature=secret-sig"
         mock_s3.generate_presigned_url.return_value = presigned
         mock_boto_client.return_value = mock_s3
 
-        with self.assertLogs("event.services.recording_storage", level="INFO") as logs:
+        with self.assertLogs("event.services.recording_ops.storage", level="INFO") as logs:
             result = create_presigned_proxy_upload_url(
                 self.detail,
                 expires_in=60,  # 900 にクランプ
@@ -167,7 +167,7 @@ class RecordingStoragePresignTest(TestCase):
             create_presigned_proxy_upload_url(self.detail)
 
     @_storage_settings()
-    @patch("event.services.recording_storage.boto3.client")
+    @patch("event.services.recording_ops.storage.boto3.client")
     def test_download_url_checks_missing_expired_key_and_clamps_ttl(self, mock_boto_client):
         with self.assertRaises(RecordingProxyNotFoundError):
             create_presigned_proxy_download_url(self.detail)
@@ -185,7 +185,7 @@ class RecordingStoragePresignTest(TestCase):
         mock_s3.generate_presigned_url.return_value = presigned
         mock_boto_client.return_value = mock_s3
 
-        with self.assertLogs("event.services.recording_storage", level="INFO") as logs:
+        with self.assertLogs("event.services.recording_ops.storage", level="INFO") as logs:
             result = create_presigned_proxy_download_url(self.detail, expires_in=9999)
 
         self.assertEqual(result.expires_in, MAX_PRESIGNED_EXPIRES_IN)

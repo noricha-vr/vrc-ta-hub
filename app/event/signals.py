@@ -241,7 +241,7 @@ def revoke_recording_on_detail_save(sender, instance, created=False, raw=False, 
         return
     if not RecordingReviewItem.objects.filter(event_detail_id=instance.pk).exists():
         return
-    from event.services.recording_orders import revoke_recording_for_detail
+    from event.services.recording_ops.revocation import revoke_recording_for_detail
     revoke_recording_for_detail(instance.pk)
 
 
@@ -250,7 +250,7 @@ def preserve_and_revoke_recording_on_detail_delete(sender, instance, **kwargs):
     """イベント・発表の物理削除前に、公開中/撮影済み動画の停止指示を切り離して保全する。"""
     if not RecordingReviewItem.objects.filter(event_detail_id=instance.pk).exists():
         return
-    from event.services.recording_orders import revoke_recording_on_detail_delete
+    from event.services.recording_ops.revocation import revoke_recording_on_detail_delete
     revoke_recording_on_detail_delete(instance.pk)
 
 
@@ -263,7 +263,7 @@ def revoke_recording_on_community_save(sender, instance, created=False, raw=Fals
         return
     if not RecordingReviewItem.objects.filter(event_detail__event__community_id=instance.pk).exists():
         return
-    from event.services.recording_orders import revoke_recording_for_community
+    from event.services.recording_ops.revocation import revoke_recording_for_community
     revoke_recording_for_community(instance.pk)
 
 
@@ -276,5 +276,5 @@ def revoke_recording_on_event_save(sender, instance, created=False, raw=False, u
         return
     if not RecordingReviewItem.objects.filter(event_detail__event_id=instance.pk).exists():
         return
-    from event.services.recording_orders import revoke_recording_for_event
+    from event.services.recording_ops.revocation import revoke_recording_for_event
     revoke_recording_for_event(instance.pk)

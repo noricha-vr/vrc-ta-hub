@@ -1,4 +1,4 @@
-"""非公開 R2 バケットへのプロキシ動画署名 URL 発給サービス。"""
+"""非公開 R2 バケットへのプロキシ動画署名 URL 発給サービス（Layer 2）。"""
 from __future__ import annotations
 
 import logging

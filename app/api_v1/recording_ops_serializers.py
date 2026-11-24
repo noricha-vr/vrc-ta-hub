@@ -6,7 +6,7 @@ import math
 from rest_framework import serializers
 
 from event.models import RecordingEditOrder, RecordingReviewItem
-from event.services.recording_ops_common import MAX_REVISION
+from event.services.recording_ops.errors import MAX_REVISION
 
 
 class StrictIntegerField(serializers.IntegerField):

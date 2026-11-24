@@ -443,7 +443,7 @@ class EventDetailQuerySet(models.QuerySet):
                     .values_list('event_detail_id', flat=True)
                 )
                 if review_detail_ids:
-                    from event.services.recording_orders import revoke_recording_for_detail
+                    from event.services.recording_ops.revocation import revoke_recording_for_detail
                     for detail_id in review_detail_ids:
                         revoke_recording_for_detail(detail_id)
         return updated

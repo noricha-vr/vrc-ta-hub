@@ -15,20 +15,19 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from event.models import EventDetail
-from event.services.recording_items import upsert_recording_item
-from event.services.recording_ops_common import (
+from event.services.recording_ops.completion import complete_edit_order
+from event.services.recording_ops.errors import (
     RecordingConflictError,
     RecordingNotFoundError,
     RecordingOpsError,
     RecordingValidationError,
 )
-from event.services.recording_order_completion import complete_edit_order
-from event.services.recording_order_worker import claim_next_edit_order
-from event.services.recording_orders import (
+from event.services.recording_ops.items import upsert_recording_item
+from event.services.recording_ops.orders import (
     create_edit_order,
     create_stop_publish_order_for_review_item,
 )
-from event.services.recording_storage import (
+from event.services.recording_ops.storage import (
     RecordingConsentError,
     RecordingObjectKeyError,
     RecordingProxyExpiredError,
@@ -38,6 +37,7 @@ from event.services.recording_storage import (
     create_presigned_proxy_download_url,
     create_presigned_proxy_upload_url,
 )
+from event.services.recording_ops.worker import claim_next_edit_order
 
 from .authentication import APIKeyAuthentication
 from .recording_ops_serializers import (

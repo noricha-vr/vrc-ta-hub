@@ -1,4 +1,4 @@
-"""EDL v1 スキーマ検証サービス。"""
+"""EDL v1 スキーマ検証サービス（Layer 1）。"""
 from __future__ import annotations
 
 import copy
