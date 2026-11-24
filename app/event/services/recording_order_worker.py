@@ -88,7 +88,7 @@ def _expire_stale_running_orders(*, now: Any) -> int:
             if (
                 order.order_type == RecordingEditOrder.OrderType.APPLY_EDL
                 and item is not None
-                and (detail is None or not is_recording_consent_valid(detail))
+                and (detail is None or not is_recording_consent_valid(detail) or item.compensating_stop_pending)
             ):
                 if detail is not None and detail.youtube_url:
                     detail.youtube_url = None
@@ -104,6 +104,9 @@ def _expire_stale_running_orders(*, now: Any) -> int:
                         requested_by=order.requested_by,
                         source_order_id=order.pk,
                     )
+                elif not has_active and item.compensating_stop_pending:
+                    item.compensating_stop_pending = False
+                    item.save(update_fields=["compensating_stop_pending", "updated_at"])
             expired_count += 1
     return expired_count
 

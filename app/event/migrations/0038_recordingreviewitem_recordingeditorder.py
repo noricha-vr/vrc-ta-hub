@@ -27,6 +27,7 @@ class Migration(migrations.Migration):
                 ('edl_json', models.JSONField(blank=True, default=dict, verbose_name='EDL v1 JSON')),
                 ('youtube_draft_video_id', models.CharField(blank=True, default='', max_length=32, verbose_name='YouTube 下書き動画 ID')),
                 ('pending_stop_video_ids', models.JSONField(blank=True, default=list, verbose_name='停止待ち動画 ID 一覧')),
+                ('compensating_stop_pending', models.BooleanField(default=False, verbose_name='保留中の補償公開停止あり')),
                 ('youtube_draft_privacy', models.CharField(blank=True, choices=[('unlisted', '限定公開'), ('private', '非公開'), ('public', '公開')], default='', max_length=16, verbose_name='YouTube 下書き公開設定')),
                 ('public_locked_at', models.DateTimeField(blank=True, null=True, verbose_name='公開ロック日時')),
                 ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='作成日時')),

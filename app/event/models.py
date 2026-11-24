@@ -1108,6 +1108,7 @@ class RecordingReviewItem(models.Model):
     edl_json = models.JSONField("EDL v1 JSON", default=dict, blank=True)
     youtube_draft_video_id = models.CharField("YouTube 下書き動画 ID", max_length=32, blank=True, default="")
     pending_stop_video_ids = models.JSONField("停止待ち動画 ID 一覧", default=list, blank=True)
+    compensating_stop_pending = models.BooleanField("保留中の補償公開停止あり", default=False)
     youtube_draft_privacy = models.CharField(
         "YouTube 下書き公開設定",
         max_length=16,

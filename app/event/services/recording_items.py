@@ -284,6 +284,9 @@ def upsert_recording_item(
             max_sec = float(item.edl_json["safe_bounds"]["max_sec"])
             if max_sec > effective_duration:
                 raise RecordingValidationError("proxy_duration_sec は登録済みの safe_bounds.max_sec 以上で指定してください。")
+        is_video_changed = (
+            youtube_draft_video_id is not None and youtube_draft_video_id != item.youtube_draft_video_id
+        )
         if youtube_draft_video_id is not None:
             prior_vid = item.youtube_draft_video_id
             if (
@@ -301,13 +304,26 @@ def upsert_recording_item(
         if youtube_draft_privacy is not None:
             item.youtube_draft_privacy = youtube_draft_privacy
             update_fields.append("youtube_draft_privacy")
+        elif is_video_changed and item.youtube_draft_privacy:
+            item.youtube_draft_privacy = ""
+            update_fields.append("youtube_draft_privacy")
         if review_status is not None:
             item.review_status = review_status
             update_fields.append("review_status")
-        elif item.review_status in (
-            RecordingReviewItem.ReviewStatus.UNRECORDED,
-            RecordingReviewItem.ReviewStatus.PROCESSING,
-            RecordingReviewItem.ReviewStatus.EXPIRED,
+            if (
+                review_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+                and youtube_draft_privacy is None
+                and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE
+            ):
+                item.youtube_draft_privacy = ""
+                update_fields.append("youtube_draft_privacy")
+        elif (is_video_changed and item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED) or (
+            item.review_status
+            in (
+                RecordingReviewItem.ReviewStatus.UNRECORDED,
+                RecordingReviewItem.ReviewStatus.PROCESSING,
+                RecordingReviewItem.ReviewStatus.EXPIRED,
+            )
         ):
             item.review_status = RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
             update_fields.append("review_status")

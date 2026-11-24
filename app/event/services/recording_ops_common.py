@@ -281,6 +281,9 @@ def enqueue_compensating_stop_publish(
     item_fields: list[str] = []
     if stop_target and add_pending_stop_video_id(item, stop_target):
         item_fields.append("pending_stop_video_ids")
+    if item.compensating_stop_pending:
+        item.compensating_stop_pending = False
+        item_fields.append("compensating_stop_pending")
     base_revision = item.edl_revision
     if base_revision < MAX_REVISION:
         target_revision = base_revision + 1
@@ -366,6 +369,21 @@ def cancel_queued_apply_edl_and_compensate(
             source_order_id=source_order_id,
         )
         return True
+    if (
+        has_remaining_active
+        and any(
+            a.order_type == RecordingEditOrder.OrderType.APPLY_EDL
+            and a.status == RecordingEditOrder.Status.RUNNING
+            for a in active_orders
+        )
+        and (force_stop_if_idle or item_has_unstopped_video(item))
+        and not item.compensating_stop_pending
+    ):
+        item.compensating_stop_pending = True
+        item.save(update_fields=["compensating_stop_pending", "updated_at"])
+    elif not has_remaining_active and not item_has_unstopped_video(item) and item.compensating_stop_pending:
+        item.compensating_stop_pending = False
+        item.save(update_fields=["compensating_stop_pending", "updated_at"])
     return False
 
 
@@ -459,5 +477,8 @@ def apply_stop_publish_completion(
     item.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
     item.youtube_draft_privacy = effective_privacy
     item_fields.append("youtube_draft_privacy")
+    if item.compensating_stop_pending:
+        item.compensating_stop_pending = False
+        item_fields.append("compensating_stop_pending")
     item.save(update_fields=list(dict.fromkeys(item_fields)))
     return False

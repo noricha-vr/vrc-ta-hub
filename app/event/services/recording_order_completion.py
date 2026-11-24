@@ -21,6 +21,7 @@ from event.services.recording_ops_common import (
     enqueue_compensating_stop_publish,
     is_order_lease_expired,
     is_recording_consent_valid,
+    item_has_unstopped_video,
     lock_event_detail_or_none,
     mark_order_lease_expired,
     next_stop_target_video_id,
@@ -129,7 +130,11 @@ def _apply_succeeded_order(
                         "reason": "not_published",
                     },
                 )
-        return bool(
+        needs_deferred_stop = item.compensating_stop_pending and item_has_unstopped_video(item)
+        if item.compensating_stop_pending and not needs_deferred_stop:
+            item.compensating_stop_pending = False
+            item.save(update_fields=["compensating_stop_pending", "updated_at"])
+        return needs_deferred_stop or bool(
             pending_videos
             and derived_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
         )
@@ -148,14 +153,18 @@ def _apply_succeeded_order(
             },
         )
     has_pending_stop = bool(pending_videos)
-    return has_pending_stop or (
+    needs_stop = has_pending_stop or (
         derived_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
         and (
             is_public_release
             or bool(effective_video_id)
             or derived_status == RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
         )
-    )
+    ) or (item.compensating_stop_pending and item_has_unstopped_video(item))
+    if not needs_stop and item.compensating_stop_pending:
+        item.compensating_stop_pending = False
+        item.save(update_fields=["compensating_stop_pending", "updated_at"])
+    return needs_stop
 
 
 def _record_partial_or_late_apply_edl_output(
@@ -252,7 +261,7 @@ def _record_partial_or_late_apply_edl_output(
         item.review_status = RecordingReviewItem.ReviewStatus.PUBLISHED
         item.save(update_fields=item_fields)
 
-    if consent_valid and not has_newer_stop:
+    if consent_valid and not has_newer_stop and not item.compensating_stop_pending:
         return
 
     if detail is not None and detail.youtube_url:
