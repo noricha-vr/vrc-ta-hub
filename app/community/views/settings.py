@@ -5,6 +5,7 @@ from datetime import timedelta
 import requests
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
@@ -328,54 +329,58 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
         return community.can_edit(self.request.user)
 
     def post(self, request, pk):
-        community = get_object_or_404(Community, pk=pk)
-        accepts_lt = request.POST.get('accepts_lt_application') == 'on'
-        recording_allowed = _parse_recording_allowed(request.POST.get('recording_allowed'))
-        default_recording_policy = _resolve_default_recording_policy(
-            request.POST.get('default_recording_policy'), community.default_recording_policy,
-            was_allowed=community.recording_allowed, allowed=recording_allowed,
-            chosen=request.POST.get('default_recording_policy_chosen') == '1',
-        )
-        lt_template = request.POST.get('lt_application_template', '').strip()
-        duration_str = request.POST.get('default_lt_duration', '30').strip()
-        offset_str = request.POST.get('lt_start_offset_minutes', '30').strip()
+        with transaction.atomic():
+            community = get_object_or_404(Community.objects.select_for_update(), pk=pk)
+            accepts_lt = request.POST.get('accepts_lt_application') == 'on'
+            recording_allowed = _parse_recording_allowed(request.POST.get('recording_allowed'))
+            default_recording_policy = _resolve_default_recording_policy(
+                request.POST.get('default_recording_policy'), community.default_recording_policy,
+                was_allowed=community.recording_allowed, allowed=recording_allowed,
+                chosen=request.POST.get('default_recording_policy_chosen') == '1',
+            )
+            lt_template = request.POST.get('lt_application_template', '').strip()
+            duration_str = request.POST.get('default_lt_duration', '30').strip()
+            offset_str = request.POST.get('lt_start_offset_minutes', '30').strip()
 
-        # デフォルトの持ち時間をバリデーション
-        try:
-            duration = max(1, int(duration_str))
-        except ValueError:
-            duration = 30
+            # デフォルトの持ち時間をバリデーション
+            try:
+                duration = max(1, int(duration_str))
+            except ValueError:
+                duration = 30
 
-        # LT開始オフセットのバリデーション（負値・非数値は 30 にフォールバック）
-        try:
-            offset = max(0, int(offset_str))
-        except ValueError:
-            offset = 30
+            # LT開始オフセットのバリデーション（負値・非数値は 30 にフォールバック）
+            try:
+                offset = max(0, int(offset_str))
+            except ValueError:
+                offset = 30
 
-        # 上限超過は保存せずエラーを出す（申請フォームと同じ上限）
-        if duration > MAX_LT_DURATION_MINUTES:
-            messages.error(
-                request, f'発表の持ち時間は{MAX_LT_DURATION_MINUTES}分以下で入力してください。')
-            return redirect('community:settings')
-        if offset > MAX_LT_START_OFFSET_MINUTES:
-            messages.error(
-                request, f'最初の発表を始めるタイミングは{MAX_LT_START_OFFSET_MINUTES}分以下で入力してください。')
-            return redirect('community:settings')
+            # 上限超過は保存せずエラーを出す（申請フォームと同じ上限）
+            if duration > MAX_LT_DURATION_MINUTES:
+                messages.error(
+                    request, f'発表の持ち時間は{MAX_LT_DURATION_MINUTES}分以下で入力してください。')
+                return redirect('community:settings')
+            if offset > MAX_LT_START_OFFSET_MINUTES:
+                messages.error(
+                    request, f'最初の発表を始めるタイミングは{MAX_LT_START_OFFSET_MINUTES}分以下で入力してください。')
+                return redirect('community:settings')
 
-        community.accepts_lt_application = accepts_lt
-        community.recording_allowed = recording_allowed
-        community.default_recording_policy = default_recording_policy
-        community.lt_application_template = lt_template
-        community.default_lt_duration = duration
-        community.lt_start_offset_minutes = offset
-        community.save(update_fields=[
-            'accepts_lt_application',
-            'recording_allowed',
-            'default_recording_policy',
-            'lt_application_template',
-            'default_lt_duration',
-            'lt_start_offset_minutes',
-        ])
+            community.accepts_lt_application = accepts_lt
+            community.recording_allowed = recording_allowed
+            community.default_recording_policy = default_recording_policy
+            community.lt_application_template = lt_template
+            community.default_lt_duration = duration
+            community.lt_start_offset_minutes = offset
+            community.save(update_fields=[
+                'accepts_lt_application',
+                'recording_allowed',
+                'default_recording_policy',
+                'lt_application_template',
+                'default_lt_duration',
+                'lt_start_offset_minutes',
+            ])
+            if not recording_allowed:
+                from event.services.recording_orders import revoke_recording_for_community
+                revoke_recording_for_community(community.pk)
 
         messages.success(request, '発表申請設定を保存しました。')
         logger.info(

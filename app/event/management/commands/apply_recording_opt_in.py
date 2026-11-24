@@ -179,6 +179,10 @@ class Command(BaseCommand):
                 )
                 if updated:
                     applied['communities'][str(pk)] = True
+                    from event.models import RecordingReviewItem
+                    if RecordingReviewItem.objects.filter(event_detail__event__community_id=pk).exists():
+                        from event.services.recording_orders import revoke_recording_for_community
+                        revoke_recording_for_community(pk)
                 else:
                     skipped['communities'].append(pk)
             for name, rows in rule_rows.items():
@@ -194,6 +198,10 @@ class Command(BaseCommand):
                     ).update(recording_policy=target_policy)
                     if updated:
                         applied['event_details'][str(row['pk'])] = row['recording_policy']
+                        from event.models import RecordingReviewItem
+                        if RecordingReviewItem.objects.filter(event_detail_id=row['pk']).exists():
+                            from event.services.recording_orders import revoke_recording_for_detail
+                            revoke_recording_for_detail(row['pk'])
                     else:
                         skipped['event_details'].append(row['pk'])
         self.stdout.write('RECORDING_OPT_IN_APPLIED ' + json.dumps(applied, sort_keys=True))

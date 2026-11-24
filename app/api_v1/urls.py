@@ -7,6 +7,15 @@ from .views import (
     EventDetailAPIViewSet, EventDetailReviewAPIView, RecurrenceRuleViewSet,
 )
 from .recurrence_preview import RecurrencePreviewAPIView
+from .recording_ops_views import (
+    RecordingEditOrderClaimAPIView,
+    RecordingEditOrderCompleteAPIView,
+    RecordingEditOrderCreateAPIView,
+    RecordingProxyDownloadUrlAPIView,
+    RecordingProxyUploadUrlAPIView,
+    RecordingReviewItemStopPublishAPIView,
+    RecordingReviewItemUpsertAPIView,
+)
 
 router = DefaultRouter()
 router.register(r'community', CommunityViewSet)
@@ -21,4 +30,39 @@ urlpatterns = [
     path('bot-installation/', BotInstallationAPIView.as_view(), name='bot-installation'),
     path('bot-installation/status/', BotInstallationStatusAPIView.as_view(), name='bot-installation-status'),
     path('recurrence-preview/', RecurrencePreviewAPIView.as_view(), name='recurrence-preview'),
+    path(
+        'recording-ops/items/<int:detail_id>/proxy-upload-url/',
+        RecordingProxyUploadUrlAPIView.as_view(),
+        name='recording-ops-proxy-upload-url',
+    ),
+    path(
+        'recording-ops/items/<int:detail_id>/',
+        RecordingReviewItemUpsertAPIView.as_view(),
+        name='recording-ops-item-upsert',
+    ),
+    path(
+        'recording-ops/items/<int:detail_id>/proxy-url/',
+        RecordingProxyDownloadUrlAPIView.as_view(),
+        name='recording-ops-proxy-url',
+    ),
+    path(
+        'recording-ops/items/<int:detail_id>/orders/',
+        RecordingEditOrderCreateAPIView.as_view(),
+        name='recording-ops-order-create',
+    ),
+    path(
+        'recording-ops/review-items/<int:review_item_id>/stop-publish/',
+        RecordingReviewItemStopPublishAPIView.as_view(),
+        name='recording-ops-review-item-stop-publish',
+    ),
+    path(
+        'recording-ops/orders/claim/',
+        RecordingEditOrderClaimAPIView.as_view(),
+        name='recording-ops-order-claim',
+    ),
+    path(
+        'recording-ops/orders/<int:order_id>/complete/',
+        RecordingEditOrderCompleteAPIView.as_view(),
+        name='recording-ops-order-complete',
+    ),
 ] + router.urls
