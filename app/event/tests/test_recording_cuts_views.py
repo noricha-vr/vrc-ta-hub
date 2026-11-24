@@ -199,7 +199,7 @@ class RecordingCutsViewsAndOrdersTest(TestCase):
 
         self.client.force_login(self.staff)
         cuts_no_accept = [
-            {**_edl_with_pending_cuts()["cuts"][0], "action": "reject"},
+            {**_edl_with_pending_cuts()["cuts"][0], "action": "reject", "label": "あ" * 150},
             {**_edl_with_pending_cuts()["cuts"][1], "action": "pending"},
         ]
         resp = self.client.post(

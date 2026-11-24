@@ -86,19 +86,19 @@ def normalize_submitted_cuts(raw_cuts: Any) -> list[dict[str, Any]]:
             )
 
         cut_id = entry["id"]
-        if not isinstance(cut_id, str) or not cut_id.strip() or len(cut_id.strip()) > 64:
-            raise RecordingValidationError(f"{prefix}.id は 1〜64 文字の文字列で指定してください。")
+        if not isinstance(cut_id, str) or not cut_id.strip():
+            raise RecordingValidationError(f"{prefix}.id は空でない文字列で指定してください。")
 
         start_sec = parse_finite_seconds(entry["start_sec"], f"{prefix}.start_sec", strict_json=True)
         end_sec = parse_finite_seconds(entry["end_sec"], f"{prefix}.end_sec", strict_json=True)
 
         kind = entry["kind"]
-        if not isinstance(kind, str) or not kind.strip() or len(kind.strip()) > 32:
-            raise RecordingValidationError(f"{prefix}.kind は 1〜32 文字の文字列で指定してください。")
+        if not isinstance(kind, str) or not kind.strip():
+            raise RecordingValidationError(f"{prefix}.kind は空でない文字列で指定してください。")
 
         label = entry["label"]
-        if not isinstance(label, str) or len(label.strip()) > 120:
-            raise RecordingValidationError(f"{prefix}.label は 120 文字以内の文字列で指定してください。")
+        if not isinstance(label, str):
+            raise RecordingValidationError(f"{prefix}.label は文字列で指定してください。")
 
         action = entry["action"]
         if not isinstance(action, str) or action not in EDL_CUT_ACTIONS:
@@ -107,19 +107,18 @@ def normalize_submitted_cuts(raw_cuts: Any) -> list[dict[str, Any]]:
             )
 
         item: dict[str, Any] = {
-            "id": cut_id.strip(),
+            "id": cut_id,
             "start_sec": start_sec,
             "end_sec": end_sec,
-            "kind": kind.strip(),
-            "label": label.strip(),
+            "kind": kind,
+            "label": label,
             "action": action,
         }
         if "source" in entry and entry["source"] is not None:
             source = entry["source"]
-            if not isinstance(source, str) or len(source.strip()) > 32:
-                raise RecordingValidationError(f"{prefix}.source は 32 文字以内の文字列で指定してください。")
-            if source.strip():
-                item["source"] = source.strip()
+            if not isinstance(source, str):
+                raise RecordingValidationError(f"{prefix}.source は文字列で指定してください。")
+            item["source"] = source
         if "confidence" in entry and entry["confidence"] is not None:
             confidence = parse_finite_seconds(entry["confidence"], f"{prefix}.confidence", strict_json=True)
             if not (0.0 <= confidence <= 1.0):

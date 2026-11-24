@@ -376,8 +376,22 @@
             const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
             const expectedRevision = Number(revInput ? revInput.value : 1);
             const originalText = submitBtn.textContent;
+            function setTrimInputsDisabled(disabled) {
+                form.querySelectorAll('input[name="start_sec"], input[name="end_sec"], input[name="start_candidate"], input[name="end_candidate"], [data-adjust-target]').forEach(function (el) {
+                    el.disabled = disabled;
+                });
+            }
             submitBtn.disabled = true;
             submitBtn.textContent = '送信中…';
+            setTrimInputsDisabled(true);
+            if (cutsEditor) cutsEditor.setDisabled(true);
+
+            function restoreAfterFailure() {
+                setTrimInputsDisabled(false);
+                if (cutsEditor) cutsEditor.setDisabled(false);
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
 
             try {
                 const payload = {
@@ -426,9 +440,7 @@
                     config.canSubmit = false;
                     if (cutsEditor) cutsEditor.setDisabled(true);
                     if (revInput) revInput.value = '';
-                    form.querySelectorAll('input[name="start_sec"], input[name="end_sec"], input[name="start_candidate"], input[name="end_candidate"], [data-adjust-target]').forEach(function (el) {
-                        el.disabled = true;
-                    });
+                    setTrimInputsDisabled(true);
                     if (conflictBanner && conflictMsg) {
                         conflictMsg.textContent = data.detail || '他のスタッフまたは処理によって更新されました。最新の状態を再読み込みしてください。';
                         conflictBanner.hidden = false;
@@ -439,13 +451,11 @@
                     return;
                 }
 
+                restoreAfterFailure();
                 showError(data.detail || '確定指示の登録に失敗しました。入力内容を確認してください。');
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
             } catch (_) {
+                restoreAfterFailure();
                 showError('通信エラーが発生しました。時間を置いてもう一度お試しください。');
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
             }
         });
 
