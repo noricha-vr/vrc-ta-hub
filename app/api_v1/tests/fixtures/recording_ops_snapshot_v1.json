@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "snapshot_at": "2026-11-24T21:00:00+09:00",
+  "next_session": {
+    "day": "2026-11-25",
+    "start_time": "22:00",
+    "community_id": 101,
+    "community_name": "サンプル技術集会",
+    "event_url": "https://vrc-ta-hub.com/event/1/",
+    "venue_status": "confirmed",
+    "automatic": true,
+    "talk_count": 2
+  },
+  "action_items": [
+    {
+      "day": "2026-11-24",
+      "community_id": 101,
+      "community_name": "サンプル技術集会",
+      "detail_id": 1001,
+      "title": "サンプル発表",
+      "label": "映像を確認し、確定操作を行う",
+      "reason": "",
+      "action_url": "https://vrc-ta-hub.com/event/manage/recordings/"
+    }
+  ],
+  "funnel_stats": {
+    "since": "2026-10-01",
+    "periods": {
+      "7": {
+        "required": 5,
+        "recorded": 5,
+        "published": 4,
+        "articles": 3,
+        "articles_unknown": 0,
+        "publishable": 5
+      },
+      "30": {
+        "required": 20,
+        "recorded": 18,
+        "published": 15,
+        "articles": 12,
+        "articles_unknown": 1,
+        "publishable": 17
+      },
+      "90": {
+        "required": 50,
+        "recorded": 44,
+        "published": 38,
+        "articles": 30,
+        "articles_unknown": 2,
+        "publishable": 40
+      }
+    }
+  },
+  "venue_coverage": {
+    "total_communities": 40,
+    "scouted_communities": 28,
+    "allowed_communities": 24,
+    "scouted_and_allowed": 22,
+    "groups": {
+      "ready": 22,
+      "scout": 2,
+      "waiting": 6,
+      "none": 10
+    },
+    "none_active": 4,
+    "none_dormant": 6,
+    "gap_breakdown": {
+      "private": 2,
+      "unknown": 2,
+      "noscreen": 1,
+      "dormant": 5
+    }
+  },
+  "upcoming_schedule": [
+    {
+      "day": "2026-11-25",
+      "start_time": "22:00",
+      "community_id": 101,
+      "community_name": "サンプル技術集会",
+      "automatic": true,
+      "venue_status": "confirmed",
+      "talk_count": 2,
+      "talks": [
+        {
+          "detail_id": 1002,
+          "speaker": "発表者A",
+          "theme": "サンプルテーマ",
+          "recording_policy": "public"
+        }
+      ]
+    }
+  ]
+}
