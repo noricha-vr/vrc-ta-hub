@@ -100,9 +100,15 @@ def _parse_int_revision(raw_value: Any, *, strict_json: bool) -> int:
     if strict_json:
         validate_positive_revision(raw_value, "expected_revision")
         return int(raw_value)
-    if not isinstance(raw_value, str) or not raw_value.strip().isdigit():
+    if not isinstance(raw_value, str):
         raise RecordingValidationError("expected_revision は正の整数で指定してください。")
-    parsed = int(raw_value.strip())
+    stripped = raw_value.strip()
+    if not stripped or not stripped.isascii() or not stripped.isdigit():
+        raise RecordingValidationError("expected_revision は正の整数で指定してください。")
+    try:
+        parsed = int(stripped)
+    except ValueError as exc:
+        raise RecordingValidationError("expected_revision の数値が大きすぎます。") from exc
     validate_positive_revision(parsed, "expected_revision")
     return parsed
 
@@ -111,13 +117,16 @@ def _parse_finite_seconds(raw_value: Any, field_name: str, *, strict_json: bool)
     if strict_json:
         if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
             raise RecordingValidationError(f"{field_name} は数値で指定してください。")
-        val = float(raw_value)
+        try:
+            val = float(raw_value)
+        except (ValueError, OverflowError) as exc:
+            raise RecordingValidationError(f"{field_name} に不正な数値は指定できません。") from exc
     else:
         if not isinstance(raw_value, str) or not raw_value.strip():
             raise RecordingValidationError(f"{field_name} を入力してください。")
         try:
             val = float(raw_value.strip())
-        except ValueError as exc:
+        except (ValueError, OverflowError) as exc:
             raise RecordingValidationError(f"{field_name} は数値で指定してください。") from exc
     if not math.isfinite(val):
         raise RecordingValidationError(f"{field_name} に不正な数値は指定できません。")
@@ -129,7 +138,7 @@ def _extract_trim_submission(request: HttpRequest) -> tuple[int, float, float]:
     if is_json_body:
         try:
             payload = json.loads(request.body.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
             raise RecordingValidationError("リクエスト JSON の形式が不正です。") from exc
         if not isinstance(payload, dict):
             raise RecordingValidationError("JSON オブジェクトを指定してください。")
@@ -251,6 +260,9 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
         except RecordingConsentError:
             return HttpResponseForbidden("撮影公開の同意がない発表の録画確認画面は表示できません。")
 
+        has_conflict = bool(conflict_message)
+        can_submit = detail_ctx.can_submit and not has_conflict
+        expected_revision_value = "" if has_conflict else str(detail_ctx.edl_revision)
         start_value = submitted_start_sec if submitted_start_sec is not None else detail_ctx.trim_start_sec
         end_value = submitted_end_sec if submitted_end_sec is not None else detail_ctx.trim_end_sec
         return render(
@@ -262,6 +274,9 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
                 "remaining_minutes": estimate_remaining_minutes(detail_ctx.proxy_expires_at),
                 "conflict_message": conflict_message,
                 "conflict_code": conflict_code,
+                "has_conflict": has_conflict,
+                "can_submit": can_submit,
+                "expected_revision_value": expected_revision_value,
                 "error_message": error_message,
                 "form_start_sec": start_value,
                 "form_end_sec": end_value,

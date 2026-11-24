@@ -98,6 +98,8 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
             or (Path(__file__).resolve().parents[3] / "test-results" / "e2e" / "recording_review")
         )
         self.shot_dir.mkdir(parents=True, exist_ok=True)
+        self.page_errors: list[str] = []
+        self.page.on("pageerror", lambda exc: self.page_errors.append(str(exc)))
         self.staff = make_discord_linked_user(
             user_name="e2e_rec_staff", email="e2e-rec-staff@example.test", password=self.password, is_staff=True,
         )
@@ -226,13 +228,27 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         )
         expect(self.page.locator("#recording-proxy-player")).to_be_visible()
 
-        # 候補ラジオ・±5秒微調整・オフセット切替・再生操作
+        # 候補ラジオ・数値直編集・±5秒微調整が無限再帰しないこと（1操作で change 発火は最大1回）
+        self.page.evaluate(
+            """() => {
+                window.__startChangeCount = 0;
+                const el = document.getElementById('id_start_sec');
+                el.addEventListener('change', () => { window.__startChangeCount += 1; });
+            }"""
+        )
         self.page.locator('input[name="start_candidate"][value="4"]').check()
         expect(self.page.locator("#id_start_sec")).to_have_value("4")
+        self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 1)
         expect(self.page.locator('[data-admin-form-status="recording-trim-form"]')).to_contain_text("未保存の変更があります")
+
+        self.page.locator("#id_start_sec").fill("2.5")
+        self.page.locator("#id_start_sec").press("Tab")
+        expect(self.page.locator("#id_start_sec")).to_have_value("2.5")
+        self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 2)
 
         self.page.locator('[data-adjust-target="start"][data-adjust-delta="-5"]').click()
         expect(self.page.locator("#id_start_sec")).to_have_value("0")  # safe_bounds.min_sec (0) にクランプ
+        self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 3)
 
         self.page.locator('input[name="end_preview_offset"][value="10"]').check()
         expect(self.page.get_by_test_id("play-before-end-btn")).to_have_text("10秒前から再生")
@@ -272,6 +288,9 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         self.page.get_by_test_id("recording-submit-btn").click()
         expect(self.page.get_by_test_id("recording-conflict-banner")).to_be_visible()
         expect(self.page.get_by_test_id("reload-latest-btn")).to_be_visible()
+        expect(self.page.get_by_test_id("recording-submit-btn")).to_be_disabled()
+        expect(self.page.locator("#id_start_sec")).to_be_disabled()
+        expect(self.page.locator("#id_expected_revision")).to_have_value("")
         self._assert_no_horizontal_overflow("detail_conflict_pc")
         self.page.screenshot(path=str(self.shot_dir / "detail_conflict_pc.png"), full_page=True)
 
@@ -298,3 +317,4 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         expect(self.page.get_by_test_id("recording-submit-btn")).to_be_disabled()
         self._assert_no_horizontal_overflow("detail_locked_pc")
         self.page.screenshot(path=str(self.shot_dir / "detail_locked_pc.png"), full_page=True)
+        self.assertEqual(self.page_errors, [])

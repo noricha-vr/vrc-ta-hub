@@ -334,6 +334,9 @@ class RecordingReviewStaffViewsTest(TestCase):
         banner = stale_soup.select_one("#recording-conflict-banner")
         self.assertFalse(banner.has_attr("hidden"))
         self.assertIsNotNone(banner.select_one('[data-testid="reload-latest-btn"]'))
+        self.assertTrue(stale_soup.select_one("#recording-submit-btn").has_attr("disabled"))
+        self.assertTrue(stale_soup.select_one("#id_start_sec").has_attr("disabled"))
+        self.assertEqual(stale_soup.select_one("#id_expected_revision").get("value"), "")
 
         # 最新リビジョン=2 で通常 Form POST すれば 302 PRG で成功
         form_ok_resp = self.client.post(
@@ -379,13 +382,29 @@ class RecordingReviewStaffViewsTest(TestCase):
             {"expected_revision": 1, "start_sec": 500.0, "end_sec": 400.0},
             {"expected_revision": 1, "start_sec": True, "end_sec": 500.0},
             {"expected_revision": "1", "start_sec": 10.0, "end_sec": 500.0},
+            {"expected_revision": 1, "start_sec": 10**400, "end_sec": 500.0},
         ):
             resp = self.client.post(
                 self._detail_url(),
                 data=json.dumps(bad_payload),
                 content_type="application/json",
             )
-            self.assertEqual(resp.status_code, 400, bad_payload)
+            self.assertEqual(resp.status_code, 400, type(bad_payload.get("start_sec")))
+
+        # 4301 桁整数の JSON ボディも 500 にせず 400 を返す
+        huge_int_json = f'{{"expected_revision": {"1" * 4301}, "start_sec": 10.0, "end_sec": 500.0}}'
+        resp_huge_json = self.client.post(self._detail_url(), data=huge_int_json, content_type="application/json")
+        self.assertEqual(resp_huge_json.status_code, 400)
+
+        # フォーム POST の Unicode 数字・超過整数・非有限数値も 400 を返す
+        for bad_form in (
+            {"expected_revision": "²", "start_sec": "10", "end_sec": "500"},
+            {"expected_revision": "1" * 4301, "start_sec": "10", "end_sec": "500"},
+            {"expected_revision": "", "start_sec": "10", "end_sec": "500"},
+            {"expected_revision": "1", "start_sec": "1e400", "end_sec": "500"},
+        ):
+            resp_form = self.client.post(self._detail_url(), bad_form)
+            self.assertEqual(resp_form.status_code, 400)
 
     def test_list_filters_summary_empty_state_and_terminology(self):
         self.client.force_login(self.staff)

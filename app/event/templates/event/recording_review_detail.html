@@ -177,7 +177,7 @@
               data-admin-dirty
               data-admin-scope="トリミング">
             {% csrf_token %}
-            <input type="hidden" name="expected_revision" id="id_expected_revision" value="{{ ctx.edl_revision }}">
+            <input type="hidden" name="expected_revision" id="id_expected_revision" value="{{ expected_revision_value }}">
 
             <div class="recording-trim-grid">
                 <div class="recording-trim-panel">
@@ -190,7 +190,7 @@
                                     <label class="recording-cand-item">
                                         <input type="radio" name="start_candidate" value="{{ cand.sec|stringformat:'g' }}"
                                                {% if cand.sec == form_start_sec %}checked{% endif %}
-                                               {% if not ctx.can_submit %}disabled{% endif %}>
+                                               {% if not can_submit %}disabled{% endif %}>
                                         <span>
                                             <strong>{{ cand.sec_display }}</strong>（{{ cand.sec|floatformat:1 }}秒）
                                             {% if cand.label %}<span class="text-muted">· {{ cand.label }}</span>{% endif %}
@@ -212,11 +212,11 @@
                            min="{{ ctx.safe_min_sec|stringformat:'g' }}"
                            max="{{ ctx.safe_max_sec|stringformat:'g' }}"
                            value="{{ form_start_sec|stringformat:'g' }}"
-                           {% if not ctx.can_submit %}disabled{% endif %}
+                           {% if not can_submit %}disabled{% endif %}
                            required>
                     <div class="recording-nudge-group">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="-5" {% if not ctx.can_submit %}disabled{% endif %}>-5秒</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="5" {% if not ctx.can_submit %}disabled{% endif %}>+5秒</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="-5" {% if not can_submit %}disabled{% endif %}>-5秒</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="5" {% if not can_submit %}disabled{% endif %}>+5秒</button>
                         {% if ctx.proxy_state == 'ready' %}
                             <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-from-start" data-testid="play-from-start-btn">ここから再生</button>
                         {% endif %}
@@ -251,7 +251,7 @@
                                     <label class="recording-cand-item">
                                         <input type="radio" name="end_candidate" value="{{ cand.sec|stringformat:'g' }}"
                                                {% if cand.sec == form_end_sec %}checked{% endif %}
-                                               {% if not ctx.can_submit %}disabled{% endif %}>
+                                               {% if not can_submit %}disabled{% endif %}>
                                         <span>
                                             <strong>{{ cand.sec_display }}</strong>（{{ cand.sec|floatformat:1 }}秒）
                                             {% if cand.label %}<span class="text-muted">· {{ cand.label }}</span>{% endif %}
@@ -273,11 +273,11 @@
                            min="{{ ctx.safe_min_sec|stringformat:'g' }}"
                            max="{{ ctx.safe_max_sec|stringformat:'g' }}"
                            value="{{ form_end_sec|stringformat:'g' }}"
-                           {% if not ctx.can_submit %}disabled{% endif %}
+                           {% if not can_submit %}disabled{% endif %}
                            required>
                     <div class="recording-nudge-group">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="-5" {% if not ctx.can_submit %}disabled{% endif %}>-5秒</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="5" {% if not ctx.can_submit %}disabled{% endif %}>+5秒</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="-5" {% if not can_submit %}disabled{% endif %}>-5秒</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="5" {% if not can_submit %}disabled{% endif %}>+5秒</button>
                         {% if ctx.proxy_state == 'ready' %}
                             <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-before-end" data-testid="play-before-end-btn">7秒前から再生</button>
                         {% endif %}
@@ -295,8 +295,9 @@
                         id="recording-submit-btn"
                         class="btn btn-primary"
                         data-testid="recording-submit-btn"
-                        {% if not ctx.can_submit %}disabled{% endif %}>
-                    {% if ctx.is_public_locked %}公開済みロック中（確定不可）
+                        {% if not can_submit %}disabled{% endif %}>
+                    {% if has_conflict %}最新状態の再読み込みが必要
+                    {% elif ctx.is_public_locked %}公開済みロック中（確定不可）
                     {% elif ctx.active_order %}確定指示を処理中…
                     {% elif ctx.proxy_state != 'ready' %}プロキシ未準備のため確定不可
                     {% else %}トリミングを確定して書き出しキューへ送る{% endif %}
@@ -340,7 +341,7 @@
         {
             "safeMin": {{ ctx.safe_min_sec|stringformat:"f" }},
             "safeMax": {{ ctx.safe_max_sec|stringformat:"f" }},
-            "canSubmit": {{ ctx.can_submit|yesno:"true,false" }},
+            "canSubmit": {{ can_submit|yesno:"true,false" }},
             "isPublicLocked": {{ ctx.is_public_locked|yesno:"true,false" }},
             "proxyState": "{{ ctx.proxy_state|escapejs }}"
         }

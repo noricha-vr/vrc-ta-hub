@@ -59,6 +59,7 @@
 
         let segmentStopAt = null;
         let pendingSeek = null;
+        let isSyncingTrim = false;
 
         function getStartSec() {
             const parsed = Number(startInput.value);
@@ -93,21 +94,31 @@
             });
         }
 
-        function setTrimValue(side, rawVal) {
+        function setTrimValue(side, rawVal, options) {
+            const emitChange = !options || options.emitChange !== false;
             let next = Number(rawVal);
             if (!Number.isFinite(next)) return;
-            if (side === 'start') {
-                const maxAllowed = Math.max(safeMin, roundTrim(getEndSec() - 0.1));
-                next = roundTrim(Math.max(safeMin, Math.min(maxAllowed, next)));
-                startInput.value = formatInputVal(next);
-                syncCandidateSelection('start_candidate', next);
-                startInput.dispatchEvent(new Event('change', { bubbles: true }));
-            } else {
-                const minAllowed = Math.min(safeMax, roundTrim(getStartSec() + 0.1));
-                next = roundTrim(Math.min(safeMax, Math.max(minAllowed, next)));
-                endInput.value = formatInputVal(next);
-                syncCandidateSelection('end_candidate', next);
-                endInput.dispatchEvent(new Event('change', { bubbles: true }));
+            isSyncingTrim = true;
+            try {
+                if (side === 'start') {
+                    const maxAllowed = Math.max(safeMin, roundTrim(getEndSec() - 0.1));
+                    next = roundTrim(Math.max(safeMin, Math.min(maxAllowed, next)));
+                    startInput.value = formatInputVal(next);
+                    syncCandidateSelection('start_candidate', next);
+                    if (emitChange) {
+                        startInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                } else {
+                    const minAllowed = Math.min(safeMax, roundTrim(getStartSec() + 0.1));
+                    next = roundTrim(Math.min(safeMax, Math.max(minAllowed, next)));
+                    endInput.value = formatInputVal(next);
+                    syncCandidateSelection('end_candidate', next);
+                    if (emitChange) {
+                        endInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            } finally {
+                isSyncingTrim = false;
             }
             updateAdoptedDuration();
         }
@@ -133,12 +144,12 @@
 
         form.querySelectorAll('input[name="start_candidate"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-                if (radio.checked) setTrimValue('start', Number(radio.value));
+                if (radio.checked) setTrimValue('start', Number(radio.value), { emitChange: true });
             });
         });
         form.querySelectorAll('input[name="end_candidate"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-                if (radio.checked) setTrimValue('end', Number(radio.value));
+                if (radio.checked) setTrimValue('end', Number(radio.value), { emitChange: true });
             });
         });
 
@@ -147,15 +158,17 @@
                 const side = btn.dataset.adjustTarget;
                 const delta = Number(btn.dataset.adjustDelta) || 0;
                 const base = side === 'start' ? getStartSec() : getEndSec();
-                setTrimValue(side, base + delta);
+                setTrimValue(side, base + delta, { emitChange: true });
             });
         });
 
         startInput.addEventListener('change', function () {
-            setTrimValue('start', startInput.value);
+            if (isSyncingTrim) return;
+            setTrimValue('start', startInput.value, { emitChange: false });
         });
         endInput.addEventListener('change', function () {
-            setTrimValue('end', endInput.value);
+            if (isSyncingTrim) return;
+            setTrimValue('end', endInput.value, { emitChange: false });
         });
 
         document.querySelectorAll('input[name="end_preview_offset"]').forEach(function (radio) {
@@ -321,12 +334,17 @@
                 }
 
                 if (resp.status === 409) {
+                    config.canSubmit = false;
+                    if (revInput) revInput.value = '';
+                    form.querySelectorAll('input[name="start_sec"], input[name="end_sec"], input[name="start_candidate"], input[name="end_candidate"], [data-adjust-target]').forEach(function (el) {
+                        el.disabled = true;
+                    });
                     if (conflictBanner && conflictMsg) {
                         conflictMsg.textContent = data.detail || '他のスタッフまたは処理によって更新されました。最新の状態を再読み込みしてください。';
                         conflictBanner.hidden = false;
                         conflictBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
-                    submitBtn.textContent = originalText;
+                    submitBtn.textContent = '最新状態の再読み込みが必要';
                     submitBtn.disabled = true;
                     return;
                 }
