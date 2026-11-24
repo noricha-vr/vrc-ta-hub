@@ -24,7 +24,10 @@ from event.services.recording_ops_common import (
 )
 from event.services.recording_order_completion import complete_edit_order
 from event.services.recording_order_worker import claim_next_edit_order
-from event.services.recording_orders import create_edit_order
+from event.services.recording_orders import (
+    create_edit_order,
+    create_stop_publish_order_for_review_item,
+)
 from event.services.recording_storage import (
     RecordingConsentError,
     RecordingObjectKeyError,
@@ -49,6 +52,7 @@ from .recording_ops_serializers import (
     RecordingEditOrderSerializer,
     RecordingOpsErrorSerializer,
     RecordingReviewItemSerializer,
+    RecordingReviewItemStopPublishRequestSerializer,
     RecordingReviewItemUpsertRequestSerializer,
 )
 from .views import IsSuperuser
@@ -290,6 +294,47 @@ class RecordingEditOrderCreateAPIView(APIView):
                 expected_revision=validated['expected_revision'],
                 order_type=validated['order_type'],
                 edl_json=validated.get('edl_json'),
+                requested_by=request.user,
+            )
+        except (RecordingOpsError, RecordingStorageError) as exc:
+            return _error_response(exc)
+
+        return Response(RecordingEditOrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
+class RecordingReviewItemStopPublishAPIView(APIView):
+    """発表行の物理削除後も残存する RecordingReviewItem から公開停止指示を再試行する。"""
+
+    authentication_classes = [APIKeyAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsStaffOrSuperuser]
+    parser_classes = [JSONParser]
+
+    @extend_schema(
+        summary='録画レビュー項目指定での公開停止指示キュー登録',
+        description=(
+            '運営スタッフ（is_staff）または管理者（is_superuser）限定（API キー利用時は write スコープ必須）。'
+            '親イベント・発表の物理削除により event_detail が NULL になった場合でも、'
+            '残存する review_item_id と expected_revision から stop_publish 指示を再登録できます。'
+        ),
+        tags=['Recording Ops'],
+        request=RecordingReviewItemStopPublishRequestSerializer,
+        responses={
+            201: RecordingEditOrderSerializer,
+            400: RecordingOpsErrorSerializer,
+            403: RecordingOpsErrorSerializer,
+            404: RecordingOpsErrorSerializer,
+            409: RecordingOpsErrorSerializer,
+        },
+    )
+    def post(self, request, review_item_id: int) -> Response:
+        data = _require_json_dict(request)
+        serializer = RecordingReviewItemStopPublishRequestSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            order = create_stop_publish_order_for_review_item(
+                review_item_id,
+                expected_revision=serializer.validated_data['expected_revision'],
                 requested_by=request.user,
             )
         except (RecordingOpsError, RecordingStorageError) as exc:

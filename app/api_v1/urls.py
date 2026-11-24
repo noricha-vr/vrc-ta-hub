@@ -13,6 +13,7 @@ from .recording_ops_views import (
     RecordingEditOrderCreateAPIView,
     RecordingProxyDownloadUrlAPIView,
     RecordingProxyUploadUrlAPIView,
+    RecordingReviewItemStopPublishAPIView,
     RecordingReviewItemUpsertAPIView,
 )
 
@@ -48,6 +49,11 @@ urlpatterns = [
         'recording-ops/items/<int:detail_id>/orders/',
         RecordingEditOrderCreateAPIView.as_view(),
         name='recording-ops-order-create',
+    ),
+    path(
+        'recording-ops/review-items/<int:review_item_id>/stop-publish/',
+        RecordingReviewItemStopPublishAPIView.as_view(),
+        name='recording-ops-review-item-stop-publish',
     ),
     path(
         'recording-ops/orders/claim/',

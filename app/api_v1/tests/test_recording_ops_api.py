@@ -143,6 +143,8 @@ class RecordingOpsAPITest(TestCase):
 
         item = self._register_item(youtube_draft_video_id="", youtube_draft_privacy="")
 
+        stop_item_url = reverse("recording-ops-review-item-stop-publish", kwargs={"review_item_id": item.pk})
+
         # 未認証は 401/403 + code
         anon = APIClient()
         for method, url in (
@@ -150,6 +152,7 @@ class RecordingOpsAPITest(TestCase):
             ("put", self.upsert_url),
             ("get", self.proxy_get_url),
             ("post", self.order_create_url),
+            ("post", stop_item_url),
             ("post", self.order_claim_url),
             ("post", reverse("recording-ops-order-complete", kwargs={"order_id": 1})),
         ):
@@ -157,7 +160,7 @@ class RecordingOpsAPITest(TestCase):
             self.assertIn(resp.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
             self.assertIn("code", resp.data)
 
-        # 一般ユーザー・集会オーナー（is_staff=False）は全 6 エンドポイント 403
+        # 一般ユーザー・集会オーナー（is_staff=False）は全 7 エンドポイント 403
         for client_user, key in ((self.regular_user, None), (self.community_owner, self.owner_write_key)):
             session_c = APIClient()
             session_c.force_login(client_user)
@@ -170,6 +173,7 @@ class RecordingOpsAPITest(TestCase):
                     ("put", self.upsert_url),
                     ("get", self.proxy_get_url),
                     ("post", self.order_create_url),
+                    ("post", stop_item_url),
                     ("post", self.order_claim_url),
                     ("post", reverse("recording-ops-order-complete", kwargs={"order_id": 1})),
                 ):
@@ -195,12 +199,15 @@ class RecordingOpsAPITest(TestCase):
                 resp = getattr(client, method)(url, {}, format="json")
                 self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
-        # staff の read キーは GET proxy-url 可・POST orders 不可
+        # staff の read キーは GET proxy-url 可・POST orders / stop-publish 不可
         staff_read = self._api_client(self.staff_read_key)
         self.assertEqual(staff_read.get(self.proxy_get_url).status_code, status.HTTP_200_OK)
         read_order_resp = staff_read.post(self.order_create_url, {"expected_revision": 2}, format="json")
         self.assertEqual(read_order_resp.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(read_order_resp.data["code"], "read_only_api_key")
+        read_stop_resp = staff_read.post(stop_item_url, {"expected_revision": 2}, format="json")
+        self.assertEqual(read_stop_resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(read_stop_resp.data["code"], "read_only_api_key")
 
         # superuser の read キーは POST/PUT 不可、session auth は APIKey 限定 4 エンドポイント不可
         super_read = self._api_client(self.super_read_key)
@@ -1719,6 +1726,172 @@ class RecordingOpsAPITest(TestCase):
         )
         self.assertEqual(retry_after_delete.status_code, status.HTTP_201_CREATED)
         self.assertEqual(retry_after_delete.data["target_video_id"], "manualA1234")
+        claim_m_end = super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": claim_m_end.data["order"]["id"]}),
+            {
+                "target_revision": claim_m_end.data["order"]["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "manualA1234",
+            },
+            format="json",
+        )
+
+        # 3) 同意有効のまま unlisted 動画 A を保持しつつ別動画 B が private で完了した場合も、
+        # 自動的に動画 A 向けの補償 stop_publish が積まれ、完了後に private_fixed へ収束する
+        detail_v = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_v = self._register_item(
+            detail_v,
+            youtube_draft_video_id="validA12345",
+            youtube_draft_privacy="unlisted",
+        )
+        ord_v = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_v.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        done_v = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_v.data["id"]}),
+            {
+                "target_revision": ord_v.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "validB54321",
+                "youtube_draft_privacy": "private",
+            },
+            format="json",
+        )
+        self.assertEqual(done_v.status_code, status.HTTP_200_OK)
+        item_v.refresh_from_db()
+        self.assertNotEqual(item_v.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_v.pending_stop_video_ids, ["validA12345"])
+
+        claim_valid_stop = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNotNone(claim_valid_stop.data["order"])
+        self.assertEqual(
+            claim_valid_stop.data["order"]["order_type"],
+            RecordingEditOrder.OrderType.STOP_PUBLISH,
+        )
+        self.assertEqual(claim_valid_stop.data["order"]["target_video_id"], "validA12345")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": claim_valid_stop.data["order"]["id"]}),
+            {
+                "target_revision": claim_valid_stop.data["order"]["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "validA12345",
+            },
+            format="json",
+        )
+        item_v.refresh_from_db()
+        self.assertEqual(item_v.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_v.pending_stop_video_ids, [])
+
+    def test_physical_delete_stop_publish_failure_and_lease_expiry_retries(self):
+        staff_client = self._api_client(self.staff_write_key)
+        super_client = self._api_client(self.super_write_key)
+
+        ephemeral_event = make_event(self.community, event_date=timezone.localdate() + timedelta(days=30))
+        detail_phys = make_event_detail(ephemeral_event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_phys = self._register_item(
+            detail_phys,
+            youtube_draft_video_id="physdel1234",
+            youtube_draft_privacy="unlisted",
+        )
+        delete_event_with_tombstones(ephemeral_event)
+        item_phys.refresh_from_db()
+        self.assertIsNone(item_phys.event_detail_id)
+
+        retry_url = reverse("recording-ops-review-item-stop-publish", kwargs={"review_item_id": item_phys.pk})
+
+        # 経路 1: 物理削除後の stop_publish が worker failed で終了しても review_item_id 指定で再試行可能
+        c1 = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(c1.data["order"]["order_type"], RecordingEditOrder.OrderType.STOP_PUBLISH)
+        f1 = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": c1.data["order"]["id"]}),
+            {
+                "target_revision": c1.data["order"]["target_revision"],
+                "status": "failed",
+                "error_message": "youtube temporary error",
+            },
+            format="json",
+        )
+        self.assertEqual(f1.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            staff_client.post(
+                reverse("recording-ops-order-create", kwargs={"detail_id": detail_phys.pk}),
+                {"order_type": RecordingEditOrder.OrderType.STOP_PUBLISH, "expected_revision": 1},
+                format="json",
+            ).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        item_phys.refresh_from_db()
+        r1 = staff_client.post(retry_url, {"expected_revision": item_phys.edl_revision}, format="json")
+        self.assertEqual(r1.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(r1.data["event_detail_id"])
+        self.assertEqual(r1.data["target_video_id"], "physdel1234")
+
+        # 経路 2: 物理削除後の stop_publish が running のままリース失効→ claim スイープ後に再試行可能
+        c2 = super_client.post(self.order_claim_url, {}, format="json")
+        RecordingEditOrder.objects.filter(pk=c2.data["order"]["id"]).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        sweep = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNone(sweep.data["order"])
+        item_phys.refresh_from_db()
+        r2 = staff_client.post(retry_url, {"expected_revision": item_phys.edl_revision}, format="json")
+        self.assertEqual(r2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(r2.data["target_video_id"], "physdel1234")
+
+        # 経路 3: 物理削除後の stop_publish がリース超過後に遅延 complete（409 order_lease_expired）を受け取っても再試行し収束可能
+        c3 = super_client.post(self.order_claim_url, {}, format="json")
+        RecordingEditOrder.objects.filter(pk=c3.data["order"]["id"]).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        late = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": c3.data["order"]["id"]}),
+            {"target_revision": c3.data["order"]["target_revision"], "status": "succeeded"},
+            format="json",
+        )
+        self.assertEqual(late.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(late.data["code"], "order_lease_expired")
+        item_phys.refresh_from_db()
+        r3 = staff_client.post(retry_url, {"expected_revision": item_phys.edl_revision}, format="json")
+        self.assertEqual(r3.status_code, status.HTTP_201_CREATED)
+
+        c4 = super_client.post(self.order_claim_url, {}, format="json")
+        done = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": c4.data["order"]["id"]}),
+            {
+                "target_revision": c4.data["order"]["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "physdel1234",
+            },
+            format="json",
+        )
+        self.assertEqual(done.status_code, status.HTTP_200_OK)
+        item_phys.refresh_from_db()
+        self.assertEqual(item_phys.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_phys.pending_stop_video_ids, [])
+
+        # 孤立した未公開項目（動画なし・公開状態なし）は 409 nothing_to_stop、存在しない ID は 404
+        empty_event = make_event(self.community, event_date=timezone.localdate() + timedelta(days=31))
+        empty_detail = make_event_detail(empty_event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        empty_item = self._register_item(empty_detail, youtube_draft_video_id="", youtube_draft_privacy="")
+        delete_event_with_tombstones(empty_event)
+        empty_item.refresh_from_db()
+        nothing = staff_client.post(
+            reverse("recording-ops-review-item-stop-publish", kwargs={"review_item_id": empty_item.pk}),
+            {"expected_revision": empty_item.edl_revision},
+            format="json",
+        )
+        self.assertEqual(nothing.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(nothing.data["code"], "nothing_to_stop")
+        missing = staff_client.post(
+            reverse("recording-ops-review-item-stop-publish", kwargs={"review_item_id": 9999999}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        self.assertEqual(missing.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_openapi_schema_includes_recording_ops_endpoints(self):
         response = self.client.get(f"{reverse('schema')}?format=json")
@@ -1739,6 +1912,7 @@ class RecordingOpsAPITest(TestCase):
         staff_paths = [
             ("/api/v1/recording-ops/items/{detail_id}/proxy-url/", "get"),
             ("/api/v1/recording-ops/items/{detail_id}/orders/", "post"),
+            ("/api/v1/recording-ops/review-items/{review_item_id}/stop-publish/", "post"),
         ]
         for path, method in staff_paths:
             self.assertIn(path, paths)

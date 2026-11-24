@@ -157,6 +157,10 @@ class RecordingEditOrderCreateRequestSerializer(serializers.Serializer):
     edl_json = StrictJSONDictField(required=False)
 
 
+class RecordingReviewItemStopPublishRequestSerializer(serializers.Serializer):
+    expected_revision = StrictIntegerField(required=True, min_value=1, max_value=MAX_REVISION)
+
+
 class RecordingEditOrderSerializer(serializers.ModelSerializer):
     review_item_id = serializers.IntegerField(read_only=True)
     event_detail_id = serializers.IntegerField(read_only=True, allow_null=True)

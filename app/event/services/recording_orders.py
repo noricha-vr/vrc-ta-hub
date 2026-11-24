@@ -23,6 +23,7 @@ from event.services.recording_ops_common import (
     is_recording_consent_valid,
     item_has_unstopped_video,
     lock_event_detail,
+    lock_event_detail_or_none,
     mark_order_lease_expired,
     next_stop_target_video_id,
     serialize_item_state,
@@ -54,6 +55,190 @@ def _ensure_order_consent(
     # 停止待ち動画が存在し緊急停止が必要なケースのみ許可する（未同意の発表への不要な指示作成を遮断）。
     if not _can_create_manual_stop_publish(item):
         ensure_recording_consent(detail, action="stop_publish")
+
+
+def _create_order_locked(
+    *,
+    detail: EventDetail | None,
+    item: RecordingReviewItem,
+    expected_revision: int,
+    order_type: str,
+    validated_incoming_edl: dict[str, Any] | None,
+    requested_by: Any,
+) -> RecordingEditOrder:
+    """ロック済み detail/item 上で改訂・排他を検査して確定指示または停止指示を作成する。"""
+    detail_id_for_log = detail.pk if detail is not None else None
+    now = timezone.now()
+    if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
+        if item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED or (
+            item.proxy_expires_at is not None and item.proxy_expires_at <= now
+        ):
+            logger.warning(
+                "recording_order_conflict",
+                extra={
+                    "event_type": "recording_order_conflict",
+                    "event_detail_id": detail_id_for_log,
+                    "order_type": order_type,
+                    "reason": "proxy_expired",
+                },
+            )
+            raise RecordingConflictError(
+                "プロキシ動画の保持期限が切れています。",
+                code="proxy_expired",
+                current_state=serialize_item_state(item),
+            )
+        if item.is_public_locked:
+            logger.warning(
+                "recording_order_conflict",
+                extra={
+                    "event_type": "recording_order_conflict",
+                    "event_detail_id": detail_id_for_log,
+                    "order_type": order_type,
+                    "reason": "public_locked",
+                },
+            )
+            raise RecordingConflictError(
+                "公開済みロック中のため apply_edl の確定指示は作成できません。",
+                code="public_locked",
+                current_state=serialize_item_state(item),
+            )
+
+    if expected_revision != item.edl_revision:
+        logger.warning(
+            "recording_order_conflict",
+            extra={
+                "event_type": "recording_order_conflict",
+                "event_detail_id": detail_id_for_log,
+                "order_type": order_type,
+                "reason": "revision_conflict",
+            },
+        )
+        raise RecordingConflictError(
+            "expected_revision が現在の EDL リビジョンと一致しません。",
+            code="revision_conflict",
+            current_state=serialize_item_state(item),
+        )
+    if item.edl_revision >= MAX_REVISION:
+        raise RecordingConflictError(
+            "EDL リビジョン上限に達しています。",
+            code="revision_limit_exceeded",
+            current_state=serialize_item_state(item),
+        )
+
+    active_orders = list(
+        RecordingEditOrder.objects.select_for_update().filter(
+            review_item=item,
+            status__in=RecordingEditOrder.ACTIVE_STATUSES,
+        )
+    )
+    still_active = False
+    for active_order in active_orders:
+        if is_order_lease_expired(active_order, now=now):
+            mark_order_lease_expired(active_order, now=now, event_detail_id=detail_id_for_log)
+        else:
+            still_active = True
+
+    if still_active:
+        logger.warning(
+            "recording_order_conflict",
+            extra={
+                "event_type": "recording_order_conflict",
+                "event_detail_id": detail_id_for_log,
+                "order_type": order_type,
+                "reason": "active_order_exists",
+            },
+        )
+        raise RecordingConflictError(
+            "未完了の確定指示が既に存在します。",
+            code="active_order_exists",
+            current_state=serialize_item_state(item),
+        )
+
+    if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
+        if validated_incoming_edl is not None:
+            registered_bounds = (
+                item.edl_json.get("safe_bounds") if isinstance(item.edl_json, dict) else None
+            )
+            if isinstance(registered_bounds, dict):
+                incoming_bounds = validated_incoming_edl["safe_bounds"]
+                if (
+                    float(incoming_bounds["min_sec"]) != float(registered_bounds["min_sec"])
+                    or float(incoming_bounds["max_sec"]) != float(registered_bounds["max_sec"])
+                ):
+                    raise RecordingValidationError("確定操作では登録済みの safe_bounds を変更できません。")
+            if item.proxy_duration_sec is not None and (
+                float(validated_incoming_edl["safe_bounds"]["max_sec"]) > item.proxy_duration_sec
+            ):
+                raise RecordingValidationError("safe_bounds.max_sec がプロキシ再生時間を超えています。")
+            snapshot_edl = validated_incoming_edl
+        else:
+            try:
+                snapshot_edl = validate_edl_v1(item.edl_json)
+            except EDLValidationError as exc:
+                raise RecordingValidationError(str(exc)) from exc
+    else:
+        snapshot_edl = (
+            validated_incoming_edl
+            if validated_incoming_edl is not None
+            else copy.deepcopy(item.edl_json or {})
+        )
+
+    base_revision = item.edl_revision
+    target_revision = base_revision + 1
+    item.edl_revision = target_revision
+    item_update_fields = ["edl_revision", "updated_at"]
+    stop_target_video_id = ""
+    if order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
+        stop_target_video_id = next_stop_target_video_id(item)
+        if stop_target_video_id and add_pending_stop_video_id(item, stop_target_video_id):
+            item_update_fields.append("pending_stop_video_ids")
+    if order_type == RecordingEditOrder.OrderType.APPLY_EDL and validated_incoming_edl is not None:
+        item.edl_json = copy.deepcopy(validated_incoming_edl)
+        item_update_fields.append("edl_json")
+    item.save(update_fields=item_update_fields)
+
+    try:
+        with transaction.atomic():
+            order = RecordingEditOrder.objects.create(
+                review_item=item,
+                event_detail=detail,
+                order_type=order_type,
+                target_video_id=stop_target_video_id,
+                base_revision=base_revision,
+                target_revision=target_revision,
+                edl_snapshot=snapshot_edl,
+                status=RecordingEditOrder.Status.QUEUED,
+                active_lock_key=f"item:{item.pk}",
+                requested_by=requested_by if getattr(requested_by, "is_authenticated", False) else None,
+            )
+    except IntegrityError as exc:
+        logger.warning(
+            "recording_order_conflict",
+            extra={
+                "event_type": "recording_order_conflict",
+                "event_detail_id": detail_id_for_log,
+                "order_type": order_type,
+                "reason": "active_order_exists",
+            },
+        )
+        raise RecordingConflictError(
+            "未完了の確定指示が既に存在します。",
+            code="active_order_exists",
+            current_state=serialize_item_state(item),
+        ) from exc
+
+    logger.info(
+        "recording_order_created",
+        extra={
+            "event_type": "recording_order_created",
+            "order_id": order.pk,
+            "event_detail_id": detail_id_for_log,
+            "order_type": order.order_type,
+            "base_revision": order.base_revision,
+            "target_revision": order.target_revision,
+        },
+    )
+    return order
 
 
 def create_edit_order(
@@ -103,177 +288,62 @@ def create_edit_order(
                 code="proxy_not_ready",
             )
 
-        now = timezone.now()
-        if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
-            if item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED or (
-                item.proxy_expires_at is not None and item.proxy_expires_at <= now
-            ):
-                logger.warning(
-                    "recording_order_conflict",
-                    extra={
-                        "event_type": "recording_order_conflict",
-                        "event_detail_id": detail.pk,
-                        "order_type": order_type,
-                        "reason": "proxy_expired",
-                    },
-                )
-                raise RecordingConflictError(
-                    "プロキシ動画の保持期限が切れています。",
-                    code="proxy_expired",
-                    current_state=serialize_item_state(item),
-                )
-            if item.is_public_locked:
-                logger.warning(
-                    "recording_order_conflict",
-                    extra={
-                        "event_type": "recording_order_conflict",
-                        "event_detail_id": detail.pk,
-                        "order_type": order_type,
-                        "reason": "public_locked",
-                    },
-                )
-                raise RecordingConflictError(
-                    "公開済みロック中のため apply_edl の確定指示は作成できません。",
-                    code="public_locked",
-                    current_state=serialize_item_state(item),
-                )
-
-        if expected_revision != item.edl_revision:
-            logger.warning(
-                "recording_order_conflict",
-                extra={
-                    "event_type": "recording_order_conflict",
-                    "event_detail_id": detail.pk,
-                    "order_type": order_type,
-                    "reason": "revision_conflict",
-                },
-            )
-            raise RecordingConflictError(
-                "expected_revision が現在の EDL リビジョンと一致しません。",
-                code="revision_conflict",
-                current_state=serialize_item_state(item),
-            )
-        if item.edl_revision >= MAX_REVISION:
-            raise RecordingConflictError(
-                "EDL リビジョン上限に達しています。",
-                code="revision_limit_exceeded",
-                current_state=serialize_item_state(item),
-            )
-
-        active_orders = list(
-            RecordingEditOrder.objects.select_for_update().filter(
-                review_item=item,
-                status__in=RecordingEditOrder.ACTIVE_STATUSES,
-            )
+        return _create_order_locked(
+            detail=detail,
+            item=item,
+            expected_revision=expected_revision,
+            order_type=order_type,
+            validated_incoming_edl=validated_incoming_edl,
+            requested_by=requested_by,
         )
-        still_active = False
-        for active_order in active_orders:
-            if is_order_lease_expired(active_order, now=now):
-                mark_order_lease_expired(active_order, now=now, event_detail_id=detail.pk)
-            else:
-                still_active = True
 
-        if still_active:
-            logger.warning(
-                "recording_order_conflict",
-                extra={
-                    "event_type": "recording_order_conflict",
-                    "event_detail_id": detail.pk,
-                    "order_type": order_type,
-                    "reason": "active_order_exists",
-                },
-            )
-            raise RecordingConflictError(
-                "未完了の確定指示が既に存在します。",
-                code="active_order_exists",
-                current_state=serialize_item_state(item),
-            )
 
-        if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
-            if validated_incoming_edl is not None:
-                registered_bounds = (
-                    item.edl_json.get("safe_bounds") if isinstance(item.edl_json, dict) else None
+def create_stop_publish_order_for_review_item(
+    review_item_id: int,
+    *,
+    expected_revision: int,
+    requested_by: Any = None,
+) -> RecordingEditOrder:
+    """発表行の物理削除後も残存する RecordingReviewItem から公開停止指示を再試行する。"""
+    validate_positive_revision(expected_revision, "expected_revision")
+    ref = RecordingReviewItem.objects.values("event_detail_id").filter(pk=review_item_id).first()
+    if ref is None:
+        raise RecordingNotFoundError("対象の録画レビュー項目が見つかりません。")
+
+    with transaction.atomic():
+        detail = (
+            lock_event_detail_or_none(ref["event_detail_id"], include_deleted=True)
+            if ref["event_detail_id"] is not None
+            else None
+        )
+        item = RecordingReviewItem.objects.select_for_update().filter(pk=review_item_id).first()
+        if item is None:
+            raise RecordingNotFoundError("対象の録画レビュー項目が見つかりません。")
+        if item.event_detail_id is None:
+            detail = None
+
+        if detail is None or detail.deleted_at is not None:
+            if not _can_create_manual_stop_publish(item):
+                raise RecordingConflictError(
+                    "停止対象の公開動画または公開状態が存在しません。",
+                    code="nothing_to_stop",
+                    current_state=serialize_item_state(item),
                 )
-                if isinstance(registered_bounds, dict):
-                    incoming_bounds = validated_incoming_edl["safe_bounds"]
-                    if (
-                        float(incoming_bounds["min_sec"]) != float(registered_bounds["min_sec"])
-                        or float(incoming_bounds["max_sec"]) != float(registered_bounds["max_sec"])
-                    ):
-                        raise RecordingValidationError("確定操作では登録済みの safe_bounds を変更できません。")
-                if item.proxy_duration_sec is not None and (
-                    float(validated_incoming_edl["safe_bounds"]["max_sec"]) > item.proxy_duration_sec
-                ):
-                    raise RecordingValidationError("safe_bounds.max_sec がプロキシ再生時間を超えています。")
-                snapshot_edl = validated_incoming_edl
-            else:
-                try:
-                    snapshot_edl = validate_edl_v1(item.edl_json)
-                except EDLValidationError as exc:
-                    raise RecordingValidationError(str(exc)) from exc
         else:
-            snapshot_edl = (
-                validated_incoming_edl
-                if validated_incoming_edl is not None
-                else copy.deepcopy(item.edl_json or {})
+            _ensure_order_consent(
+                detail,
+                item,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
             )
 
-        base_revision = item.edl_revision
-        target_revision = base_revision + 1
-        item.edl_revision = target_revision
-        item_update_fields = ["edl_revision", "updated_at"]
-        stop_target_video_id = ""
-        if order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
-            stop_target_video_id = next_stop_target_video_id(item)
-            if stop_target_video_id and add_pending_stop_video_id(item, stop_target_video_id):
-                item_update_fields.append("pending_stop_video_ids")
-        if order_type == RecordingEditOrder.OrderType.APPLY_EDL and validated_incoming_edl is not None:
-            item.edl_json = copy.deepcopy(validated_incoming_edl)
-            item_update_fields.append("edl_json")
-        item.save(update_fields=item_update_fields)
-
-        try:
-            with transaction.atomic():
-                order = RecordingEditOrder.objects.create(
-                    review_item=item,
-                    event_detail=detail,
-                    order_type=order_type,
-                    target_video_id=stop_target_video_id,
-                    base_revision=base_revision,
-                    target_revision=target_revision,
-                    edl_snapshot=snapshot_edl,
-                    status=RecordingEditOrder.Status.QUEUED,
-                    active_lock_key=f"item:{item.pk}",
-                    requested_by=requested_by if getattr(requested_by, "is_authenticated", False) else None,
-                )
-        except IntegrityError as exc:
-            logger.warning(
-                "recording_order_conflict",
-                extra={
-                    "event_type": "recording_order_conflict",
-                    "event_detail_id": detail.pk,
-                    "order_type": order_type,
-                    "reason": "active_order_exists",
-                },
-            )
-            raise RecordingConflictError(
-                "未完了の確定指示が既に存在します。",
-                code="active_order_exists",
-                current_state=serialize_item_state(item),
-            ) from exc
-
-    logger.info(
-        "recording_order_created",
-        extra={
-            "event_type": "recording_order_created",
-            "order_id": order.pk,
-            "event_detail_id": detail.pk,
-            "order_type": order.order_type,
-            "base_revision": order.base_revision,
-            "target_revision": order.target_revision,
-        },
-    )
-    return order
+        return _create_order_locked(
+            detail=detail,
+            item=item,
+            expected_revision=expected_revision,
+            order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+            validated_incoming_edl=None,
+            requested_by=requested_by,
+        )
 
 
 def _compensate_revoked_item(

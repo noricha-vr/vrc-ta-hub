@@ -20,7 +20,7 @@ from event.services.recording_ops_common import (
     enqueue_compensating_stop_publish,
     is_order_lease_expired,
     is_recording_consent_valid,
-    lock_event_detail,
+    lock_event_detail_or_none,
     mark_order_lease_expired,
     next_stop_target_video_id,
     remove_pending_stop_video_id,
@@ -157,7 +157,10 @@ def _apply_succeeded_order(
                         "reason": "not_published",
                     },
                 )
-        return False
+        return bool(
+            pending_videos
+            and derived_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+        )
 
     if detail is not None and detail.youtube_url:
         detail.youtube_url = None
@@ -326,12 +329,14 @@ def complete_edit_order(
 
     with transaction.atomic():
         detail = (
-            lock_event_detail(ref["event_detail_id"], include_deleted=True)
+            lock_event_detail_or_none(ref["event_detail_id"], include_deleted=True)
             if ref["event_detail_id"] is not None
             else None
         )
-        detail_id_for_log = detail.pk if detail is not None else None
         item = RecordingReviewItem.objects.select_for_update().get(pk=ref["review_item_id"])
+        if item.event_detail_id is None:
+            detail = None
+        detail_id_for_log = detail.pk if detail is not None else None
         order = RecordingEditOrder.objects.select_for_update().get(pk=order_id)
         consent_valid = detail is not None and is_recording_consent_valid(detail)
         now = timezone.now()
