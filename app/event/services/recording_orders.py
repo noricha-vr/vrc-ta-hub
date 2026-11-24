@@ -17,12 +17,13 @@ from event.services.recording_ops_common import (
     RecordingConflictError,
     RecordingNotFoundError,
     RecordingValidationError,
-    enqueue_compensating_stop_publish,
+    add_pending_stop_video_id,
+    cancel_queued_apply_edl_and_compensate,
     is_order_lease_expired,
     is_recording_consent_valid,
-    item_has_unstopped_video,
     lock_event_detail,
     mark_order_lease_expired,
+    next_stop_target_video_id,
     serialize_item_state,
     validate_positive_revision,
 )
@@ -229,6 +230,11 @@ def create_edit_order(
         target_revision = base_revision + 1
         item.edl_revision = target_revision
         item_update_fields = ["edl_revision", "updated_at"]
+        stop_target_video_id = ""
+        if order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
+            stop_target_video_id = next_stop_target_video_id(item)
+            if stop_target_video_id and add_pending_stop_video_id(item, stop_target_video_id):
+                item_update_fields.append("pending_stop_video_ids")
         if order_type == RecordingEditOrder.OrderType.APPLY_EDL and validated_incoming_edl is not None:
             item.edl_json = copy.deepcopy(validated_incoming_edl)
             item_update_fields.append("edl_json")
@@ -240,6 +246,7 @@ def create_edit_order(
                     review_item=item,
                     event_detail=detail,
                     order_type=order_type,
+                    target_video_id=stop_target_video_id,
                     base_revision=base_revision,
                     target_revision=target_revision,
                     edl_snapshot=snapshot_edl,
@@ -279,54 +286,21 @@ def create_edit_order(
 
 def _compensate_revoked_item(
     *,
-    detail: EventDetail,
+    detail: EventDetail | None,
     item: RecordingReviewItem,
     now: datetime,
+    target_detail_for_order: EventDetail | None = None,
 ) -> bool:
-    """同意撤回・論理削除された項目について公開 URL を消し、未完了 apply_edl 取消と停止予約を行う。"""
-    if detail.youtube_url:
+    """同意撤回・論理削除・物理削除された項目について公開 URL を消し、未完了 apply_edl 取消と停止予約を行う。"""
+    if detail is not None and detail.youtube_url:
         detail.youtube_url = None
         detail.save(update_fields=["youtube_url", "updated_at"])
-
-    active_orders = list(
-        RecordingEditOrder.objects.select_for_update().filter(
-            review_item=item,
-            status__in=RecordingEditOrder.ACTIVE_STATUSES,
-        )
+    return cancel_queued_apply_edl_and_compensate(
+        detail=detail,
+        item=item,
+        now=now,
+        target_detail_for_order=target_detail_for_order,
     )
-    has_remaining_active = False
-    requested_by = None
-    for active in active_orders:
-        if (
-            active.order_type == RecordingEditOrder.OrderType.APPLY_EDL
-            and active.status == RecordingEditOrder.Status.QUEUED
-        ):
-            active.status = RecordingEditOrder.Status.CANCELED
-            active.active_lock_key = None
-            active.completed_at = now
-            active.error_message = "同意撤回または論理削除により待機中の apply_edl を自動キャンセルしました。"
-            active.save(
-                update_fields=[
-                    "status",
-                    "active_lock_key",
-                    "completed_at",
-                    "error_message",
-                    "updated_at",
-                ]
-            )
-            if requested_by is None:
-                requested_by = active.requested_by
-        else:
-            has_remaining_active = True
-
-    if not has_remaining_active and item_has_unstopped_video(item):
-        enqueue_compensating_stop_publish(
-            detail=detail,
-            item=item,
-            requested_by=requested_by,
-        )
-        return True
-    return False
 
 
 def revoke_recording_for_detail(detail_id: int) -> bool:
@@ -343,7 +317,26 @@ def revoke_recording_for_detail(detail_id: int) -> bool:
         item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
         if item is None:
             return False
-        return _compensate_revoked_item(detail=detail, item=item, now=timezone.now())
+        return _compensate_revoked_item(
+            detail=detail,
+            item=item,
+            now=timezone.now(),
+            target_detail_for_order=detail,
+        )
+
+
+def revoke_recording_on_detail_delete(detail_id: int) -> bool:
+    """発表または親イベントの物理削除直前に、撮影成果物の停止予約を切り離して保全する。"""
+    with transaction.atomic():
+        item = RecordingReviewItem.objects.select_for_update().filter(event_detail_id=detail_id).first()
+        if item is None:
+            return False
+        return _compensate_revoked_item(
+            detail=None,
+            item=item,
+            now=timezone.now(),
+            target_detail_for_order=None,
+        )
 
 
 def revoke_recording_for_community(community_id: int) -> int:
@@ -371,6 +364,11 @@ def revoke_recording_for_community(community_id: int) -> int:
             item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
             if item is None:
                 continue
-            if _compensate_revoked_item(detail=detail, item=item, now=now):
+            if _compensate_revoked_item(
+                detail=detail,
+                item=item,
+                now=now,
+                target_detail_for_order=detail,
+            ):
                 queued_count += 1
     return queued_count

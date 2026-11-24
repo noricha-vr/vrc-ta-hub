@@ -428,7 +428,25 @@ class EventDetailQuerySet(models.QuerySet):
         # update() は save() を発火させない高速 UPDATE。auto_now を伴う
         # updated_at は明示的に揃え、復元時の操作とも整合させる。
         now = timezone.now()
-        return self.update(deleted_at=now, updated_at=now)
+        target_ids = list(self.values_list('pk', flat=True))
+        if not target_ids:
+            return 0
+        with transaction.atomic():
+            updated = EventDetail.all_objects.filter(
+                pk__in=target_ids,
+                deleted_at__isnull=True,
+            ).update(deleted_at=now, updated_at=now)
+            if updated:
+                review_detail_ids = list(
+                    RecordingReviewItem.objects.filter(event_detail_id__in=target_ids)
+                    .order_by('event_detail_id')
+                    .values_list('event_detail_id', flat=True)
+                )
+                if review_detail_ids:
+                    from event.services.recording_orders import revoke_recording_for_detail
+                    for detail_id in review_detail_ids:
+                        revoke_recording_for_detail(detail_id)
+        return updated
 
     def hard_delete(self):
         return super().delete()
@@ -1068,7 +1086,9 @@ class RecordingReviewItem(models.Model):
 
     event_detail = models.OneToOneField(
         EventDetail,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="recording_review",
         verbose_name="イベント詳細",
     )
@@ -1087,6 +1107,7 @@ class RecordingReviewItem(models.Model):
     edl_revision = models.PositiveIntegerField("EDL リビジョン", default=1)
     edl_json = models.JSONField("EDL v1 JSON", default=dict, blank=True)
     youtube_draft_video_id = models.CharField("YouTube 下書き動画 ID", max_length=32, blank=True, default="")
+    pending_stop_video_ids = models.JSONField("停止待ち動画 ID 一覧", default=list, blank=True)
     youtube_draft_privacy = models.CharField(
         "YouTube 下書き公開設定",
         max_length=16,
@@ -1152,7 +1173,9 @@ class RecordingEditOrder(models.Model):
     )
     event_detail = models.ForeignKey(
         EventDetail,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="recording_edit_orders",
         verbose_name="イベント詳細",
     )
@@ -1163,6 +1186,7 @@ class RecordingEditOrder(models.Model):
         default=OrderType.APPLY_EDL,
         db_index=True,
     )
+    target_video_id = models.CharField("対象動画 ID", max_length=32, blank=True, default="")
     base_revision = models.PositiveIntegerField("変更前リビジョン")
     target_revision = models.PositiveIntegerField("対象リビジョン")
     edl_snapshot = models.JSONField("EDL スナップショット", default=dict, blank=True)

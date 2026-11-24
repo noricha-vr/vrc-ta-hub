@@ -32,10 +32,10 @@ def _claim_invalidation_reason(
     now: Any,
 ) -> str | None:
     """claim 時点でオーダーが無効化されている場合はキャンセル理由を返す。"""
-    if detail is None:
-        return "detail_not_found"
     if order.order_type != RecordingEditOrder.OrderType.APPLY_EDL:
         return None
+    if detail is None:
+        return "detail_not_found"
     if detail.deleted_at is not None:
         return "detail_deleted"
     if detail.recording_policy != RecordingPolicy.PUBLIC or not detail.event.community.recording_allowed:
@@ -66,7 +66,11 @@ def _expire_stale_running_orders(*, now: Any) -> int:
 
     for ref in stale_refs:
         with transaction.atomic():
-            detail = lock_event_detail_or_none(ref["event_detail_id"], include_deleted=True)
+            detail = (
+                lock_event_detail_or_none(ref["event_detail_id"], include_deleted=True)
+                if ref["event_detail_id"] is not None
+                else None
+            )
             item = RecordingReviewItem.objects.select_for_update().filter(pk=ref["review_item_id"]).first()
             order_qs = RecordingEditOrder.objects.filter(
                 Q(started_at__lte=cutoff) | Q(started_at__isnull=True),
@@ -83,11 +87,10 @@ def _expire_stale_running_orders(*, now: Any) -> int:
             mark_order_lease_expired(order, now=now, event_detail_id=order.event_detail_id)
             if (
                 order.order_type == RecordingEditOrder.OrderType.APPLY_EDL
-                and detail is not None
                 and item is not None
-                and not is_recording_consent_valid(detail)
+                and (detail is None or not is_recording_consent_valid(detail))
             ):
-                if detail.youtube_url:
+                if detail is not None and detail.youtube_url:
                     detail.youtube_url = None
                     detail.save(update_fields=["youtube_url", "updated_at"])
                 has_active = RecordingEditOrder.objects.filter(
@@ -141,7 +144,11 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
 
             with transaction.atomic():
                 # 統一ロック順: Community -> EventDetail -> RecordingReviewItem -> RecordingEditOrder
-                detail = lock_event_detail_or_none(candidate["event_detail_id"], include_deleted=True)
+                detail = (
+                    lock_event_detail_or_none(candidate["event_detail_id"], include_deleted=True)
+                    if candidate["event_detail_id"] is not None
+                    else None
+                )
                 item = (
                     RecordingReviewItem.objects.select_for_update()
                     .filter(pk=candidate["review_item_id"])
@@ -190,11 +197,10 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
                         },
                     )
                     if (
-                        detail is not None
-                        and invalid_reason in ("detail_deleted", "consent_revoked")
+                        invalid_reason in ("detail_not_found", "detail_deleted", "consent_revoked")
                         and item_has_unstopped_video(item)
                     ):
-                        if detail.youtube_url:
+                        if detail is not None and detail.youtube_url:
                             detail.youtube_url = None
                             detail.save(update_fields=["youtube_url", "updated_at"])
                         enqueue_compensating_stop_publish(

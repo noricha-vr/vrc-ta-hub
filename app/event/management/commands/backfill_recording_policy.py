@@ -84,8 +84,15 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
+            from event.models import RecordingReviewItem
+            from event.services.recording_orders import revoke_recording_for_detail
             for policy, pks in changes.items():
                 EventDetail.all_objects.filter(
                     pk__in=pks, recording_policy=EventDetail.RecordingPolicy.PUBLIC,
                 ).update(recording_policy=policy)
+                if policy != EventDetail.RecordingPolicy.PUBLIC and pks:
+                    for detail_id in RecordingReviewItem.objects.filter(
+                        event_detail_id__in=pks
+                    ).values_list("event_detail_id", flat=True):
+                        revoke_recording_for_detail(detail_id)
         self.stdout.write(self.style.SUCCESS(f"{changed}件 の recording_policy を更新しました。"))

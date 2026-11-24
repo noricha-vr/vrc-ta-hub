@@ -107,7 +107,7 @@ class RecordingReviewItemUpsertRequestSerializer(serializers.Serializer):
 
 
 class RecordingReviewItemSerializer(serializers.ModelSerializer):
-    event_detail_id = serializers.IntegerField(read_only=True)
+    event_detail_id = serializers.IntegerField(read_only=True, allow_null=True)
     is_public_locked = serializers.BooleanField(read_only=True)
 
     class Meta:
@@ -159,7 +159,7 @@ class RecordingEditOrderCreateRequestSerializer(serializers.Serializer):
 
 class RecordingEditOrderSerializer(serializers.ModelSerializer):
     review_item_id = serializers.IntegerField(read_only=True)
-    event_detail_id = serializers.IntegerField(read_only=True)
+    event_detail_id = serializers.IntegerField(read_only=True, allow_null=True)
     requested_by_id = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
@@ -169,6 +169,7 @@ class RecordingEditOrderSerializer(serializers.ModelSerializer):
             'review_item_id',
             'event_detail_id',
             'order_type',
+            'target_video_id',
             'base_revision',
             'target_revision',
             'edl_snapshot',
