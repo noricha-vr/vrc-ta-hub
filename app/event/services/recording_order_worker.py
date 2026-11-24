@@ -1,4 +1,4 @@
-"""録画編集確定指示キューのワーカー側リース（claim）および完了報告処理。"""
+"""録画編集確定指示キューのワーカー側リース（claim）処理。"""
 from __future__ import annotations
 
 import logging
@@ -6,41 +6,19 @@ from collections.abc import Sequence
 from typing import Any
 
 from django.db import connection, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from community.constants import RecordingPolicy
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.recording_ops_common import (
     ORDER_LEASE_TIMEOUT,
-    RecordingConflictError,
-    RecordingNotFoundError,
     RecordingValidationError,
     lock_event_detail,
-    validate_positive_revision,
-    validate_safe_youtube_url,
-    validate_video_id,
+    mark_order_lease_expired,
 )
-from event.youtube_urls import youtube_video_id
 
 logger = logging.getLogger(__name__)
-
-_ALLOWED_COMPLETE_PRIVACIES = frozenset(
-    {
-        "",
-        RecordingReviewItem.YouTubePrivacy.UNLISTED,
-        RecordingReviewItem.YouTubePrivacy.PRIVATE,
-        RecordingReviewItem.YouTubePrivacy.PUBLIC,
-    }
-)
-_ALLOWED_COMPLETE_STATUSES = frozenset(
-    {
-        "",
-        RecordingReviewItem.ReviewStatus.NEEDS_REVIEW,
-        RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
-        RecordingReviewItem.ReviewStatus.PUBLISHED,
-        RecordingReviewItem.ReviewStatus.PRIVATE_FIXED,
-    }
-)
 
 
 def _claim_invalidation_reason(
@@ -73,8 +51,8 @@ def _expire_stale_running_orders(*, now: Any) -> int:
     cutoff = now - ORDER_LEASE_TIMEOUT
     stale_refs = list(
         RecordingEditOrder.objects.filter(
+            Q(started_at__lte=cutoff) | Q(started_at__isnull=True),
             status=RecordingEditOrder.Status.RUNNING,
-            started_at__lte=cutoff,
         )
         .order_by("started_at", "pk")
         .values("id", "review_item_id", "event_detail_id")[:20]
@@ -88,9 +66,9 @@ def _expire_stale_running_orders(*, now: Any) -> int:
             lock_event_detail(ref["event_detail_id"], include_deleted=True)
             RecordingReviewItem.objects.select_for_update().filter(pk=ref["review_item_id"]).first()
             order_qs = RecordingEditOrder.objects.filter(
+                Q(started_at__lte=cutoff) | Q(started_at__isnull=True),
                 pk=ref["id"],
                 status=RecordingEditOrder.Status.RUNNING,
-                started_at__lte=cutoff,
             )
             if use_skip_locked:
                 order_qs = order_qs.select_for_update(skip_locked=True)
@@ -99,29 +77,8 @@ def _expire_stale_running_orders(*, now: Any) -> int:
             order = order_qs.first()
             if order is None:
                 continue
-            order.status = RecordingEditOrder.Status.FAILED
-            order.active_lock_key = None
-            order.completed_at = now
-            order.error_message = "ワーカーのリース期限（30分）を超過したため自動失敗終了しました。"
-            order.save(
-                update_fields=[
-                    "status",
-                    "active_lock_key",
-                    "completed_at",
-                    "error_message",
-                    "updated_at",
-                ]
-            )
+            mark_order_lease_expired(order, now=now, event_detail_id=order.event_detail_id)
             expired_count += 1
-            logger.warning(
-                "recording_order_lease_expired",
-                extra={
-                    "event_type": "recording_order_lease_expired",
-                    "order_id": order.pk,
-                    "event_detail_id": order.event_detail_id,
-                    "order_type": order.order_type,
-                },
-            )
     return expired_count
 
 
@@ -233,213 +190,3 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
                 },
             )
             return order
-
-
-def _derive_review_status_on_success(
-    *,
-    order_type: str,
-    privacy: str,
-    requested_review_status: str,
-) -> str:
-    if order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
-        if privacy not in ("", RecordingReviewItem.YouTubePrivacy.PRIVATE):
-            raise RecordingValidationError("stop_publish の完了報告では youtube_draft_privacy='private' のみ指定できます。")
-        if requested_review_status not in ("", RecordingReviewItem.ReviewStatus.PRIVATE_FIXED):
-            raise RecordingValidationError("stop_publish の完了報告では review_status='private_fixed' のみ指定できます。")
-        return RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
-    if (
-        requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-        and privacy != RecordingReviewItem.YouTubePrivacy.PUBLIC
-    ):
-        raise RecordingValidationError("published に遷移するには youtube_draft_privacy='public' が必要です。")
-    if (
-        privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
-        and requested_review_status
-        and requested_review_status != RecordingReviewItem.ReviewStatus.PUBLISHED
-    ):
-        raise RecordingValidationError("youtube_draft_privacy='public' のときは review_status='published' を指定してください。")
-    if (
-        privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
-        or requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-    ):
-        return RecordingReviewItem.ReviewStatus.PUBLISHED
-    if requested_review_status:
-        return requested_review_status
-    if privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE:
-        return RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
-    return RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
-
-
-def complete_edit_order(
-    order_id: int,
-    *,
-    target_revision: int,
-    status: str,
-    result_video_id: str = "",
-    youtube_url: str = "",
-    youtube_draft_privacy: str = "",
-    review_status: str = "",
-    error_message: str = "",
-) -> RecordingEditOrder:
-    """running 状態のオーダーの完了/失敗を確定し、ロックを解放する。"""
-    validate_positive_revision(target_revision, "target_revision")
-    if status not in (
-        RecordingEditOrder.Status.SUCCEEDED,
-        RecordingEditOrder.Status.FAILED,
-    ):
-        raise RecordingValidationError("status は succeeded または failed を指定してください。")
-
-    if status == RecordingEditOrder.Status.SUCCEEDED:
-        validate_video_id(result_video_id, "result_video_id")
-        if youtube_url:
-            validate_safe_youtube_url(youtube_url)
-            parsed_vid = youtube_video_id(youtube_url) or ""
-            if result_video_id and result_video_id != parsed_vid:
-                raise RecordingValidationError("result_video_id と youtube_url の動画 ID が一致しません。")
-            if not result_video_id:
-                result_video_id = parsed_vid
-        if youtube_draft_privacy not in _ALLOWED_COMPLETE_PRIVACIES:
-            raise RecordingValidationError(
-                "youtube_draft_privacy は '', unlisted, private, public のいずれかで指定してください。"
-            )
-        if review_status not in _ALLOWED_COMPLETE_STATUSES:
-            raise RecordingValidationError("review_status に無効な値が指定されています。")
-    elif not isinstance(error_message, str):
-        raise RecordingValidationError("error_message は文字列で指定してください。")
-
-    ref = RecordingEditOrder.objects.values("review_item_id", "event_detail_id").filter(pk=order_id).first()
-    if ref is None:
-        raise RecordingNotFoundError("対象の確定指示が見つかりません。")
-
-    with transaction.atomic():
-        detail = lock_event_detail(ref["event_detail_id"], include_deleted=True)
-        item = RecordingReviewItem.objects.select_for_update().get(pk=ref["review_item_id"])
-        order = RecordingEditOrder.objects.select_for_update().get(pk=order_id)
-
-        if order.status != RecordingEditOrder.Status.RUNNING:
-            logger.warning(
-                "recording_order_complete_conflict",
-                extra={
-                    "event_type": "recording_order_complete_conflict",
-                    "order_id": order.pk,
-                    "event_detail_id": detail.pk,
-                    "reason": "order_not_running",
-                },
-            )
-            raise RecordingConflictError(
-                "処理中（running）ではないオーダーは完了報告できません。",
-                code="order_not_running",
-                current_state={
-                    "order_id": order.pk,
-                    "status": order.status,
-                    "target_revision": order.target_revision,
-                },
-            )
-
-        if order.target_revision != target_revision:
-            logger.warning(
-                "recording_order_complete_conflict",
-                extra={
-                    "event_type": "recording_order_complete_conflict",
-                    "order_id": order.pk,
-                    "event_detail_id": detail.pk,
-                    "reason": "target_revision_mismatch",
-                },
-            )
-            raise RecordingConflictError(
-                "target_revision が現在のオーダーと一致しません。",
-                code="target_revision_mismatch",
-                current_state={
-                    "order_id": order.pk,
-                    "status": order.status,
-                    "target_revision": order.target_revision,
-                },
-            )
-
-        now = timezone.now()
-        order.status = status
-        order.active_lock_key = None
-        order.completed_at = now
-
-        if status == RecordingEditOrder.Status.SUCCEEDED:
-            order.result_video_id = result_video_id
-            order.error_message = ""
-
-            item_fields = ["review_status", "updated_at"]
-            if order.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
-                effective_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
-                item.review_status = _derive_review_status_on_success(
-                    order_type=order.order_type,
-                    privacy=effective_privacy,
-                    requested_review_status=review_status,
-                )
-                item.youtube_draft_privacy = effective_privacy
-                item_fields.append("youtube_draft_privacy")
-                if detail.youtube_url:
-                    detail.youtube_url = None
-                    detail.save(update_fields=["youtube_url", "updated_at"])
-            else:
-                if result_video_id:
-                    item.youtube_draft_video_id = result_video_id
-                    item_fields.append("youtube_draft_video_id")
-                if youtube_draft_privacy:
-                    item.youtube_draft_privacy = youtube_draft_privacy
-                    item_fields.append("youtube_draft_privacy")
-                item.review_status = _derive_review_status_on_success(
-                    order_type=order.order_type,
-                    privacy=item.youtube_draft_privacy,
-                    requested_review_status=review_status,
-                )
-
-                if youtube_url:
-                    is_public_release = (
-                        item.review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-                        and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
-                    )
-                    can_update_detail = (
-                        is_public_release
-                        and detail.deleted_at is None
-                        and detail.recording_policy == RecordingPolicy.PUBLIC
-                        and bool(detail.event.community.recording_allowed)
-                    )
-                    if can_update_detail and youtube_url != (detail.youtube_url or ""):
-                        detail.youtube_url = youtube_url
-                        detail.save(update_fields=["youtube_url", "updated_at"])
-                    elif not can_update_detail:
-                        logger.warning(
-                            "recording_order_youtube_url_skipped",
-                            extra={
-                                "event_type": "recording_order_youtube_url_skipped",
-                                "order_id": order.pk,
-                                "event_detail_id": detail.pk,
-                                "reason": "not_published" if not is_public_release else "consent_or_deleted",
-                            },
-                        )
-
-            item.save(update_fields=list(dict.fromkeys(item_fields)))
-        else:
-            order.error_message = error_message[:10000]
-
-        order.save(
-            update_fields=[
-                "status",
-                "active_lock_key",
-                "completed_at",
-                "result_video_id",
-                "error_message",
-                "updated_at",
-            ]
-        )
-
-    logger.info(
-        "recording_order_completed",
-        extra={
-            "event_type": "recording_order_completed",
-            "order_id": order.pk,
-            "event_detail_id": detail.pk,
-            "order_type": order.order_type,
-            "status": order.status,
-            "target_revision": order.target_revision,
-        },
-    )
-    return order

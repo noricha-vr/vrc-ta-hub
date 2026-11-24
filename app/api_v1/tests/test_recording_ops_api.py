@@ -666,23 +666,23 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(retry_resp.data["base_revision"], 2)
         self.assertEqual(retry_resp.data["target_revision"], 3)
 
-    def test_soft_deleted_detail_returns_404_and_consent_revoked_skips_youtube_url_update(self):
+    def test_soft_deleted_detail_returns_404_and_consent_revoked_triggers_compensating_stop(self):
         staff_client = self._api_client(self.staff_write_key)
         super_client = self._api_client(self.super_write_key)
 
-        self._register_item()
+        item = self._register_item()
         order = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
         self.assertEqual(order.status_code, status.HTTP_201_CREATED)
         super_client.post(self.order_claim_url, {}, format="json")
 
-        # 実行中に同意が forbidden に変更された場合、public 完了報告でも youtube_url への反映はスキップしつつロックは解放する
+        # 実行中に発表同意が forbidden へ撤回された場合（youtube_url 省略でも補償 stop_publish を投入する）
         EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy=RecordingPolicy.FORBIDDEN)
         complete_resp = super_client.post(
             reverse("recording-ops-order-complete", kwargs={"order_id": order.data["id"]}),
             {
                 "target_revision": 2,
                 "status": "succeeded",
-                "youtube_url": "https://youtu.be/abcdefghijk",
+                "result_video_id": "abcdefghijk",
                 "youtube_draft_privacy": "public",
             },
             format="json",
@@ -690,17 +690,128 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(complete_resp.status_code, status.HTTP_200_OK)
         self.detail.refresh_from_db()
         self.assertIsNone(self.detail.youtube_url)
+        item.refresh_from_db()
+        self.assertEqual(item.edl_revision, 3)
 
-        # 論理削除後は通常操作と apply_edl は 404 だが、既存動画がある場合の stop_publish は作成できる
-        self.detail.soft_delete()
-        self.assertEqual(staff_client.get(self.proxy_get_url).status_code, status.HTTP_404_NOT_FOUND)
+        # 自動投入された補償 stop_publish を claim/complete して private_fixed へ落とせる
+        comp_claim = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNotNone(comp_claim.data["order"])
+        self.assertEqual(comp_claim.data["order"]["order_type"], RecordingEditOrder.OrderType.STOP_PUBLISH)
+        comp_done = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": comp_claim.data["order"]["id"]}),
+            {"target_revision": 3, "status": "succeeded"},
+            format="json",
+        )
+        self.assertEqual(comp_done.status_code, status.HTTP_200_OK)
+        item.refresh_from_db()
+        self.assertEqual(item.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item.youtube_draft_privacy, RecordingReviewItem.YouTubePrivacy.PRIVATE)
+
+        # 別の発表で集会許可撤回・論理削除の補償経路も確認（youtube_url 既存値があれば除去）
+        detail2 = make_event_detail(
+            self.event,
+            speaker="発表者2",
+            theme="補償停止テスト",
+            status="approved",
+            recording_policy=RecordingPolicy.PUBLIC,
+            youtube_url="https://youtu.be/legacyvid01",
+        )
+        item2 = self._register_item(detail2)
+        order2 = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail2.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        self.assertEqual(order2.status_code, status.HTTP_201_CREATED)
+        super_client.post(self.order_claim_url, {}, format="json")
+        self.community.recording_allowed = False
+        self.community.save(update_fields=["recording_allowed"])
+        resp2 = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": order2.data["id"]}),
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_url": "https://youtu.be/newpublic11",
+                "youtube_draft_privacy": "public",
+            },
+            format="json",
+        )
+        self.assertEqual(resp2.status_code, status.HTTP_200_OK, resp2.data)
+        detail2.refresh_from_db()
+        self.assertIsNone(detail2.youtube_url)
+        self.assertTrue(
+            RecordingEditOrder.objects.filter(
+                review_item=item2,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+                status=RecordingEditOrder.Status.QUEUED,
+            ).exists()
+        )
+        # claim してキューを消化したうえで、論理削除後 apply_edl 実行中完了の補償停止と手動 stop_publish を確認
+        claim2 = super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": claim2.data["order"]["id"]}),
+            {"target_revision": claim2.data["order"]["target_revision"], "status": "succeeded"},
+            format="json",
+        )
+
+        self.community.recording_allowed = True
+        self.community.save(update_fields=["recording_allowed"])
+        detail3 = make_event_detail(
+            self.event,
+            speaker="発表者3",
+            theme="論理削除時停止テスト",
+            status="approved",
+            recording_policy=RecordingPolicy.PUBLIC,
+        )
+        item3 = self._register_item(detail3)
+        order3 = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail3.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        detail3.soft_delete()
+        resp3 = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": order3.data["id"]}),
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "result_video_id": "deletedvid0",
+                "youtube_draft_privacy": "public",
+            },
+            format="json",
+        )
+        self.assertEqual(resp3.status_code, status.HTTP_200_OK, resp3.data)
+        self.assertTrue(
+            RecordingEditOrder.objects.filter(
+                review_item=item3,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+                status=RecordingEditOrder.Status.QUEUED,
+            ).exists()
+        )
+        claim3 = super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": claim3.data["order"]["id"]}),
+            {"target_revision": claim3.data["order"]["target_revision"], "status": "succeeded"},
+            format="json",
+        )
+
+        # 論理削除後は通常操作と apply_edl は 404 だが、既存動画がある場合の stop_publish は手動作成できる
         self.assertEqual(
-            staff_client.post(self.order_create_url, {"expected_revision": 2}, format="json").status_code,
+            staff_client.get(reverse("recording-ops-proxy-url", kwargs={"detail_id": detail3.pk})).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(
+            staff_client.post(
+                reverse("recording-ops-order-create", kwargs={"detail_id": detail3.pk}),
+                {"expected_revision": 3},
+                format="json",
+            ).status_code,
             status.HTTP_404_NOT_FOUND,
         )
         stop_after_delete = staff_client.post(
-            self.order_create_url,
-            {"expected_revision": 2, "order_type": "stop_publish"},
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail3.pk}),
+            {"expected_revision": 3, "order_type": "stop_publish"},
             format="json",
         )
         self.assertEqual(stop_after_delete.status_code, status.HTTP_201_CREATED)
@@ -709,34 +820,51 @@ class RecordingOpsAPITest(TestCase):
         staff_client = self._api_client(self.staff_write_key)
         super_client = self._api_client(self.super_write_key)
 
-        item = self._register_item()
+        item = self._register_item(youtube_draft_video_id="", youtube_draft_privacy="")
         order = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
         self.assertEqual(order.status_code, status.HTTP_201_CREATED)
         super_client.post(self.order_claim_url, {}, format="json")
         complete_url = reverse("recording-ops-order-complete", kwargs={"order_id": order.data["id"]})
 
-        # URL 解析エラーや矛盾した公開状態指定は 500 にせず 400
-        self.assertEqual(
-            super_client.post(
-                complete_url,
-                {"target_revision": 2, "status": "succeeded", "youtube_url": "https://["},
-                format="json",
-            ).status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
-        self.assertEqual(
-            super_client.post(
-                complete_url,
-                {
-                    "target_revision": 2,
-                    "status": "succeeded",
-                    "youtube_draft_privacy": "unlisted",
-                    "review_status": "published",
-                },
-                format="json",
-            ).status_code,
-            status.HTTP_400_BAD_REQUEST,
-        )
+        # URL 解析エラーや矛盾した公開状態・動画 ID 欠落の公開完了は 400
+        for bad_payload in (
+            {"target_revision": 2, "status": "succeeded", "youtube_url": "https://["},
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_draft_privacy": "unlisted",
+                "review_status": "published",
+            },
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_draft_privacy": "unlisted",
+                "review_status": "private_fixed",
+            },
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_draft_privacy": "private",
+                "review_status": "unlisted_scheduled",
+            },
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_draft_privacy": "public",
+            },
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "review_status": "published",
+            },
+        ):
+            self.assertEqual(
+                super_client.post(complete_url, bad_payload, format="json").status_code,
+                status.HTTP_400_BAD_REQUEST,
+                msg=f"Expected 400 for payload={bad_payload}",
+            )
+        item.refresh_from_db()
+        self.assertFalse(item.is_public_locked)
 
         # 限定公開（needs_review / unlisted_scheduled）では EventDetail.youtube_url を更新しない
         draft_resp = super_client.post(
@@ -757,31 +885,71 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(item.youtube_draft_video_id, "dQw4w9WgXcQ")
         self.assertEqual(item.review_status, RecordingReviewItem.ReviewStatus.NEEDS_REVIEW)
 
+        # 既に youtube_draft_video_id がある項目は、次回の公開確定で result_video_id 省略可
+        promote_order = staff_client.post(self.order_create_url, {"expected_revision": 2}, format="json")
+        self.assertEqual(promote_order.status_code, status.HTTP_201_CREATED)
+        super_client.post(self.order_claim_url, {}, format="json")
+        promote_resp = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": promote_order.data["id"]}),
+            {"target_revision": 3, "status": "succeeded", "youtube_draft_privacy": "public"},
+            format="json",
+        )
+        self.assertEqual(promote_resp.status_code, status.HTTP_200_OK)
+        item.refresh_from_db()
+        self.assertEqual(item.review_status, RecordingReviewItem.ReviewStatus.PUBLISHED)
+        self.assertTrue(item.is_public_locked)
+
         # 巨大整数クエリも 400
         self.assertEqual(
             staff_client.get(f"{self.proxy_get_url}?expires_in={'9' * 5000}").status_code,
             status.HTTP_400_BAD_REQUEST,
         )
 
-    def test_stale_running_order_expires_on_create_and_claim_and_blocks_late_complete(self):
+    def test_stale_running_order_expires_on_create_claim_and_direct_complete(self):
         staff_client = self._api_client(self.staff_write_key)
         super_client = self._api_client(self.super_write_key)
 
-        self._register_item()
-        order_resp = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
+        item = self._register_item()
+        # 1) 回収処理（claim/create）より先に期限切れ running へ直接 complete しても 409 order_lease_expired で拒否する
+        direct_order = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
+        direct_order_id = direct_order.data["id"]
+        super_client.post(self.order_claim_url, {}, format="json")
+        RecordingEditOrder.objects.filter(pk=direct_order_id).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        direct_late_complete = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": direct_order_id}),
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_url": "https://youtu.be/abcdefghijk",
+                "youtube_draft_privacy": "public",
+            },
+            format="json",
+        )
+        self.assertEqual(direct_late_complete.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(direct_late_complete.data["code"], "order_lease_expired")
+        self.detail.refresh_from_db()
+        self.assertIsNone(self.detail.youtube_url)
+        item.refresh_from_db()
+        self.assertFalse(item.is_public_locked)
+        direct_db = RecordingEditOrder.objects.get(pk=direct_order_id)
+        self.assertEqual(direct_db.status, RecordingEditOrder.Status.FAILED)
+        self.assertIsNone(direct_db.active_lock_key)
+
+        # 2) 期限切れ running が残っていても新しいオーダー作成時に自動失効しブロックされない
+        order_resp = staff_client.post(self.order_create_url, {"expected_revision": 2}, format="json")
         order_id = order_resp.data["id"]
         claim_resp = super_client.post(self.order_claim_url, {}, format="json")
         self.assertEqual(claim_resp.data["order"]["id"], order_id)
 
-        # リース期限（30分）を超過した running 状態にする
         RecordingEditOrder.objects.filter(pk=order_id).update(
             started_at=timezone.now() - timedelta(minutes=31)
         )
 
-        # 新しい stop_publish / apply_edl 登録時に期限切れ running が自動失敗化しブロックされない
         stop_resp = staff_client.post(
             self.order_create_url,
-            {"expected_revision": 2, "order_type": "stop_publish"},
+            {"expected_revision": 3, "order_type": "stop_publish"},
             format="json",
         )
         self.assertEqual(stop_resp.status_code, status.HTTP_201_CREATED)
@@ -793,13 +961,13 @@ class RecordingOpsAPITest(TestCase):
         # 旧ワーカーの遅延完了報告は 409 order_not_running で拒否される
         late_complete = super_client.post(
             reverse("recording-ops-order-complete", kwargs={"order_id": order_id}),
-            {"target_revision": 2, "status": "succeeded"},
+            {"target_revision": 3, "status": "succeeded"},
             format="json",
         )
         self.assertEqual(late_complete.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(late_complete.data["code"], "order_not_running")
 
-        # claim 呼び出し時も別の期限切れ running を自動回収して解放する
+        # 3) claim 呼び出し時も期限切れ running を自動回収して解放し、別の期限切れ running への直 failed 報告も order_lease_expired で拒否
         new_claim = super_client.post(self.order_claim_url, {}, format="json")
         self.assertEqual(new_claim.data["order"]["id"], stop_resp.data["id"])
         RecordingEditOrder.objects.filter(pk=stop_resp.data["id"]).update(
@@ -810,6 +978,19 @@ class RecordingOpsAPITest(TestCase):
         stop_order = RecordingEditOrder.objects.get(pk=stop_resp.data["id"])
         self.assertEqual(stop_order.status, RecordingEditOrder.Status.FAILED)
         self.assertIsNone(stop_order.active_lock_key)
+
+        failed_order = staff_client.post(self.order_create_url, {"expected_revision": 4}, format="json")
+        super_client.post(self.order_claim_url, {}, format="json")
+        RecordingEditOrder.objects.filter(pk=failed_order.data["id"]).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        direct_late_fail = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": failed_order.data["id"]}),
+            {"target_revision": 5, "status": "failed", "error_message": "timed out"},
+            format="json",
+        )
+        self.assertEqual(direct_late_fail.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(direct_late_fail.data["code"], "order_lease_expired")
 
     def test_openapi_schema_includes_recording_ops_endpoints(self):
         response = self.client.get(f"{reverse('schema')}?format=json")

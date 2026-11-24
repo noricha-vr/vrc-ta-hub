@@ -1,13 +1,16 @@
 """録画編集プロキシ・確定指示キューサービスの共通例外と検証ヘルパー。"""
 from __future__ import annotations
 
+import logging
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
-from event.models import EventDetail, RecordingReviewItem
+from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.youtube_urls import youtube_video_id
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_PROXY_RETENTION = timedelta(days=30)
 ORDER_LEASE_TIMEOUT = timedelta(minutes=30)
@@ -111,3 +114,42 @@ def lock_event_detail(detail_id: int, *, include_deleted: bool = False) -> Event
         return qs.get(pk=detail_id)
     except EventDetail.DoesNotExist as exc:
         raise RecordingNotFoundError("対象の発表が見つかりません。") from exc
+
+
+def is_order_lease_expired(order: RecordingEditOrder, *, now: datetime) -> bool:
+    """running 状態のオーダーがリース期限を超過しているか判定する。"""
+    if order.status != RecordingEditOrder.Status.RUNNING:
+        return False
+    return order.started_at is None or order.started_at <= now - ORDER_LEASE_TIMEOUT
+
+
+def mark_order_lease_expired(
+    order: RecordingEditOrder,
+    *,
+    now: datetime,
+    error_message: str = "ワーカーのリース期限（30分）を超過したため自動失敗終了しました。",
+    event_detail_id: int | None = None,
+) -> None:
+    """リース期限切れの running オーダーを failed に遷移させて排他キーを解放する。"""
+    order.status = RecordingEditOrder.Status.FAILED
+    order.active_lock_key = None
+    order.completed_at = now
+    order.error_message = error_message
+    order.save(
+        update_fields=[
+            "status",
+            "active_lock_key",
+            "completed_at",
+            "error_message",
+            "updated_at",
+        ]
+    )
+    logger.warning(
+        "recording_order_lease_expired",
+        extra={
+            "event_type": "recording_order_lease_expired",
+            "order_id": order.pk,
+            "event_detail_id": event_detail_id if event_detail_id is not None else order.event_detail_id,
+            "order_type": order.order_type,
+        },
+    )
