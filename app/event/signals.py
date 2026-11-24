@@ -265,3 +265,16 @@ def revoke_recording_on_community_save(sender, instance, created=False, raw=Fals
         return
     from event.services.recording_orders import revoke_recording_for_community
     revoke_recording_for_community(instance.pk)
+
+
+@receiver(post_save, sender=Event)
+def revoke_recording_on_event_save(sender, instance, created=False, raw=False, update_fields=None, **kwargs):
+    """イベントの所属集会変更時に、配下発表の撮影停止を再判定・予約する。"""
+    if raw or created:
+        return
+    if update_fields is not None and not ({'community', 'community_id'} & set(update_fields)):
+        return
+    if not RecordingReviewItem.objects.filter(event_detail__event_id=instance.pk).exists():
+        return
+    from event.services.recording_orders import revoke_recording_for_event
+    revoke_recording_for_event(instance.pk)

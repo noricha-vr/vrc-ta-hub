@@ -10,7 +10,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from community.models import Community
-from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
+from event.models import Event, EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.edl import EDLValidationError, validate_edl_v1
 from event.services.recording_ops_common import (
     MAX_REVISION,
@@ -348,6 +348,42 @@ def revoke_recording_for_community(community_id: int) -> int:
             return 0
         detail_ids = list(
             RecordingReviewItem.objects.filter(event_detail__event__community_id=community_id)
+            .order_by("event_detail_id")
+            .values_list("event_detail_id", flat=True)
+        )
+        now = timezone.now()
+        for detail_id in detail_ids:
+            detail = (
+                EventDetail.all_objects.select_for_update(of=("self",))
+                .select_related("event__community")
+                .filter(pk=detail_id)
+                .first()
+            )
+            if detail is None or is_recording_consent_valid(detail):
+                continue
+            item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
+            if item is None:
+                continue
+            if _compensate_revoked_item(
+                detail=detail,
+                item=item,
+                now=now,
+                target_detail_for_order=detail,
+            ):
+                queued_count += 1
+    return queued_count
+
+
+def revoke_recording_for_event(event_id: int) -> int:
+    """イベントの所属集会変更等で録画不許可となった配下発表の停止予約を行う（Community -> EventDetail -> Item -> Order 順）。"""
+    community_id = Event.objects.filter(pk=event_id).values_list("community_id", flat=True).first()
+    if community_id is None:
+        return 0
+    queued_count = 0
+    with transaction.atomic():
+        Community.objects.select_for_update().filter(pk=community_id).first()
+        detail_ids = list(
+            RecordingReviewItem.objects.filter(event_detail__event_id=event_id)
             .order_by("event_detail_id")
             .values_list("event_detail_id", flat=True)
         )

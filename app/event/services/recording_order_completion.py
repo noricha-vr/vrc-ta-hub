@@ -53,6 +53,10 @@ def _apply_succeeded_order(
             privacy=effective_privacy,
             requested_review_status=review_status,
         )
+        if order.target_video_id and result_video_id and result_video_id != order.target_video_id:
+            raise RecordingValidationError(
+                "stop_publish の完了報告の動画 ID が指示対象（target_video_id）と一致しません。"
+            )
         stopped_vid = result_video_id or order.target_video_id
         order.result_video_id = stopped_vid
         order.error_message = ""
@@ -60,16 +64,18 @@ def _apply_succeeded_order(
             detail.youtube_url = None
             detail.save(update_fields=["youtube_url", "updated_at"])
 
-        if remove_pending_stop_video_id(item, stopped_vid, order.target_video_id):
+        if remove_pending_stop_video_id(item, stopped_vid):
             item_fields.append("pending_stop_video_ids")
 
-        has_remaining_unstopped = bool(
-            [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
-        ) or (bool(item.youtube_draft_video_id) and item.youtube_draft_video_id != stopped_vid)
-        if has_remaining_unstopped:
-            if item.youtube_draft_video_id and item.youtube_draft_video_id != stopped_vid:
-                if add_pending_stop_video_id(item, item.youtube_draft_video_id):
-                    item_fields.append("pending_stop_video_ids")
+        remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
+        untracked_current = bool(item.youtube_draft_video_id) and item.youtube_draft_video_id != stopped_vid
+        if remaining_pending or untracked_current:
+            if untracked_current and add_pending_stop_video_id(item, item.youtube_draft_video_id):
+                item_fields.append("pending_stop_video_ids")
+                remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
+            elif item.youtube_draft_video_id == stopped_vid and remaining_pending:
+                item.youtube_draft_video_id = remaining_pending[0]
+                item_fields.append("youtube_draft_video_id")
             if item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
                 item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
             if item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE:
@@ -99,6 +105,17 @@ def _apply_succeeded_order(
     order.result_video_id = result_video_id
     order.error_message = ""
     if result_video_id:
+        prior_vid = item.youtube_draft_video_id
+        if (
+            prior_vid
+            and prior_vid != result_video_id
+            and (
+                item.review_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+                or item.youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PRIVATE
+            )
+            and add_pending_stop_video_id(item, prior_vid)
+        ):
+            item_fields.append("pending_stop_video_ids")
         item.youtube_draft_video_id = result_video_id
         item_fields.append("youtube_draft_video_id")
     if youtube_draft_privacy:
@@ -186,14 +203,18 @@ def _record_partial_or_late_apply_edl_output(
             order.save(update_fields=["result_video_id", "updated_at"])
         item_fields = ["youtube_draft_video_id", "updated_at"]
         prior_vid = item.youtube_draft_video_id
-        # 既に停止待ち・停止処理中の別動画と異なる遅延動画が到着したら両方とも停止待ち一覧に残す
-        if (not consent_valid or has_active_stop) and prior_vid and prior_vid != reported_video_id:
+        # 同意状態や停止指示有無にかかわらず、別動画で上書きされる旧未停止 ID と遅延 ID を両方保全する
+        if prior_vid and prior_vid != reported_video_id:
             if (
                 item.review_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
                 or item.youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PRIVATE
             ) and add_pending_stop_video_id(item, prior_vid):
                 item_fields.append("pending_stop_video_ids")
-        if (not consent_valid or has_active_stop) and add_pending_stop_video_id(item, reported_video_id):
+        if (
+            (not consent_valid or has_active_stop or (prior_vid and prior_vid != reported_video_id))
+            and youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PRIVATE
+            and add_pending_stop_video_id(item, reported_video_id)
+        ):
             item_fields.append("pending_stop_video_ids")
 
         item.youtube_draft_video_id = reported_video_id
@@ -217,9 +238,13 @@ def _record_partial_or_late_apply_edl_output(
     elif (
         youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
         or review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-    ) and item.youtube_draft_video_id:
+    ):
         item_fields = ["youtube_draft_privacy", "review_status", "updated_at"]
-        if (not consent_valid or has_active_stop) and add_pending_stop_video_id(item, item.youtube_draft_video_id):
+        if (
+            (not consent_valid or has_active_stop)
+            and item.youtube_draft_video_id
+            and add_pending_stop_video_id(item, item.youtube_draft_video_id)
+        ):
             item_fields.append("pending_stop_video_ids")
         item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PUBLIC
         item.review_status = RecordingReviewItem.ReviewStatus.PUBLISHED

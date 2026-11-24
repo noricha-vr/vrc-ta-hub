@@ -141,7 +141,7 @@ class RecordingOpsAPITest(TestCase):
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/signed"
         mock_boto_client.return_value = mock_s3
 
-        item = self._register_item()
+        item = self._register_item(youtube_draft_video_id="", youtube_draft_privacy="")
 
         # 未認証は 401/403 + code
         anon = APIClient()
@@ -226,7 +226,7 @@ class RecordingOpsAPITest(TestCase):
             self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_csrf_enforced_for_session_but_exempt_for_api_key(self):
-        item = self._register_item()
+        item = self._register_item(youtube_draft_video_id="", youtube_draft_privacy="")
 
         session_csrf = APIClient(enforce_csrf_checks=True)
         session_csrf.force_login(self.staff)
@@ -373,7 +373,7 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(not_ready.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(not_ready.data["code"], "proxy_not_ready")
 
-        item = self._register_item()
+        item = self._register_item(youtube_draft_video_id="", youtube_draft_privacy="")
 
         # expected_revision に bool/欠落 -> 400
         for bad_body in ({}, {"expected_revision": True}, {"expected_revision": "1"}):
@@ -672,7 +672,7 @@ class RecordingOpsAPITest(TestCase):
         staff_client = self._api_client(self.staff_write_key)
         super_client = self._api_client(self.super_write_key)
 
-        item = self._register_item()
+        item = self._register_item(youtube_draft_video_id="", youtube_draft_privacy="")
         order = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
         self.assertEqual(order.status_code, status.HTTP_201_CREATED)
         super_client.post(self.order_claim_url, {}, format="json")
@@ -718,7 +718,7 @@ class RecordingOpsAPITest(TestCase):
             recording_policy=RecordingPolicy.PUBLIC,
             youtube_url="https://youtu.be/legacyvid01",
         )
-        item2 = self._register_item(detail2)
+        item2 = self._register_item(detail2, youtube_draft_video_id="", youtube_draft_privacy="")
         order2 = staff_client.post(
             reverse("recording-ops-order-create", kwargs={"detail_id": detail2.pk}),
             {"expected_revision": 1},
@@ -765,7 +765,7 @@ class RecordingOpsAPITest(TestCase):
             status="approved",
             recording_policy=RecordingPolicy.PUBLIC,
         )
-        item3 = self._register_item(detail3)
+        item3 = self._register_item(detail3, youtube_draft_video_id="", youtube_draft_privacy="")
         order3 = staff_client.post(
             reverse("recording-ops-order-create", kwargs={"detail_id": detail3.pk}),
             {"expected_revision": 1},
@@ -1428,6 +1428,149 @@ class RecordingOpsAPITest(TestCase):
         self.assertTrue(
             RecordingEditOrder.objects.filter(
                 review_item=item_opt,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+                status=RecordingEditOrder.Status.QUEUED,
+            ).exists()
+        )
+        c_opt = super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": c_opt.data["order"]["id"]}),
+            {"target_revision": c_opt.data["order"]["target_revision"], "status": "succeeded"},
+            format="json",
+        )
+
+        # 7) stop_publish の完了報告で対象動画と異なる動画 ID（または URL）は 400 拒否し、停止待ちを消さない
+        detail_mis = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_mis = self._register_item(detail_mis, youtube_draft_video_id="targetA1234", youtube_draft_privacy="unlisted")
+        EventDetail.objects.filter(pk=detail_mis.pk).update(recording_policy=RecordingPolicy.FORBIDDEN)
+        stop_mis = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_mis.pk}),
+            {"expected_revision": 1, "order_type": "stop_publish"},
+            format="json",
+        )
+        self.assertEqual(stop_mis.status_code, status.HTTP_201_CREATED)
+        claim_mis = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(claim_mis.data["order"]["target_video_id"], "targetA1234")
+        bad_stop_complete = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_mis.data["id"]}),
+            {
+                "target_revision": stop_mis.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "otherB12345",
+            },
+            format="json",
+        )
+        self.assertEqual(bad_stop_complete.status_code, status.HTTP_400_BAD_REQUEST)
+        ok_stop_complete = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_mis.data["id"]}),
+            {
+                "target_revision": stop_mis.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "targetA1234",
+            },
+            format="json",
+        )
+        self.assertEqual(ok_stop_complete.status_code, status.HTTP_200_OK)
+        item_mis.refresh_from_db()
+        self.assertEqual(item_mis.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+
+        # 8) 同意有効中の遅延別動画報告は旧未停止動画も両方保全し、後から同意撤回で全件停止できる
+        detail_both = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_both = self._register_item(detail_both, youtube_draft_video_id="", youtube_draft_privacy="")
+        old_both_a = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_both.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        RecordingEditOrder.objects.filter(pk=old_both_a.data["id"]).update(
+            started_at=timezone.now() - timedelta(minutes=31)
+        )
+        ord_both_b = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_both.pk}),
+            {"expected_revision": 2},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_both_b.data["id"]}),
+            {
+                "target_revision": 3,
+                "status": "succeeded",
+                "result_video_id": "videoB22222",
+                "youtube_draft_privacy": "public",
+            },
+            format="json",
+        )
+        # 同意有効中に old_both_a から別動画 A が遅延到着
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": old_both_a.data["id"]}),
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "result_video_id": "videoA11111",
+                "youtube_draft_privacy": "public",
+            },
+            format="json",
+        )
+        item_both.refresh_from_db()
+        self.assertIn("videoB22222", item_both.pending_stop_video_ids)
+        self.assertIn("videoA11111", item_both.pending_stop_video_ids)
+
+        # 後から同意撤回すると、両方とも順次 stop_publish されるまで private_fixed にならない
+        detail_both.recording_policy = RecordingPolicy.FORBIDDEN
+        detail_both.save(update_fields=["recording_policy"])
+        stop_first = super_client.post(self.order_claim_url, {}, format="json")
+        first_vid = stop_first.data["order"]["target_video_id"]
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_first.data["order"]["id"]}),
+            {"target_revision": stop_first.data["order"]["target_revision"], "status": "succeeded", "result_video_id": first_vid},
+            format="json",
+        )
+        item_both.refresh_from_db()
+        self.assertNotEqual(item_both.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        stop_second = super_client.post(self.order_claim_url, {}, format="json")
+        second_vid = stop_second.data["order"]["target_video_id"]
+        self.assertNotEqual(first_vid, second_vid)
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_second.data["order"]["id"]}),
+            {"target_revision": stop_second.data["order"]["target_revision"], "status": "succeeded", "result_video_id": second_vid},
+            format="json",
+        )
+        item_both.refresh_from_db()
+        self.assertEqual(item_both.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_both.pending_stop_video_ids, [])
+
+        # 9) 動画 ID 未取得の failed public 報告でも公開ロックが付く + 親 Event の community 変更で停止予約される
+        detail_novid = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_novid = self._register_item(detail_novid, youtube_draft_video_id="", youtube_draft_privacy="")
+        ord_nv = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_novid.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_nv.data["id"]}),
+            {
+                "target_revision": 2,
+                "status": "failed",
+                "youtube_draft_privacy": "public",
+                "error_message": "public without id",
+            },
+            format="json",
+        )
+        item_novid.refresh_from_db()
+        self.assertTrue(item_novid.is_public_locked)
+
+        move_event = make_event(self.community, event_date=timezone.localdate() + timedelta(days=21))
+        detail_ev_move = make_event_detail(move_event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_ev_move = self._register_item(detail_ev_move, youtube_draft_video_id="evmove12345", youtube_draft_privacy="unlisted")
+        move_event.community = self.disallowed_community
+        move_event.save(update_fields=["community"])
+        self.assertTrue(
+            RecordingEditOrder.objects.filter(
+                review_item=item_ev_move,
                 order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
                 status=RecordingEditOrder.Status.QUEUED,
             ).exists()

@@ -16,6 +16,7 @@ from event.services.recording_ops_common import (
     MAX_REVISION,
     RecordingConflictError,
     RecordingValidationError,
+    add_pending_stop_video_id,
     lock_event_detail,
     serialize_item_state,
     validate_positive_revision,
@@ -284,6 +285,17 @@ def upsert_recording_item(
             if max_sec > effective_duration:
                 raise RecordingValidationError("proxy_duration_sec は登録済みの safe_bounds.max_sec 以上で指定してください。")
         if youtube_draft_video_id is not None:
+            prior_vid = item.youtube_draft_video_id
+            if (
+                prior_vid
+                and prior_vid != youtube_draft_video_id
+                and (
+                    item.review_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+                    or item.youtube_draft_privacy != RecordingReviewItem.YouTubePrivacy.PRIVATE
+                )
+                and add_pending_stop_video_id(item, prior_vid)
+            ):
+                update_fields.append("pending_stop_video_ids")
             item.youtube_draft_video_id = youtube_draft_video_id
             update_fields.append("youtube_draft_video_id")
         if youtube_draft_privacy is not None:
