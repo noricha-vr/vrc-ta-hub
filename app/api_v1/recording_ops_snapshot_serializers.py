@@ -16,6 +16,7 @@ from .recording_ops_serializers import StrictIntegerField, StrictJSONDictField
 
 SUPPORTED_SNAPSHOT_SCHEMA_VERSION = 1
 MAX_SNAPSHOT_PAYLOAD_BYTES = 256 * 1024
+MAX_SNAPSHOT_NESTING_DEPTH = 32
 REQUIRED_SNAPSHOT_SECTIONS = (
     "next_session",
     "action_items",
@@ -71,19 +72,23 @@ class NullableStrictJSONDictField(serializers.JSONField):
         return value
 
 
-def _validate_snapshot_tree(value: Any, *, path: str = "$") -> None:
-    """JSON 構造内の非有限浮動小数点数と禁止パターンを再帰的に検査する。"""
+def _validate_snapshot_tree(value: Any, *, path: str = "$", depth: int = 0) -> None:
+    """JSON 構造内のネスト深度・非有限浮動小数点数・禁止パターンを再帰的に検査する。"""
+    if depth > MAX_SNAPSHOT_NESTING_DEPTH:
+        raise serializers.ValidationError(
+            f"スナップショットのネスト深度が上限（{MAX_SNAPSHOT_NESTING_DEPTH}）を超えています。"
+        )
     if isinstance(value, dict):
         for key, item in value.items():
             if not isinstance(key, str):
                 raise serializers.ValidationError(f"{path} のキーは文字列である必要があります。")
             if FORBIDDEN_SNAPSHOT_PATTERN.search(key):
                 raise serializers.ValidationError("スナップショットに許可されていない識別子パターンが含まれています。")
-            _validate_snapshot_tree(item, path=f"{path}.{key}")
+            _validate_snapshot_tree(item, path=f"{path}.{key}", depth=depth + 1)
         return
     if isinstance(value, list):
         for index, item in enumerate(value):
-            _validate_snapshot_tree(item, path=f"{path}[{index}]")
+            _validate_snapshot_tree(item, path=f"{path}[{index}]", depth=depth + 1)
         return
     if isinstance(value, str):
         if FORBIDDEN_SNAPSHOT_PATTERN.search(value):
@@ -114,21 +119,20 @@ class RecordingOpsSnapshotIngestSerializer(serializers.Serializer):
             raise serializers.ValidationError({"detail": "JSON オブジェクトを指定してください。"})
 
         try:
+            _validate_snapshot_tree(raw_payload)
             encoded = json.dumps(
                 raw_payload,
                 ensure_ascii=False,
                 allow_nan=False,
                 separators=(",", ":"),
             ).encode("utf-8")
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError, RecursionError) as exc:
             raise serializers.ValidationError({"detail": "シリアライズ可能な JSON オブジェクトを指定してください。"}) from exc
 
         if len(encoded) > MAX_SNAPSHOT_PAYLOAD_BYTES:
             raise serializers.ValidationError(
                 {"detail": f"スナップショットのサイズが上限（{MAX_SNAPSHOT_PAYLOAD_BYTES} バイト）を超えています。"}
             )
-
-        _validate_snapshot_tree(raw_payload)
 
         # 後方互換のためトップレベルおよび各セクション内の未知キーをそのまま保持する。
         attrs["_raw_payload"] = copy.deepcopy(raw_payload)

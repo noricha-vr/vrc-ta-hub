@@ -13,6 +13,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from api_v1.recording_ops_snapshot_serializers import (
+    MAX_SNAPSHOT_NESTING_DEPTH,
     MAX_SNAPSHOT_PAYLOAD_BYTES,
     REQUIRED_SNAPSHOT_SECTIONS,
     RecordingOpsSnapshotIngestSerializer,
@@ -264,6 +265,36 @@ class RecordingOpsSnapshotAPITest(TestCase):
         self.assertEqual(nan_resp.status_code, status.HTTP_400_BAD_REQUEST)
 
         self.assertEqual(RecordingOpsSnapshot.objects.count(), 0)
+
+    def test_rejects_excessively_nested_payload(self):
+        client = self._api_client(self.super_write_key)
+        base = _load_contract_fixture()
+
+        # 許容上限ちょうどは 201
+        ok_nested: dict | list = "leaf"
+        for _ in range(MAX_SNAPSHOT_NESTING_DEPTH - 1):
+            ok_nested = [ok_nested]
+        ok_payload = copy.deepcopy(base)
+        ok_payload["deep_ok"] = ok_nested
+        ok_resp = client.post(self.url, ok_payload, format="json")
+        self.assertEqual(ok_resp.status_code, status.HTTP_201_CREATED, ok_resp.data)
+
+        # 上限超過（33 段および 600 段）は 500 にならず 400 で拒否する
+        for depth in (MAX_SNAPSHOT_NESTING_DEPTH, 600):
+            deep: object = "leaf"
+            for _ in range(depth):
+                deep = [deep]
+            bad_payload = copy.deepcopy(base)
+            bad_payload["deep_bad"] = deep
+            serializer = RecordingOpsSnapshotIngestSerializer(data=bad_payload)
+            self.assertFalse(serializer.is_valid(), f"depth={depth}")
+            # HTTP API 経由は json.dumps で深い配列を生成して送信
+            raw_deep = ("[" * depth) + '"leaf"' + ("]" * depth)
+            raw_json = json.dumps(base, ensure_ascii=False)[:-1] + f', "deep_bad": {raw_deep}}}'
+            resp = client.post(self.url, raw_json.encode("utf-8"), content_type="application/json")
+            self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST, f"depth={depth}")
+
+        self.assertEqual(RecordingOpsSnapshot.objects.count(), 1)
 
     def test_admin_is_read_only_and_openapi_schema_includes_endpoint(self):
         admin_site = AdminSite()
