@@ -1094,6 +1094,7 @@ class RecordingReviewItem(models.Model):
         blank=True,
         default="",
     )
+    public_locked_at = models.DateTimeField("公開ロック日時", null=True, blank=True)
     created_at = models.DateTimeField("作成日時", auto_now_add=True)
     updated_at = models.DateTimeField("更新日時", auto_now=True)
 
@@ -1105,12 +1106,24 @@ class RecordingReviewItem(models.Model):
     def __str__(self) -> str:
         return f"RecordingReviewItem(detail={self.event_detail_id}, rev={self.edl_revision}, status={self.review_status})"
 
+    def save(self, *args, **kwargs):
+        if (
+            self.review_status == self.ReviewStatus.PUBLISHED
+            or self.youtube_draft_privacy == self.YouTubePrivacy.PUBLIC
+        ) and self.public_locked_at is None:
+            self.public_locked_at = timezone.now()
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None and "public_locked_at" not in update_fields:
+                kwargs["update_fields"] = [*update_fields, "public_locked_at"]
+        super().save(*args, **kwargs)
+
     @property
     def is_public_locked(self) -> bool:
         """YouTube 公開済みのため apply_edl による再差し替えを禁止するか。"""
         return (
             self.review_status == self.ReviewStatus.PUBLISHED
             or self.youtube_draft_privacy == self.YouTubePrivacy.PUBLIC
+            or self.public_locked_at is not None
         )
 
 

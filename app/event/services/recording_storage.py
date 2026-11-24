@@ -307,9 +307,12 @@ def create_presigned_proxy_download_url(
         raise RecordingProxyNotFoundError("プロキシ動画がまだ登録されていません。")
 
     now = timezone.now()
+    remaining_sec: int | None = None
+    if review_item.proxy_expires_at is not None:
+        remaining_sec = int((review_item.proxy_expires_at - now).total_seconds())
     if (
         review_item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED
-        or (review_item.proxy_expires_at is not None and review_item.proxy_expires_at <= now)
+        or (remaining_sec is not None and remaining_sec < MIN_PRESIGNED_EXPIRES_IN)
     ):
         logger.warning(
             "recording_proxy_url_denied",
@@ -320,11 +323,13 @@ def create_presigned_proxy_download_url(
                 "reason": "proxy_expired",
             },
         )
-        raise RecordingProxyExpiredError("プロキシ動画の保持期限が切れています。")
+        raise RecordingProxyExpiredError("プロキシ動画の保持期限切れ、または残存時間が 15 分未満です。")
 
     validated_key = validate_proxy_object_key(detail.pk, review_item.proxy_r2_key)
     private_bucket = resolve_private_r2_bucket()
     ttl = clamp_presigned_expires_in(expires_in)
+    if remaining_sec is not None:
+        ttl = min(ttl, remaining_sec)
 
     client = _build_r2_s3_client()
     proxy_url = _presign_url(

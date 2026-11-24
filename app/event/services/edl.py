@@ -22,7 +22,10 @@ class EDLValidationError(ValueError):
 def _require_finite_number(value: Any, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise EDLValidationError(f"{field_name} は数値で指定してください。")
-    numeric = float(value)
+    try:
+        numeric = float(value)
+    except OverflowError as exc:
+        raise EDLValidationError(f"{field_name} が表現可能な数値範囲を超えています。") from exc
     if not math.isfinite(numeric):
         raise EDLValidationError(f"{field_name} に NaN や無限大は指定できません。")
     return numeric
@@ -123,7 +126,7 @@ def _validate_cuts(
                 raise EDLValidationError(f"{prefix}.confidence は 0.0 以上 1.0 以下で指定してください。")
 
         action = cut["action"]
-        if action not in EDL_CUT_ACTIONS:
+        if not isinstance(action, str) or action not in EDL_CUT_ACTIONS:
             raise EDLValidationError(f"{prefix}.action は pending / accept / reject のいずれかで指定してください。")
 
         if action == "accept":

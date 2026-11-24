@@ -6,13 +6,15 @@ import uuid
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, override_settings
+from django.contrib.admin.sites import AdminSite
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from community.constants import RecordingPolicy
+from event.admin import RecordingEditOrderAdmin, RecordingReviewItemAdmin
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from tests.factories import make_community, make_event, make_event_detail, make_user
 from user_account.models import APIKey
@@ -486,6 +488,121 @@ class RecordingOpsAPITest(TestCase):
         )
         self.assertEqual(stop_resp.status_code, status.HTTP_201_CREATED)
         self.assertEqual(stop_resp.data["order_type"], "stop_publish")
+
+        # stop_publish を claim & complete しても公開済みロックは維持される
+        stop_claim = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(stop_claim.data["order"]["id"], stop_resp.data["id"])
+        stop_complete = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": stop_resp.data["id"]}),
+            {"target_revision": 3, "status": "succeeded"},
+            format="json",
+        )
+        self.assertEqual(stop_complete.status_code, status.HTTP_200_OK)
+        item.refresh_from_db()
+        self.assertEqual(item.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertTrue(item.is_public_locked)
+
+        after_stop_apply = staff_client.post(
+            self.order_create_url,
+            {"expected_revision": 3, "order_type": "apply_edl"},
+            format="json",
+        )
+        self.assertEqual(after_stop_apply.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(after_stop_apply.data["code"], "public_locked")
+
+    def test_order_rejects_expanded_safe_bounds_and_malformed_edl_inputs(self):
+        staff_client = self._api_client(self.staff_write_key)
+        self._register_item()
+
+        # safe_bounds を登録済み (0〜1200) から拡大/変更しようとすると 400
+        expanded = _valid_edl(start_sec=10.0, end_sec=1300.0)
+        expanded["safe_bounds"] = {"min_sec": 0.0, "max_sec": 1400.0}
+        resp_expanded = staff_client.post(
+            self.order_create_url,
+            {"expected_revision": 1, "edl_json": expanded},
+            format="json",
+        )
+        self.assertEqual(resp_expanded.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # unhashable action / 巨大整数でも 500 にならず 400
+        bad_action_edl = _valid_edl()
+        bad_action_edl["cuts"] = [
+            {"id": "c1", "start_sec": 40.0, "end_sec": 50.0, "kind": "silence", "label": "x", "action": []}
+        ]
+        self.assertEqual(
+            staff_client.post(
+                self.order_create_url,
+                {"expected_revision": 1, "edl_json": bad_action_edl},
+                format="json",
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            staff_client.post(
+                self.order_create_url,
+                {"expected_revision": 10**400},
+                format="json",
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_claim_cancels_orders_invalidated_by_consent_delete_or_expiry_and_picks_next(self):
+        staff_client = self._api_client(self.staff_write_key)
+        super_client = self._api_client(self.super_write_key)
+
+        detail_deleted = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        detail_expired = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        detail_valid = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+
+        self._register_item(self.detail)
+        self._register_item(detail_deleted)
+        self._register_item(detail_expired)
+        self._register_item(detail_valid)
+
+        o_consent = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json").data["id"]
+        o_deleted = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_deleted.pk}),
+            {"expected_revision": 1},
+            format="json",
+        ).data["id"]
+        o_expired = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_expired.pk}),
+            {"expected_revision": 1},
+            format="json",
+        ).data["id"]
+        o_valid = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_valid.pk}),
+            {"expected_revision": 1},
+            format="json",
+        ).data["id"]
+
+        # キュー投入後に同意撤回・論理削除・期限切れを発生させる
+        EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy=RecordingPolicy.FORBIDDEN)
+        detail_deleted.soft_delete()
+        RecordingReviewItem.objects.filter(event_detail=detail_expired).update(
+            proxy_expires_at=timezone.now() - timedelta(seconds=1)
+        )
+
+        claimed = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(claimed.status_code, status.HTTP_200_OK)
+        self.assertEqual(claimed.data["order"]["id"], o_valid)
+
+        for canceled_id in (o_consent, o_deleted, o_expired):
+            order = RecordingEditOrder.objects.get(pk=canceled_id)
+            self.assertEqual(order.status, RecordingEditOrder.Status.CANCELED)
+            self.assertIsNone(order.active_lock_key)
+
+    def test_recording_models_admin_is_readonly(self):
+        request = RequestFactory().get("/admin/")
+        request.user = self.superuser
+        for admin_cls, model in (
+            (RecordingReviewItemAdmin, RecordingReviewItem),
+            (RecordingEditOrderAdmin, RecordingEditOrder),
+        ):
+            model_admin = admin_cls(model, AdminSite())
+            self.assertFalse(model_admin.has_add_permission(request))
+            self.assertFalse(model_admin.has_change_permission(request))
+            self.assertFalse(model_admin.has_delete_permission(request))
 
     def test_claim_fifo_empty_queue_and_failed_retry_flow(self):
         staff_client = self._api_client(self.staff_write_key)

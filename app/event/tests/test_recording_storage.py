@@ -195,6 +195,19 @@ class RecordingStoragePresignTest(TestCase):
         self.assertEqual(mock_s3.generate_presigned_url.call_args.kwargs["ExpiresIn"], 1800)
         self.assertNotIn("get-secret-sig", "\n".join(logs.output))
 
+        # 期限まで 20 分残っている場合、1800 秒要求しても残存時間内に収まる
+        item.proxy_expires_at = timezone.now() + timedelta(seconds=1205)
+        item.save(update_fields=["proxy_expires_at"])
+        capped = create_presigned_proxy_download_url(self.detail, expires_in=1800)
+        self.assertGreaterEqual(capped.expires_in, MIN_PRESIGNED_EXPIRES_IN)
+        self.assertLessEqual(capped.expires_in, 1205)
+
+        # 残り 15 分未満も失効扱いで拒否（有効期限が保持期限を超えない）
+        item.proxy_expires_at = timezone.now() + timedelta(seconds=600)
+        item.save(update_fields=["proxy_expires_at"])
+        with self.assertRaises(RecordingProxyExpiredError):
+            create_presigned_proxy_download_url(self.detail)
+
         # 期限切れ日時超過
         item.proxy_expires_at = timezone.now() - timedelta(seconds=1)
         item.save(update_fields=["proxy_expires_at"])

@@ -269,13 +269,38 @@ class RecordingReviewItemAdmin(admin.ModelAdmin):
         'review_status',
         'edl_revision',
         'youtube_draft_privacy',
+        'public_locked_at',
         'proxy_expires_at',
         'updated_at',
     )
     list_filter = ('review_status', 'youtube_draft_privacy')
     search_fields = ('event_detail__theme', 'event_detail__speaker', 'youtube_draft_video_id')
     raw_id_fields = ('event_detail',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = (
+        'event_detail',
+        'proxy_r2_key',
+        'transcript_r2_key',
+        'proxy_duration_sec',
+        'proxy_uploaded_at',
+        'proxy_expires_at',
+        'review_status',
+        'edl_revision',
+        'edl_json',
+        'youtube_draft_video_id',
+        'youtube_draft_privacy',
+        'public_locked_at',
+        'created_at',
+        'updated_at',
+    )
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False
 
 
 @admin.register(RecordingEditOrder)
@@ -293,4 +318,29 @@ class RecordingEditOrderAdmin(admin.ModelAdmin):
     list_filter = ('order_type', 'status')
     search_fields = ('result_video_id', 'event_detail__theme')
     raw_id_fields = ('review_item', 'event_detail', 'requested_by')
-    readonly_fields = ('active_lock_key', 'created_at', 'started_at', 'completed_at', 'updated_at')
+    readonly_fields = (
+        'review_item',
+        'event_detail',
+        'order_type',
+        'base_revision',
+        'target_revision',
+        'edl_snapshot',
+        'status',
+        'active_lock_key',
+        'requested_by',
+        'result_video_id',
+        'error_message',
+        'created_at',
+        'started_at',
+        'completed_at',
+        'updated_at',
+    )
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False

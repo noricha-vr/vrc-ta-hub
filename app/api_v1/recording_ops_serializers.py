@@ -6,6 +6,7 @@ import math
 from rest_framework import serializers
 
 from event.models import RecordingEditOrder, RecordingReviewItem
+from event.services.recording_ops_common import MAX_REVISION
 
 
 class StrictIntegerField(serializers.IntegerField):
@@ -18,12 +19,15 @@ class StrictIntegerField(serializers.IntegerField):
 
 
 class StrictFloatField(serializers.FloatField):
-    """JSON で bool / str / NaN / Inf を拒否する厳格な浮動小数点数フィールド。"""
+    """JSON で bool / str / NaN / Inf / オーバーフローを拒否する厳格な浮動小数点数フィールド。"""
 
     def to_internal_value(self, data):
         if isinstance(data, bool) or not isinstance(data, (int, float)):
             self.fail('invalid')
-        value = super().to_internal_value(data)
+        try:
+            value = super().to_internal_value(data)
+        except OverflowError:
+            self.fail('invalid')
         if not math.isfinite(value):
             self.fail('invalid')
         return value
@@ -99,7 +103,7 @@ class RecordingReviewItemUpsertRequestSerializer(serializers.Serializer):
         ],
         required=False,
     )
-    expected_revision = StrictIntegerField(required=False, min_value=1)
+    expected_revision = StrictIntegerField(required=False, min_value=1, max_value=MAX_REVISION)
 
 
 class RecordingReviewItemSerializer(serializers.ModelSerializer):
@@ -144,7 +148,7 @@ class ProxyDownloadUrlResponseSerializer(serializers.Serializer):
 
 
 class RecordingEditOrderCreateRequestSerializer(serializers.Serializer):
-    expected_revision = StrictIntegerField(required=True, min_value=1)
+    expected_revision = StrictIntegerField(required=True, min_value=1, max_value=MAX_REVISION)
     order_type = serializers.ChoiceField(
         choices=RecordingEditOrder.OrderType.choices,
         required=False,
@@ -210,7 +214,7 @@ class RecordingEditOrderClaimResponseSerializer(serializers.Serializer):
 
 
 class RecordingEditOrderCompleteRequestSerializer(serializers.Serializer):
-    target_revision = StrictIntegerField(required=True, min_value=1)
+    target_revision = StrictIntegerField(required=True, min_value=1, max_value=MAX_REVISION)
     status = serializers.ChoiceField(
         choices=[
             RecordingEditOrder.Status.SUCCEEDED,

@@ -22,11 +22,11 @@ from event.services.recording_ops_common import (
     RecordingOpsError,
     RecordingValidationError,
 )
-from event.services.recording_orders import (
+from event.services.recording_order_worker import (
     claim_next_edit_order,
     complete_edit_order,
-    create_edit_order,
 )
+from event.services.recording_orders import create_edit_order
 from event.services.recording_storage import (
     RecordingConsentError,
     RecordingObjectKeyError,

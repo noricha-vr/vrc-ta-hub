@@ -89,6 +89,37 @@ class EDLv1ValidationTest(TestCase):
             with self.subTest(bad=bad), self.assertRaises(EDLValidationError):
                 validate_edl_v1(bad)
 
+        # 巨大整数・unhashable action でも TypeError/OverflowError にせず EDLValidationError に変換する
+        for bad_payload in (
+            _valid_edl(safe_bounds={"min_sec": 0.0, "max_sec": 10**400}),
+            _valid_edl(
+                cuts=[
+                    {
+                        "id": "c1",
+                        "start_sec": 40.0,
+                        "end_sec": 50.0,
+                        "kind": "silence",
+                        "label": "無音",
+                        "action": [],
+                    }
+                ]
+            ),
+            _valid_edl(
+                cuts=[
+                    {
+                        "id": "c1",
+                        "start_sec": 40.0,
+                        "end_sec": 50.0,
+                        "kind": "silence",
+                        "label": "無音",
+                        "action": {},
+                    }
+                ]
+            ),
+        ):
+            with self.subTest(bad_payload=bad_payload), self.assertRaises(EDLValidationError):
+                validate_edl_v1(bad_payload)
+
         missing_cuts = _valid_edl()
         del missing_cuts["cuts"]
         with self.assertRaises(EDLValidationError):
@@ -213,10 +244,14 @@ class RecordingModelsTest(TestCase):
         self.assertFalse(item.is_public_locked)
 
         item.review_status = RecordingReviewItem.ReviewStatus.PUBLISHED
+        item.save(update_fields=["review_status"])
         self.assertTrue(item.is_public_locked)
+        self.assertIsNotNone(item.public_locked_at)
 
-        item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
-        item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PUBLIC
+        # 公開停止で private に遷移しても公開ロック履歴は保持される
+        item.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+        item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PRIVATE
+        item.save(update_fields=["review_status", "youtube_draft_privacy"])
         self.assertTrue(item.is_public_locked)
 
     def test_active_lock_key_enforces_single_active_order_and_allows_multiple_terminal(self):

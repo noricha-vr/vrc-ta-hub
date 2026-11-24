@@ -10,6 +10,7 @@ from event.models import EventDetail, RecordingReviewItem
 from event.youtube_urls import youtube_video_id
 
 DEFAULT_PROXY_RETENTION = timedelta(days=30)
+MAX_REVISION = 2_147_483_647
 _VIDEO_ID_PATTERN = re.compile(r"\A[0-9A-Za-z_-]{1,32}\Z")
 
 
@@ -91,9 +92,9 @@ def validate_video_id(video_id: str, field_name: str) -> str:
 
 
 def validate_positive_revision(value: Any, field_name: str) -> int:
-    """リビジョン番号が bool でない 1 以上の整数であることを検証する。"""
-    if type(value) is not int or value < 1:
-        raise RecordingValidationError(f"{field_name} は 1 以上の整数で指定してください。")
+    """リビジョン番号が bool でない 1 以上 MAX_REVISION 以下の整数であることを検証する。"""
+    if type(value) is not int or value < 1 or value > MAX_REVISION:
+        raise RecordingValidationError(f"{field_name} は 1 以上 {MAX_REVISION} 以下の整数で指定してください。")
     return value
 
 

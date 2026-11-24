@@ -62,7 +62,10 @@ def _validate_upsert_inputs(
     if proxy_duration_sec is not None:
         if isinstance(proxy_duration_sec, bool) or not isinstance(proxy_duration_sec, (int, float)):
             raise RecordingValidationError("proxy_duration_sec は数値で指定してください。")
-        normalized_duration = float(proxy_duration_sec)
+        try:
+            normalized_duration = float(proxy_duration_sec)
+        except OverflowError as exc:
+            raise RecordingValidationError("proxy_duration_sec が表現可能な数値範囲を超えています。") from exc
         if not math.isfinite(normalized_duration) or normalized_duration <= 0:
             raise RecordingValidationError("proxy_duration_sec は 0 より大きい有限の数値で指定してください。")
     if youtube_draft_video_id is not None:
@@ -84,6 +87,9 @@ def _validate_upsert_inputs(
             validated_edl = validate_edl_v1(edl_json)
         except EDLValidationError as exc:
             raise RecordingValidationError(str(exc)) from exc
+    if normalized_duration is not None and validated_edl is not None:
+        if float(validated_edl["safe_bounds"]["max_sec"]) > normalized_duration:
+            raise RecordingValidationError("safe_bounds.max_sec は proxy_duration_sec 以下で指定してください。")
     return normalized_duration, validated_edl
 
 
@@ -241,9 +247,16 @@ def upsert_recording_item(
         if normalized_duration is not None:
             item.proxy_duration_sec = normalized_duration
             update_fields.append("proxy_duration_sec")
+        effective_duration = normalized_duration if normalized_duration is not None else item.proxy_duration_sec
         if validated_edl is not None:
+            if effective_duration is not None and float(validated_edl["safe_bounds"]["max_sec"]) > effective_duration:
+                raise RecordingValidationError("safe_bounds.max_sec は proxy_duration_sec 以下で指定してください。")
             item.edl_json = validated_edl
             update_fields.append("edl_json")
+        elif effective_duration is not None and isinstance(item.edl_json, dict) and "safe_bounds" in item.edl_json:
+            max_sec = float(item.edl_json["safe_bounds"]["max_sec"])
+            if max_sec > effective_duration:
+                raise RecordingValidationError("proxy_duration_sec は登録済みの safe_bounds.max_sec 以上で指定してください。")
         if youtube_draft_video_id is not None:
             item.youtube_draft_video_id = youtube_draft_video_id
             update_fields.append("youtube_draft_video_id")
