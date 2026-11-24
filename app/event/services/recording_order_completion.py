@@ -126,6 +126,16 @@ def _apply_succeeded_order(
         vid_to_stop = effective_video_id
         if vid_to_stop and add_pending_stop_video_id(item, vid_to_stop):
             item_fields.append("pending_stop_video_ids")
+    pending_videos = [
+        v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v
+    ]
+    if pending_videos and derived_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
+        # Unstopped prior videos remain, so the item must not transition to private_fixed
+        # or lose track of the video that still requires emergency stop.
+        item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
+        item.youtube_draft_privacy = ""
+        item.youtube_draft_video_id = pending_videos[0]
+        item_fields.extend(["youtube_draft_privacy", "youtube_draft_video_id"])
     item.save(update_fields=list(dict.fromkeys(item_fields)))
 
     is_public_release = (
@@ -162,7 +172,8 @@ def _apply_succeeded_order(
                 "reason": "consent_or_deleted",
             },
         )
-    return (
+    has_pending_stop = bool(pending_videos)
+    return has_pending_stop or (
         derived_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
         and (
             is_public_release

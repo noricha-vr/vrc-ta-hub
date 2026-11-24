@@ -21,6 +21,7 @@ from event.services.recording_ops_common import (
     cancel_queued_apply_edl_and_compensate,
     is_order_lease_expired,
     is_recording_consent_valid,
+    item_has_unstopped_video,
     lock_event_detail,
     mark_order_lease_expired,
     next_stop_target_video_id,
@@ -30,6 +31,13 @@ from event.services.recording_ops_common import (
 from event.services.recording_storage import ensure_recording_consent
 
 logger = logging.getLogger(__name__)
+
+
+def _can_create_manual_stop_publish(item: RecordingReviewItem | None) -> bool:
+    """手動 stop_publish を許可できる停止対象または既存動画があるかを返す。"""
+    if item is None:
+        return False
+    return bool(item.youtube_draft_video_id) or item_has_unstopped_video(item)
 
 
 def _ensure_order_consent(
@@ -42,17 +50,9 @@ def _ensure_order_consent(
         ensure_recording_consent(detail, action="create_order")
         return
 
-    # stop_publish は、同意が public のままの場合に加えて、既に公開/下書き動画が
-    # 存在し緊急停止が必要なケースのみ許可する（未同意の発表への不要な指示作成を遮断）。
-    has_existing_video = item is not None and (
-        bool(item.youtube_draft_video_id)
-        or item.review_status
-        in (
-            RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
-            RecordingReviewItem.ReviewStatus.PUBLISHED,
-        )
-    )
-    if not has_existing_video:
+    # stop_publish は、同意が public のままの場合に加えて、既に公開/下書き動画または
+    # 停止待ち動画が存在し緊急停止が必要なケースのみ許可する（未同意の発表への不要な指示作成を遮断）。
+    if not _can_create_manual_stop_publish(item):
         ensure_recording_consent(detail, action="stop_publish")
 
 
@@ -84,15 +84,7 @@ def create_edit_order(
         detail = lock_event_detail(detail_id, include_deleted=is_stop_publish)
         item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
         if detail.deleted_at is not None:
-            has_existing_video = item is not None and (
-                bool(item.youtube_draft_video_id)
-                or item.review_status
-                in (
-                    RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
-                    RecordingReviewItem.ReviewStatus.PUBLISHED,
-                )
-            )
-            if not has_existing_video:
+            if not _can_create_manual_stop_publish(item):
                 raise RecordingNotFoundError("対象の発表が見つかりません。")
         _ensure_order_consent(detail, item, order_type=order_type)
 
