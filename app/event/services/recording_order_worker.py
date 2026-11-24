@@ -46,6 +46,8 @@ def _claim_invalidation_reason(
         item.proxy_expires_at is not None and item.proxy_expires_at <= now
     ):
         return "proxy_expired"
+    if item.compensating_stop_pending:
+        return "compensating_stop_pending"
     return None
 
 
@@ -200,18 +202,23 @@ def claim_next_edit_order(*, order_types: Sequence[str] | None = None) -> Record
                         },
                     )
                     if (
-                        invalid_reason in ("detail_not_found", "detail_deleted", "consent_revoked")
-                        and item_has_unstopped_video(item)
+                        invalid_reason
+                        in ("detail_not_found", "detail_deleted", "consent_revoked", "compensating_stop_pending")
+                        or item.compensating_stop_pending
                     ):
-                        if detail is not None and detail.youtube_url:
-                            detail.youtube_url = None
-                            detail.save(update_fields=["youtube_url", "updated_at"])
-                        enqueue_compensating_stop_publish(
-                            detail=detail,
-                            item=item,
-                            requested_by=order.requested_by,
-                            source_order_id=order.pk,
-                        )
+                        if item_has_unstopped_video(item):
+                            if detail is not None and detail.youtube_url:
+                                detail.youtube_url = None
+                                detail.save(update_fields=["youtube_url", "updated_at"])
+                            enqueue_compensating_stop_publish(
+                                detail=detail,
+                                item=item,
+                                requested_by=order.requested_by,
+                                source_order_id=order.pk,
+                            )
+                        elif item.compensating_stop_pending:
+                            item.compensating_stop_pending = False
+                            item.save(update_fields=["compensating_stop_pending", "updated_at"])
                     continue
 
                 order.status = RecordingEditOrder.Status.RUNNING

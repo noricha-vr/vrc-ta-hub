@@ -2097,8 +2097,11 @@ class RecordingOpsAPITest(TestCase):
         )
 
         # 2) stop_publish 完了後・後続 apply_edl C 実行中に旧指示から遅延 public 報告が届いて保留された場合、
-        # C が unlisted 成功 / failed / claim リース失効 / 遅延 complete 失効のどの経路で終わっても補償停止が再開される
-        for idx, outcome in enumerate(("unlisted_succeed", "failed", "claim_sweep", "late_expire")):
+        # C が unlisted 成功 / failed / claim リース失効 / 遅延 complete 失効 / 新規オーダー作成時スイープ /
+        # 期限切れキャンセルのどの経路で終わっても補償停止が再開される
+        for idx, outcome in enumerate(
+            ("unlisted_succeed", "failed", "claim_sweep", "late_expire", "create_sweep", "claim_proxy_expired")
+        ):
             detail_d = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
             item_d = self._register_item(detail_d, youtube_draft_video_id="", youtube_draft_privacy="")
             old_d = staff_client.post(
@@ -2147,21 +2150,29 @@ class RecordingOpsAPITest(TestCase):
                 format="json",
             )
             self.assertEqual(ord_c.status_code, status.HTTP_201_CREATED)
-            super_client.post(self.order_claim_url, {}, format="json")
+            if outcome != "claim_proxy_expired":
+                super_client.post(self.order_claim_url, {}, format="json")
 
             late_vid = f"lateA00000{idx}"
-            late_r = super_client.post(
-                reverse("recording-ops-order-complete", kwargs={"order_id": old_d.data["id"]}),
-                {
-                    "target_revision": old_d.data["target_revision"],
-                    "status": "succeeded",
-                    "result_video_id": late_vid,
-                    "youtube_draft_privacy": "public",
-                    "review_status": "published",
-                },
-                format="json",
-            )
-            self.assertEqual(late_r.status_code, status.HTTP_409_CONFLICT)
+            if outcome == "claim_proxy_expired":
+                RecordingReviewItem.objects.filter(pk=item_d.pk).update(
+                    pending_stop_video_ids=[late_vid],
+                    compensating_stop_pending=True,
+                    proxy_expires_at=timezone.now() - timedelta(minutes=1),
+                )
+            else:
+                late_r = super_client.post(
+                    reverse("recording-ops-order-complete", kwargs={"order_id": old_d.data["id"]}),
+                    {
+                        "target_revision": old_d.data["target_revision"],
+                        "status": "succeeded",
+                        "result_video_id": late_vid,
+                        "youtube_draft_privacy": "public",
+                        "review_status": "published",
+                    },
+                    format="json",
+                )
+                self.assertEqual(late_r.status_code, status.HTTP_409_CONFLICT)
 
             if outcome == "unlisted_succeed":
                 c_vid = f"nextC00000{idx}"
@@ -2191,6 +2202,20 @@ class RecordingOpsAPITest(TestCase):
                 RecordingEditOrder.objects.filter(pk=ord_c.data["id"]).update(
                     started_at=timezone.now() - timedelta(minutes=31)
                 )
+            elif outcome == "create_sweep":
+                RecordingEditOrder.objects.filter(pk=ord_c.data["id"]).update(
+                    started_at=timezone.now() - timedelta(minutes=31)
+                )
+                item_d.refresh_from_db()
+                requeue_c = staff_client.post(
+                    reverse("recording-ops-order-create", kwargs={"detail_id": detail_d.pk}),
+                    {"expected_revision": item_d.edl_revision},
+                    format="json",
+                )
+                self.assertEqual(requeue_c.status_code, status.HTTP_409_CONFLICT)
+                self.assertEqual(requeue_c.data["code"], "active_order_exists")
+            elif outcome == "claim_proxy_expired":
+                pass
             else:
                 RecordingEditOrder.objects.filter(pk=ord_c.data["id"]).update(
                     started_at=timezone.now() - timedelta(minutes=31)

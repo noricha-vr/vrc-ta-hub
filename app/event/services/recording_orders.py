@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import logging
 from datetime import datetime
-from typing import Any
+from typing import Any, NoReturn
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -19,6 +19,7 @@ from event.services.recording_ops_common import (
     RecordingValidationError,
     add_pending_stop_video_id,
     cancel_queued_apply_edl_and_compensate,
+    enqueue_compensating_stop_publish,
     is_order_lease_expired,
     is_recording_consent_valid,
     item_has_unstopped_video,
@@ -57,74 +58,37 @@ def _ensure_order_consent(
         ensure_recording_consent(detail, action="stop_publish")
 
 
-def _create_order_locked(
-    *,
-    detail: EventDetail | None,
-    item: RecordingReviewItem,
-    expected_revision: int,
+def _raise_order_conflict(
+    detail_id_for_log: int | None,
     order_type: str,
-    validated_incoming_edl: dict[str, Any] | None,
-    requested_by: Any,
-) -> RecordingEditOrder:
-    """ロック済み detail/item 上で改訂・排他を検査して確定指示または停止指示を作成する。"""
-    detail_id_for_log = detail.pk if detail is not None else None
-    now = timezone.now()
-    if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
-        if item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED or (
-            item.proxy_expires_at is not None and item.proxy_expires_at <= now
-        ):
-            logger.warning(
-                "recording_order_conflict",
-                extra={
-                    "event_type": "recording_order_conflict",
-                    "event_detail_id": detail_id_for_log,
-                    "order_type": order_type,
-                    "reason": "proxy_expired",
-                },
-            )
-            raise RecordingConflictError(
-                "プロキシ動画の保持期限が切れています。",
-                code="proxy_expired",
-                current_state=serialize_item_state(item),
-            )
-        if item.is_public_locked:
-            logger.warning(
-                "recording_order_conflict",
-                extra={
-                    "event_type": "recording_order_conflict",
-                    "event_detail_id": detail_id_for_log,
-                    "order_type": order_type,
-                    "reason": "public_locked",
-                },
-            )
-            raise RecordingConflictError(
-                "公開済みロック中のため apply_edl の確定指示は作成できません。",
-                code="public_locked",
-                current_state=serialize_item_state(item),
-            )
+    reason: str,
+    message: str,
+    item: RecordingReviewItem | None = None,
+) -> NoReturn:
+    """競合エラーを警告ログとともに送出する。"""
+    logger.warning(
+        "recording_order_conflict",
+        extra={
+            "event_type": "recording_order_conflict",
+            "event_detail_id": detail_id_for_log,
+            "order_type": order_type,
+            "reason": reason,
+        },
+    )
+    raise RecordingConflictError(
+        message,
+        code=reason,
+        current_state=serialize_item_state(item) if item is not None else None,
+    )
 
-    if expected_revision != item.edl_revision:
-        logger.warning(
-            "recording_order_conflict",
-            extra={
-                "event_type": "recording_order_conflict",
-                "event_detail_id": detail_id_for_log,
-                "order_type": order_type,
-                "reason": "revision_conflict",
-            },
-        )
-        raise RecordingConflictError(
-            "expected_revision が現在の EDL リビジョンと一致しません。",
-            code="revision_conflict",
-            current_state=serialize_item_state(item),
-        )
-    if item.edl_revision >= MAX_REVISION:
-        raise RecordingConflictError(
-            "EDL リビジョン上限に達しています。",
-            code="revision_limit_exceeded",
-            current_state=serialize_item_state(item),
-        )
 
+def _sweep_active_orders(
+    *,
+    item: RecordingReviewItem,
+    now: datetime,
+    detail_id_for_log: int | None,
+) -> bool:
+    """排他中の指示を検査し、リース期限切れを失効させた上で未完了が残るかを返す。"""
     active_orders = list(
         RecordingEditOrder.objects.select_for_update().filter(
             review_item=item,
@@ -137,21 +101,85 @@ def _create_order_locked(
             mark_order_lease_expired(active_order, now=now, event_detail_id=detail_id_for_log)
         else:
             still_active = True
+    return still_active
+
+
+def _create_order_locked(
+    *,
+    detail: EventDetail | None,
+    item: RecordingReviewItem,
+    expected_revision: int,
+    order_type: str,
+    validated_incoming_edl: dict[str, Any] | None,
+    requested_by: Any,
+) -> RecordingEditOrder | RecordingConflictError:
+    """ロック済み detail/item 上で改訂・排他を検査して確定指示または停止指示を作成する。"""
+    detail_id_for_log = detail.pk if detail is not None else None
+    now = timezone.now()
+    swept = False
+    if order_type == RecordingEditOrder.OrderType.APPLY_EDL and item.compensating_stop_pending:
+        swept = True
+        still_active = _sweep_active_orders(item=item, now=now, detail_id_for_log=detail_id_for_log)
+        if not still_active and item_has_unstopped_video(item):
+            enqueue_compensating_stop_publish(
+                detail=detail,
+                item=item,
+                requested_by=requested_by,
+            )
+            return RecordingConflictError(
+                "保留中の公開停止指示を優先投入したため確定指示を作成できません。",
+                code="active_order_exists",
+                current_state=serialize_item_state(item),
+            )
+
+    if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
+        if item.review_status == RecordingReviewItem.ReviewStatus.EXPIRED or (
+            item.proxy_expires_at is not None and item.proxy_expires_at <= now
+        ):
+            _raise_order_conflict(
+                detail_id_for_log,
+                order_type,
+                "proxy_expired",
+                "プロキシ動画の保持期限が切れています。",
+                item,
+            )
+        if item.is_public_locked:
+            _raise_order_conflict(
+                detail_id_for_log,
+                order_type,
+                "public_locked",
+                "公開済みロック中のため apply_edl の確定指示は作成できません。",
+                item,
+            )
+
+    if expected_revision != item.edl_revision:
+        _raise_order_conflict(
+            detail_id_for_log,
+            order_type,
+            "revision_conflict",
+            "expected_revision が現在の EDL リビジョンと一致しません。",
+            item,
+        )
+    if item.edl_revision >= MAX_REVISION:
+        raise RecordingConflictError(
+            "EDL リビジョン上限に達しています。",
+            code="revision_limit_exceeded",
+            current_state=serialize_item_state(item),
+        )
+
+    still_active = (
+        _sweep_active_orders(item=item, now=now, detail_id_for_log=detail_id_for_log)
+        if not swept
+        else still_active
+    )
 
     if still_active:
-        logger.warning(
-            "recording_order_conflict",
-            extra={
-                "event_type": "recording_order_conflict",
-                "event_detail_id": detail_id_for_log,
-                "order_type": order_type,
-                "reason": "active_order_exists",
-            },
-        )
-        raise RecordingConflictError(
+        _raise_order_conflict(
+            detail_id_for_log,
+            order_type,
+            "active_order_exists",
             "未完了の確定指示が既に存在します。",
-            code="active_order_exists",
-            current_state=serialize_item_state(item),
+            item,
         )
 
     if order_type == RecordingEditOrder.OrderType.APPLY_EDL:
@@ -192,6 +220,11 @@ def _create_order_locked(
         stop_target_video_id = next_stop_target_video_id(item)
         if stop_target_video_id and add_pending_stop_video_id(item, stop_target_video_id):
             item_update_fields.append("pending_stop_video_ids")
+    if item.compensating_stop_pending and (
+        order_type == RecordingEditOrder.OrderType.STOP_PUBLISH or not item_has_unstopped_video(item)
+    ):
+        item.compensating_stop_pending = False
+        item_update_fields.append("compensating_stop_pending")
     if order_type == RecordingEditOrder.OrderType.APPLY_EDL and validated_incoming_edl is not None:
         item.edl_json = copy.deepcopy(validated_incoming_edl)
         item_update_fields.append("edl_json")
@@ -212,20 +245,16 @@ def _create_order_locked(
                 requested_by=requested_by if getattr(requested_by, "is_authenticated", False) else None,
             )
     except IntegrityError as exc:
-        logger.warning(
-            "recording_order_conflict",
-            extra={
-                "event_type": "recording_order_conflict",
-                "event_detail_id": detail_id_for_log,
-                "order_type": order_type,
-                "reason": "active_order_exists",
-            },
-        )
-        raise RecordingConflictError(
-            "未完了の確定指示が既に存在します。",
-            code="active_order_exists",
-            current_state=serialize_item_state(item),
-        ) from exc
+        try:
+            _raise_order_conflict(
+                detail_id_for_log,
+                order_type,
+                "active_order_exists",
+                "未完了の確定指示が既に存在します。",
+                item,
+            )
+        except RecordingConflictError as conflict_err:
+            raise conflict_err from exc
 
     logger.info(
         "recording_order_created",
@@ -264,6 +293,7 @@ def create_edit_order(
         except EDLValidationError as exc:
             raise RecordingValidationError(str(exc)) from exc
 
+    conflict_exc: RecordingConflictError | None = None
     with transaction.atomic():
         is_stop_publish = order_type == RecordingEditOrder.OrderType.STOP_PUBLISH
         detail = lock_event_detail(detail_id, include_deleted=is_stop_publish)
@@ -274,21 +304,14 @@ def create_edit_order(
         _ensure_order_consent(detail, item, order_type=order_type)
 
         if item is None:
-            logger.warning(
-                "recording_order_conflict",
-                extra={
-                    "event_type": "recording_order_conflict",
-                    "event_detail_id": detail.pk,
-                    "order_type": order_type,
-                    "reason": "proxy_not_ready",
-                },
-            )
-            raise RecordingConflictError(
+            _raise_order_conflict(
+                detail.pk,
+                order_type,
+                "proxy_not_ready",
                 "プロキシ動画がまだ登録されていないため確定指示を作成できません。",
-                code="proxy_not_ready",
             )
 
-        return _create_order_locked(
+        result = _create_order_locked(
             detail=detail,
             item=item,
             expected_revision=expected_revision,
@@ -296,6 +319,13 @@ def create_edit_order(
             validated_incoming_edl=validated_incoming_edl,
             requested_by=requested_by,
         )
+        if isinstance(result, RecordingConflictError):
+            conflict_exc = result
+
+    if conflict_exc is not None:
+        raise conflict_exc
+    assert not isinstance(result, RecordingConflictError)
+    return result
 
 
 def create_stop_publish_order_for_review_item(
@@ -336,7 +366,7 @@ def create_stop_publish_order_for_review_item(
                 order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
             )
 
-        return _create_order_locked(
+        result = _create_order_locked(
             detail=detail,
             item=item,
             expected_revision=expected_revision,
@@ -344,6 +374,8 @@ def create_stop_publish_order_for_review_item(
             validated_incoming_edl=None,
             requested_by=requested_by,
         )
+        assert not isinstance(result, RecordingConflictError)
+        return result
 
 
 def _compensate_revoked_item(
@@ -401,9 +433,30 @@ def revoke_recording_on_detail_delete(detail_id: int) -> bool:
         )
 
 
+def _compensate_revoked_detail_ids(detail_ids: list[int], now: datetime) -> int:
+    queued_count = 0
+    for detail_id in detail_ids:
+        detail = (
+            EventDetail.all_objects.select_for_update(of=("self",))
+            .select_related("event__community")
+            .filter(pk=detail_id)
+            .first()
+        )
+        if detail is None or is_recording_consent_valid(detail):
+            continue
+        item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
+        if item is not None and _compensate_revoked_item(
+            detail=detail,
+            item=item,
+            now=now,
+            target_detail_for_order=detail,
+        ):
+            queued_count += 1
+    return queued_count
+
+
 def revoke_recording_for_community(community_id: int) -> int:
     """集会の録画許可撤回に合わせて、配下発表の録画停止を一括予約する（Community -> EventDetail -> Item -> Order 順でロック）。"""
-    queued_count = 0
     with transaction.atomic():
         community = Community.objects.select_for_update().filter(pk=community_id).first()
         if community is None or community.recording_allowed:
@@ -413,27 +466,7 @@ def revoke_recording_for_community(community_id: int) -> int:
             .order_by("event_detail_id")
             .values_list("event_detail_id", flat=True)
         )
-        now = timezone.now()
-        for detail_id in detail_ids:
-            detail = (
-                EventDetail.all_objects.select_for_update(of=("self",))
-                .select_related("event__community")
-                .filter(pk=detail_id)
-                .first()
-            )
-            if detail is None or is_recording_consent_valid(detail):
-                continue
-            item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
-            if item is None:
-                continue
-            if _compensate_revoked_item(
-                detail=detail,
-                item=item,
-                now=now,
-                target_detail_for_order=detail,
-            ):
-                queued_count += 1
-    return queued_count
+        return _compensate_revoked_detail_ids(detail_ids, timezone.now())
 
 
 def revoke_recording_for_event(event_id: int) -> int:
@@ -441,7 +474,6 @@ def revoke_recording_for_event(event_id: int) -> int:
     community_id = Event.objects.filter(pk=event_id).values_list("community_id", flat=True).first()
     if community_id is None:
         return 0
-    queued_count = 0
     with transaction.atomic():
         Community.objects.select_for_update().filter(pk=community_id).first()
         detail_ids = list(
@@ -449,24 +481,4 @@ def revoke_recording_for_event(event_id: int) -> int:
             .order_by("event_detail_id")
             .values_list("event_detail_id", flat=True)
         )
-        now = timezone.now()
-        for detail_id in detail_ids:
-            detail = (
-                EventDetail.all_objects.select_for_update(of=("self",))
-                .select_related("event__community")
-                .filter(pk=detail_id)
-                .first()
-            )
-            if detail is None or is_recording_consent_valid(detail):
-                continue
-            item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
-            if item is None:
-                continue
-            if _compensate_revoked_item(
-                detail=detail,
-                item=item,
-                now=now,
-                target_detail_for_order=detail,
-            ):
-                queued_count += 1
-    return queued_count
+        return _compensate_revoked_detail_ids(detail_ids, timezone.now())
