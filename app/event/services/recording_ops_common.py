@@ -140,20 +140,33 @@ def derive_review_status_on_success(
     return RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
 
 
+_ALLOWED_YOUTUBE_URL_HOSTS = frozenset(
+    {
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "youtu.be",
+        "www.youtu.be",
+        "youtube-nocookie.com",
+        "www.youtube-nocookie.com",
+    }
+)
+
+
 def validate_safe_youtube_url(url: str) -> str:
     """EventDetail.youtube_url へ反映してよい安全な https YouTube URL か検証する。"""
     if not isinstance(url, str) or not url or len(url) > 200:
         raise RecordingValidationError("youtube_url は 200 文字以内の有効な URL で指定してください。")
-    if any(ch.isspace() for ch in url):
-        raise RecordingValidationError("youtube_url に空白や改行を含めることはできません。")
+    if any(ch.isspace() or ch == "\\" for ch in url):
+        raise RecordingValidationError("youtube_url に空白・改行・バックスラッシュを含めることはできません。")
     try:
         parsed = urlsplit(url)
         hostname = (parsed.hostname or "").lower()
         video_id = youtube_video_id(url)
     except ValueError as exc:
         raise RecordingValidationError("youtube_url の形式が不正です。") from exc
-    if parsed.scheme != "https" or not hostname or parsed.netloc.lower() != hostname:
-        raise RecordingValidationError("youtube_url はポートや資格情報を含まない https URL で指定してください。")
+    if parsed.scheme != "https" or hostname not in _ALLOWED_YOUTUBE_URL_HOSTS or parsed.netloc.lower() != hostname:
+        raise RecordingValidationError("youtube_url はポートや資格情報を含まない許可済み YouTube https URL で指定してください。")
     if video_id is None:
         raise RecordingValidationError("youtube_url は有効な YouTube 動画 URL である必要があります。")
     return url

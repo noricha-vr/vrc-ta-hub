@@ -838,6 +838,8 @@ class RecordingOpsAPITest(TestCase):
         # URL 解析エラーや矛盾した公開状態・動画 ID 欠落の公開完了は 400
         for bad_payload in (
             {"target_revision": 2, "status": "succeeded", "youtube_url": "https://["},
+            {"target_revision": 2, "status": "succeeded", "youtube_url": r"https://evil.example\.youtube.com/watch?v=abcdefghijk"},
+            {"target_revision": 2, "status": "succeeded", "youtube_url": "https://evil.youtube.com/watch?v=abcdefghijk"},
             {
                 "target_revision": 2,
                 "status": "succeeded",
