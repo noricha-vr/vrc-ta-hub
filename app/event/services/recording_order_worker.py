@@ -182,7 +182,22 @@ def _derive_review_status_on_success(
     requested_review_status: str,
 ) -> str:
     if order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
+        if privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC or (
+            requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
+        ):
+            raise RecordingValidationError("stop_publish の完了報告では公開状態を指定できません。")
         return requested_review_status or RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+    if (
+        requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
+        and privacy != RecordingReviewItem.YouTubePrivacy.PUBLIC
+    ):
+        raise RecordingValidationError("published に遷移するには youtube_draft_privacy='public' が必要です。")
+    if (
+        privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
+        and requested_review_status
+        and requested_review_status != RecordingReviewItem.ReviewStatus.PUBLISHED
+    ):
+        raise RecordingValidationError("youtube_draft_privacy='public' のときは review_status='published' を指定してください。")
     if (
         privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
         or requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
@@ -313,8 +328,13 @@ def complete_edit_order(
                 )
 
                 if youtube_url:
+                    is_public_release = (
+                        item.review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
+                        and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
+                    )
                     can_update_detail = (
-                        detail.deleted_at is None
+                        is_public_release
+                        and detail.deleted_at is None
                         and detail.recording_policy == RecordingPolicy.PUBLIC
                         and bool(detail.event.community.recording_allowed)
                     )
@@ -328,7 +348,7 @@ def complete_edit_order(
                                 "event_type": "recording_order_youtube_url_skipped",
                                 "order_id": order.pk,
                                 "event_detail_id": detail.pk,
-                                "reason": "consent_or_deleted",
+                                "reason": "not_published" if not is_public_release else "consent_or_deleted",
                             },
                         )
 

@@ -661,23 +661,92 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(order.status_code, status.HTTP_201_CREATED)
         super_client.post(self.order_claim_url, {}, format="json")
 
-        # 実行中に同意が forbidden に変更された場合、youtube_url への反映はスキップしつつロックは解放する
+        # 実行中に同意が forbidden に変更された場合、public 完了報告でも youtube_url への反映はスキップしつつロックは解放する
         EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy=RecordingPolicy.FORBIDDEN)
         complete_resp = super_client.post(
             reverse("recording-ops-order-complete", kwargs={"order_id": order.data["id"]}),
-            {"target_revision": 2, "status": "succeeded", "youtube_url": "https://youtu.be/abcdefghijk"},
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_url": "https://youtu.be/abcdefghijk",
+                "youtube_draft_privacy": "public",
+            },
             format="json",
         )
         self.assertEqual(complete_resp.status_code, status.HTTP_200_OK)
         self.detail.refresh_from_db()
         self.assertIsNone(self.detail.youtube_url)
 
-        # 論理削除後は 404
+        # 論理削除後は通常操作と apply_edl は 404 だが、既存動画がある場合の stop_publish は作成できる
         self.detail.soft_delete()
         self.assertEqual(staff_client.get(self.proxy_get_url).status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(
             staff_client.post(self.order_create_url, {"expected_revision": 2}, format="json").status_code,
             status.HTTP_404_NOT_FOUND,
+        )
+        stop_after_delete = staff_client.post(
+            self.order_create_url,
+            {"expected_revision": 2, "order_type": "stop_publish"},
+            format="json",
+        )
+        self.assertEqual(stop_after_delete.status_code, status.HTTP_201_CREATED)
+
+    def test_unlisted_or_needs_review_completion_does_not_leak_youtube_url_and_bad_url_is_400(self):
+        staff_client = self._api_client(self.staff_write_key)
+        super_client = self._api_client(self.super_write_key)
+
+        item = self._register_item()
+        order = staff_client.post(self.order_create_url, {"expected_revision": 1}, format="json")
+        self.assertEqual(order.status_code, status.HTTP_201_CREATED)
+        super_client.post(self.order_claim_url, {}, format="json")
+        complete_url = reverse("recording-ops-order-complete", kwargs={"order_id": order.data["id"]})
+
+        # URL 解析エラーや矛盾した公開状態指定は 500 にせず 400
+        self.assertEqual(
+            super_client.post(
+                complete_url,
+                {"target_revision": 2, "status": "succeeded", "youtube_url": "https://["},
+                format="json",
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        self.assertEqual(
+            super_client.post(
+                complete_url,
+                {
+                    "target_revision": 2,
+                    "status": "succeeded",
+                    "youtube_draft_privacy": "unlisted",
+                    "review_status": "published",
+                },
+                format="json",
+            ).status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        # 限定公開（needs_review / unlisted_scheduled）では EventDetail.youtube_url を更新しない
+        draft_resp = super_client.post(
+            complete_url,
+            {
+                "target_revision": 2,
+                "status": "succeeded",
+                "youtube_url": "https://youtu.be/dQw4w9WgXcQ",
+                "youtube_draft_privacy": "unlisted",
+                "review_status": "needs_review",
+            },
+            format="json",
+        )
+        self.assertEqual(draft_resp.status_code, status.HTTP_200_OK)
+        self.detail.refresh_from_db()
+        self.assertIsNone(self.detail.youtube_url)
+        item.refresh_from_db()
+        self.assertEqual(item.youtube_draft_video_id, "dQw4w9WgXcQ")
+        self.assertEqual(item.review_status, RecordingReviewItem.ReviewStatus.NEEDS_REVIEW)
+
+        # 巨大整数クエリも 400
+        self.assertEqual(
+            staff_client.get(f"{self.proxy_get_url}?expires_in={'9' * 5000}").status_code,
+            status.HTTP_400_BAD_REQUEST,
         )
 
     def test_openapi_schema_includes_recording_ops_endpoints(self):

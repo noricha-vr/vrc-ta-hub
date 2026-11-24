@@ -11,7 +11,9 @@ from django.utils import timezone
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.edl import EDLValidationError, validate_edl_v1
 from event.services.recording_ops_common import (
+    MAX_REVISION,
     RecordingConflictError,
+    RecordingNotFoundError,
     RecordingValidationError,
     lock_event_detail,
     serialize_item_state,
@@ -70,8 +72,20 @@ def create_edit_order(
             raise RecordingValidationError(str(exc)) from exc
 
     with transaction.atomic():
-        detail = lock_event_detail(detail_id)
+        is_stop_publish = order_type == RecordingEditOrder.OrderType.STOP_PUBLISH
+        detail = lock_event_detail(detail_id, include_deleted=is_stop_publish)
         item = RecordingReviewItem.objects.select_for_update().filter(event_detail=detail).first()
+        if detail.deleted_at is not None:
+            has_existing_video = item is not None and (
+                bool(item.youtube_draft_video_id)
+                or item.review_status
+                in (
+                    RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+                    RecordingReviewItem.ReviewStatus.PUBLISHED,
+                )
+            )
+            if not has_existing_video:
+                raise RecordingNotFoundError("対象の発表が見つかりません。")
         _ensure_order_consent(detail, item, order_type=order_type)
 
         if item is None:
@@ -137,6 +151,12 @@ def create_edit_order(
             raise RecordingConflictError(
                 "expected_revision が現在の EDL リビジョンと一致しません。",
                 code="revision_conflict",
+                current_state=serialize_item_state(item),
+            )
+        if item.edl_revision >= MAX_REVISION:
+            raise RecordingConflictError(
+                "EDL リビジョン上限に達しています。",
+                code="revision_limit_exceeded",
                 current_state=serialize_item_state(item),
             )
 

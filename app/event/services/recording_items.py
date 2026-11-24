@@ -13,6 +13,7 @@ from event.models import RecordingEditOrder, RecordingReviewItem
 from event.services.edl import EDLValidationError, validate_edl_v1
 from event.services.recording_ops_common import (
     DEFAULT_PROXY_RETENTION,
+    MAX_REVISION,
     RecordingConflictError,
     RecordingValidationError,
     lock_event_detail,
@@ -213,6 +214,12 @@ def upsert_recording_item(
             raise RecordingConflictError(
                 "expected_revision が現在のリビジョンと一致しません。",
                 code="revision_conflict",
+                current_state=serialize_item_state(item),
+            )
+        if item.edl_revision >= MAX_REVISION:
+            raise RecordingConflictError(
+                "EDL リビジョン上限に達しています。",
+                code="revision_limit_exceeded",
                 current_state=serialize_item_state(item),
             )
 

@@ -78,7 +78,7 @@ def _require_json_dict(request) -> dict:
 def _parse_optional_query_int(raw_value: str | None, *, name: str) -> int | None:
     if raw_value is None or raw_value == '':
         return None
-    if re.fullmatch(r'-?[0-9]+', raw_value) is None:
+    if len(raw_value) > 20 or re.fullmatch(r'-?[0-9]+', raw_value) is None:
         raise ValidationError({name: f'{name} は整数で指定してください。'})
     return int(raw_value)
 
