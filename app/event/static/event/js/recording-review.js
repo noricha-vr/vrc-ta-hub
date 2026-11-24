@@ -113,6 +113,9 @@
                     next = roundTrim(Math.min(safeMax, Math.max(minAllowed, next)));
                     endInput.value = formatInputVal(next);
                     syncCandidateSelection('end_candidate', next);
+                    if (segmentStopAt !== null) {
+                        segmentStopAt = next;
+                    }
                     if (emitChange) {
                         endInput.dispatchEvent(new Event('change', { bubbles: true }));
                     }

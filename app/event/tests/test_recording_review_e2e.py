@@ -264,6 +264,19 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.paused && Math.abs(v.currentTime - 12.0) < 0.5; }"
         )
+        # 区間再生中に終了位置を 12.0s → 13.5s へ延ばすと 12.0s で止まらず 13.5s で停止すること（回帰確認）
+        self.page.locator('input[name="playback_mode"][value="full"]').check()
+        self.page.get_by_test_id("play-before-end-btn").click()
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.5; v.play(); }")
+        self.page.locator('input[name="end_candidate"][value="13.5"]').check()
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime > 12.2 && !v.paused; }"
+        )
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.paused && Math.abs(v.currentTime - 13.5) < 0.6; }"
+        )
+        self.page.locator('input[name="end_candidate"][value="12"]').check()
+        self.page.locator('input[name="playback_mode"][value="preview"]').check()
         # [ここから再生] で start_sec (0s) 付近へシークされること
         self.page.get_by_test_id("play-from-start-btn").click()
         self.page.wait_for_function(
