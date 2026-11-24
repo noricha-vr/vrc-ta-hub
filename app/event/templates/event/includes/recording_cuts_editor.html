@@ -1,0 +1,89 @@
+<div id="recording-cuts-section" class="mt-4 pt-3 border-top" data-testid="recording-cuts-section">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <h3 class="h6 fw-bold mb-0">途中カット（cuts[]）と自動検出候補</h3>
+        <span id="recording-cuts-counts" class="small admin-muted" data-testid="recording-cuts-counts">
+            採用 0 / 保留 0 / 却下 0
+        </span>
+    </div>
+
+    {% if not ctx.allow_accept_cuts %}
+        <div class="alert alert-info py-2 px-3 small mb-3" role="status" data-testid="accept-cuts-disabled-notice">
+            <strong>途中カットの「採用（accept）」確定は現在準備中です。</strong>
+            録画ワーカー側の対応完了まで、自動候補のプレビューや「保留 / 却下」の確認・手動編集の試行はできますが、
+            「採用」状態のカットを含む確定送信はできません。
+        </div>
+    {% endif %}
+
+    <div class="recording-cut-add-panel mb-3" data-testid="manual-cut-panel">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <span class="small fw-bold">手動カットを追加</span>
+            <span class="small admin-muted">開始〜終了（trim 範囲内）を指定して不要区間を追加できます</span>
+        </div>
+        <div class="recording-cut-add-grid">
+            <div>
+                <label for="cut-add-start" class="form-label small mb-1">開始（秒）</label>
+                <div class="input-group input-group-sm">
+                    <input type="number" id="cut-add-start" class="form-control" step="any" placeholder="例: 60.0" {% if not can_submit %}disabled{% endif %}>
+                    {% if ctx.proxy_state == 'ready' %}
+                        <button type="button" class="btn btn-outline-secondary" data-action="fill-cut-start-from-player" {% if not can_submit %}disabled{% endif %}>現在位置</button>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <label for="cut-add-end" class="form-label small mb-1">終了（秒）</label>
+                <div class="input-group input-group-sm">
+                    <input type="number" id="cut-add-end" class="form-control" step="any" placeholder="例: 75.0" {% if not can_submit %}disabled{% endif %}>
+                    {% if ctx.proxy_state == 'ready' %}
+                        <button type="button" class="btn btn-outline-secondary" data-action="fill-cut-end-from-player" {% if not can_submit %}disabled{% endif %}>現在位置</button>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <label for="cut-add-kind" class="form-label small mb-1">種別</label>
+                <select id="cut-add-kind" class="form-select form-select-sm" {% if not can_submit %}disabled{% endif %}>
+                    <option value="silence">無音区間 (silence)</option>
+                    <option value="trouble">機材トラブル (trouble)</option>
+                    <option value="break">離席・休憩 (break)</option>
+                    <option value="manual">手動カット (manual)</option>
+                    <option value="other">その他 (other)</option>
+                </select>
+            </div>
+            <div>
+                <label for="cut-add-label" class="form-label small mb-1">ラベル（メモ）</label>
+                <input type="text" id="cut-add-label" class="form-control form-control-sm" maxlength="120" placeholder="例: マイク調整" {% if not can_submit %}disabled{% endif %}>
+            </div>
+            <div>
+                <button type="button"
+                        id="add-manual-cut-btn"
+                        class="btn btn-sm btn-outline-primary w-100"
+                        data-testid="add-manual-cut-btn"
+                        {% if not can_submit %}disabled{% endif %}>
+                    手動カットを追加
+                </button>
+            </div>
+        </div>
+        <div id="cut-add-error" class="small text-danger mt-2" role="alert" hidden></div>
+    </div>
+
+    <div id="recording-cuts-list" class="recording-cuts-list mb-3" data-testid="recording-cuts-list"></div>
+
+    <div id="cuts-empty-state" class="recording-cuts-empty small admin-muted mb-3" data-testid="cuts-empty-state" {% if form_cuts %}hidden{% endif %}>
+        途中カット（自動検出候補・手動カット）はありません。途中に切り落としたい区間がある場合のみ追加してください。
+    </div>
+
+    <div id="cuts-validation-banner" class="alert alert-danger py-2 px-3 small mb-3" role="alert" data-testid="cuts-validation-banner" hidden></div>
+    <div id="cuts-accept-blocked-banner" class="alert alert-warning py-2 px-3 small mb-3" role="status" data-testid="cuts-accept-blocked-banner" hidden></div>
+
+    <div id="pending-cuts-warning" class="action-required mb-3" role="status" data-testid="pending-cuts-warning" hidden>
+        <p class="small fw-bold mb-1">未判断（保留中 / pending）のカット候補が残っています</p>
+        <p class="small mb-2">保留中の区間はカットされずに動画へ残ります。そのまま確定する場合は確認チェックを入れてください。</p>
+        <label class="d-flex align-items-start gap-2 small mb-0" style="cursor: pointer;">
+            <input type="checkbox"
+                   id="id_confirm_pending_cuts"
+                   class="form-check-input mt-1"
+                   data-testid="confirm-pending-cuts-checkbox"
+                   {% if not can_submit %}disabled{% endif %}>
+            <span id="pending-cuts-confirm-label">未判断の候補をカットせずに確定することを確認しました</span>
+        </label>
+    </div>
+</div>

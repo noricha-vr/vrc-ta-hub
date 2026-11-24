@@ -13,7 +13,8 @@ from django.utils import timezone
 from community.constants import RECORDING_POLICY_DISPLAY_LABELS, RecordingPolicy
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 
-from .edl import EDLValidationError, validate_edl_v1
+from . import edl as edl_module
+from .edl import EDLValidationError, compute_keep_spans, extract_adopted_duration_sec, validate_edl_v1
 from .errors import RecordingNotFoundError
 from .storage import (
     MIN_PRESIGNED_EXPIRES_IN,
@@ -108,7 +109,11 @@ class RecordingDetailContext:
     trim_end_sec: float
     start_candidates: list[BoundaryCandidateOption]
     end_candidates: list[BoundaryCandidateOption]
+    cuts: list[dict[str, Any]]
     cuts_count: int
+    allow_accept_cuts: bool
+    keep_spans: list[tuple[float, float]]
+    adopted_duration_sec: float
     proxy_state: str
     proxy_url: str | None
     proxy_expires_at: datetime | None
@@ -372,6 +377,8 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
     item: RecordingReviewItem | None = getattr(detail, "recording_review", None)
     proxy_state, proxy_url, proxy_expires_at, proxy_expires_in, err_code, err_msg = _issue_proxy_url_safe(detail, item, issue_presigned_url=issue_presigned_url)
     edl_valid, safe_min, safe_max, trim_start, trim_end, start_cands, end_cands, cuts = _parse_edl_for_context(item)
+    keep_spans = compute_keep_spans(item.edl_json) if edl_valid and item is not None else []
+    adopted_duration_sec = extract_adopted_duration_sec(item.edl_json) if edl_valid and item is not None else 0.0
     recent_orders = list(item.edit_orders.select_related("requested_by").order_by("-created_at", "-pk")[:5]) if item is not None else []
     active_order = next((o for o in recent_orders if o.status in RecordingEditOrder.ACTIVE_STATUSES), None)
     _, _, _, order_badge = _resolve_order_state(item)
@@ -380,7 +387,9 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
     return RecordingDetailContext(
         detail=detail, review_item=item, title=detail.title or "(無題の発表)", edl_revision=item.edl_revision if item is not None else 1,
         edl_valid=edl_valid, safe_min_sec=safe_min, safe_max_sec=safe_max, trim_start_sec=trim_start, trim_end_sec=trim_end,
-        start_candidates=start_cands, end_candidates=end_cands, cuts_count=len(cuts), proxy_state=proxy_state, proxy_url=proxy_url,
+        start_candidates=start_cands, end_candidates=end_cands, cuts=cuts, cuts_count=len(cuts),
+        allow_accept_cuts=edl_module.ALLOW_ACCEPT_CUTS, keep_spans=keep_spans, adopted_duration_sec=adopted_duration_sec,
+        proxy_state=proxy_state, proxy_url=proxy_url,
         proxy_expires_at=proxy_expires_at, proxy_expires_in=proxy_expires_in, proxy_error_code=err_code, proxy_error_message=err_msg,
         active_order=active_order, latest_order=recent_orders[0] if recent_orders else None, recent_orders=recent_orders,
         is_public_locked=is_public_locked, can_submit=bool(item is not None and edl_valid and proxy_state == "ready" and not is_public_locked and active_order is None),
