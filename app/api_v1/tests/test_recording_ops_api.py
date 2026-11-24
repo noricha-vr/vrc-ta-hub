@@ -7,6 +7,7 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from django.contrib.admin.sites import AdminSite
+from django.core.cache import cache
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -95,6 +96,8 @@ class RecordingOpsAPITest(TestCase):
         _, cls.owner_write_key = APIKey.create_with_raw_key(user=cls.community_owner, name="owner-write")
 
     def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
         self.detail = make_event_detail(
             self.event,
             status="approved",
