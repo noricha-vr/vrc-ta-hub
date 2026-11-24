@@ -13,6 +13,8 @@ from .views import (
     EventLogRedirectView,
     EventMyList,
     MyPresentationsView,
+    RecordingReviewDetailView,
+    RecordingReviewListView,
     EventUpdateView,
     GenerateBlogView,
     GoogleCalendarEventCreateView,
@@ -41,6 +43,8 @@ urlpatterns = [
     path('update/<int:pk>/', EventUpdateView.as_view(), name='update'),
     path('my_list/', EventMyList.as_view(), name='my_list'),
     path('my_presentations/', MyPresentationsView.as_view(), name='my_presentations'),
+    path('manage/recordings/', RecordingReviewListView.as_view(), name='recording_review_list'),
+    path('manage/recordings/<int:detail_id>/', RecordingReviewDetailView.as_view(), name='recording_review_detail'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),
     path('calendar/create/', GoogleCalendarEventCreateView.as_view(), name='calendar_create'),
     # detail

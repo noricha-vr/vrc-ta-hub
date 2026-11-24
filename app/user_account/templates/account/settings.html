@@ -123,6 +123,7 @@
                 {% if user.is_staff %}
                     <a href="{% url 'twitter:tweet_queue_list' %}" class="list-group-item list-group-item-action">ポスト一覧</a>
                 {% endif %}
+                <a href="{% url 'event:recording_review_list' %}" class="list-group-item list-group-item-action">録画・YouTube管理</a>
             </div>
         </section>
     {% endif %}
