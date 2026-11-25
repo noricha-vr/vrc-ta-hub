@@ -117,7 +117,7 @@ class RecordingProxyUploadUrlAPIView(APIView):
         summary='編集プロキシ動画の署名 PUT URL 発給',
         description=(
             'スーパーユーザーの書き込み API キー限定。'
-            'recording_policy=public かつ集会の recording_allowed=true の発表に限り、'
+            '承認済み（status="approved"）かつ recording_policy=public かつ集会の recording_allowed=true の発表に限り、'
             '非公開 R2 バケット（recording-proxy/<detail_id>/<uuid>.mp4）への署名 PUT URL を発給します。'
         ),
         tags=['Recording Ops'],
@@ -211,7 +211,7 @@ class RecordingProxyDownloadUrlAPIView(APIView):
         summary='編集プロキシ動画の署名 GET URL 発給',
         description=(
             '運営スタッフ（is_staff）または管理者（is_superuser）限定。'
-            'recording_policy=public かつ集会の recording_allowed=true の発表に限り、'
+            '承認済み（status="approved"）かつ recording_policy=public かつ集会の recording_allowed=true の発表に限り、'
             '15〜30 分有効な非公開 R2 署名 GET URL と現在の EDL v1 状態を返します。'
         ),
         tags=['Recording Ops'],

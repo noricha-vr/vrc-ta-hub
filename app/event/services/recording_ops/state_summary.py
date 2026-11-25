@@ -94,6 +94,8 @@ def resolve_proxy_state(
     if detail.recording_policy == RecordingPolicy.FORBIDDEN:
         return ("forbidden", StatusBadge("非配信（再生不可）"))
     if not can_access:
+        if detail.status != "approved":
+            return ("unapproved", StatusBadge("未承認（再生不可）", "danger"))
         return ("consent_stopped", StatusBadge("同意停止（集会許可OFF）", "danger"))
     if is_item_proxy_expired(item, now=now):
         return ("expired", StatusBadge("期限切れ", "danger"))

@@ -158,7 +158,7 @@ class RecordingReviewStaffViewsTest(TestCase):
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/signed?sig=secret"
         mock_boto.return_value = mock_s3
 
-        # allowed / forbidden にも仮の RecordingReviewItem が残っていても一切発給・導線表示しない
+        # allowed / forbidden にも未公開の仮 RecordingReviewItem が残っていても一覧へ表示せず、一切発給・導線表示しない
         RecordingReviewItem.objects.create(
             event_detail=self.allowed_detail,
             proxy_r2_key=_proxy_key(self.allowed_detail.pk),
@@ -173,22 +173,25 @@ class RecordingReviewStaffViewsTest(TestCase):
             review_status=RecordingReviewItem.ReviewStatus.NEEDS_REVIEW,
             edl_json=_valid_edl(),
         )
+        RecordingReviewItem.objects.create(
+            event_detail=self.disallowed_detail,
+            proxy_r2_key=_proxy_key(self.disallowed_detail.pk),
+            proxy_expires_at=timezone.now() + timedelta(days=7),
+            review_status=RecordingReviewItem.ReviewStatus.PRIVATE_FIXED,
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PRIVATE,
+            edl_json=_valid_edl(),
+        )
 
         self.client.force_login(self.staff)
         list_resp = self.client.get(self._list_url())
         self.assertEqual(list_resp.status_code, 200)
         soup = BeautifulSoup(list_resp.content, "html.parser")
 
-        allowed_card = soup.select_one(f'[data-detail-id="{self.allowed_detail.pk}"]')
-        self.assertIsNotNone(allowed_card)
-        self.assertIn("非公開固定（旧設定）", allowed_card.get_text())
-        self.assertIsNone(allowed_card.select_one('[data-testid="recording-detail-link"]'))
-        self.assertNotIn("視聴可", allowed_card.get_text())
-
-        forbidden_card = soup.select_one(f'[data-detail-id="{self.forbidden_detail.pk}"]')
-        self.assertIsNotNone(forbidden_card)
-        self.assertIn("非配信", forbidden_card.get_text())
-        self.assertIsNone(forbidden_card.select_one('[data-testid="recording-detail-link"]'))
+        self.assertIsNotNone(soup.select_one(f'[data-detail-id="{self.public_detail.pk}"]'))
+        self.assertIsNone(soup.select_one(f'[data-detail-id="{self.allowed_detail.pk}"]'))
+        self.assertIsNone(soup.select_one(f'[data-detail-id="{self.forbidden_detail.pk}"]'))
+        self.assertIsNone(soup.select_one(f'[data-detail-id="{self.disallowed_detail.pk}"]'))
+        self.assertEqual(get_recording_list_summary().total_count, 1)
 
         mock_boto.reset_mock()
         for blocked_detail in (self.allowed_detail, self.forbidden_detail, self.disallowed_detail):
@@ -409,11 +412,11 @@ class RecordingReviewStaffViewsTest(TestCase):
     def test_list_filters_summary_empty_state_and_terminology(self):
         self.client.force_login(self.staff)
         summary = get_recording_list_summary()
+        self.assertEqual(summary.total_count, 1)
         self.assertEqual(summary.needs_review_count, 1)
         self.assertEqual(build_recording_list_queryset(status_filter="needs_review").count(), 1)
-        self.assertEqual(build_recording_list_queryset(policy_filter="allowed").count(), 1)
-        # 対象母集団: 撮影許可集会の 3 件（disallowed_detail は recording_allowed=False かつ未録画のため非対象）
-        self.assertEqual(build_recording_list_queryset(order_filter="unconfirmed").count(), 3)
+        # 対象母集団: 公開許可された承認済み発表のみ（allowed / forbidden / disallowed は非対象）
+        self.assertEqual(build_recording_list_queryset(order_filter="unconfirmed").count(), 1)
         self.assertEqual(build_recording_list_queryset(status_filter="unrecorded").count(), 0)
         self.assertEqual(build_recording_list_queryset(query="公開撮影できる").count(), 1)
         self.assertEqual(format_seconds_display(90.5), "1:30.5")
@@ -424,10 +427,10 @@ class RecordingReviewStaffViewsTest(TestCase):
         pending_detail = make_event_detail(self.event, status="pending", theme="承認待ち発表", recording_policy=RecordingPolicy.PUBLIC)
         self.assertEqual(self.client.get(self._detail_url(pending_detail.pk)).status_code, 404)
 
-        # 要対応バナーと空状態フィルタ
+        # 要対応バナー・不要な policy フィルタ非表示・空状態フィルタ
         list_resp = self.client.get(self._list_url())
         self.assertContains(list_resp, "要対応 1")
-        self.assertContains(list_resp, "ボットによる自動撮影")
+        self.assertNotContains(list_resp, 'id="id_policy"')
         self.assertNotContains(list_resp, "ライトニングトーク")
 
         empty_resp = self.client.get(self._list_url(), {"q": "絶対存在しない検索語999"})
@@ -442,6 +445,120 @@ class RecordingReviewStaffViewsTest(TestCase):
         self.assertEqual(zero_resp.status_code, 200)
         self.assertContains(zero_resp, "録画管理の対象となる発表はまだありません。")
         self.assertIsNotNone(build_recording_detail_context)
+
+    def test_emergency_stop_tracking_keeps_unstopped_revoked_and_unapproved_items_without_detail_links(self):
+        from event.services.recording_ops.completion import complete_edit_order
+        from event.services.recording_ops.order_actions import retry_edit_order
+
+        now = timezone.now()
+        # 1) 同意撤回後に未停止動画があり、stop_publish が FAILED になっている発表
+        revoked_failed_item = RecordingReviewItem.objects.create(
+            event_detail=self.forbidden_detail,
+            proxy_r2_key=_proxy_key(self.forbidden_detail.pk),
+            proxy_expires_at=now + timedelta(days=7),
+            review_status=RecordingReviewItem.ReviewStatus.PUBLISHED,
+            youtube_draft_video_id="revFailVid1",
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PUBLIC,
+            pending_stop_video_ids=["revFailVid1"],
+            edl_revision=2,
+            edl_json=_valid_edl(),
+        )
+        failed_stop_order = RecordingEditOrder.objects.create(
+            review_item=revoked_failed_item,
+            event_detail=self.forbidden_detail,
+            order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+            target_video_id="revFailVid1",
+            base_revision=1,
+            target_revision=2,
+            edl_snapshot=_valid_edl(),
+            status=RecordingEditOrder.Status.FAILED,
+            error_message="youtube api 500",
+            active_lock_key=None,
+        )
+
+        # 2) 承認取消（pending）後に未停止動画があり、stop_publish が 45 分滞留（queued）している発表
+        unapproved_stalled = make_event_detail(
+            self.event, status="pending", speaker="登壇者Unapproved", theme="承認取消後の滞留停止発表",
+            recording_policy=RecordingPolicy.PUBLIC,
+        )
+        unapproved_stalled_item = RecordingReviewItem.objects.create(
+            event_detail=unapproved_stalled,
+            proxy_r2_key=_proxy_key(unapproved_stalled.pk),
+            proxy_expires_at=now + timedelta(days=7),
+            review_status=RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+            youtube_draft_video_id="unappStall1",
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.UNLISTED,
+            pending_stop_video_ids=["unappStall1"],
+            edl_revision=2,
+            edl_json=_valid_edl(),
+        )
+        stalled_stop_order = RecordingEditOrder.objects.create(
+            review_item=unapproved_stalled_item,
+            event_detail=unapproved_stalled,
+            order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+            target_video_id="unappStall1",
+            base_revision=1,
+            target_revision=2,
+            edl_snapshot=_valid_edl(),
+            status=RecordingEditOrder.Status.QUEUED,
+            active_lock_key=f"item:{unapproved_stalled_item.pk}",
+        )
+        RecordingEditOrder.objects.filter(pk=stalled_stop_order.pk).update(created_at=now - timedelta(minutes=45))
+
+        # 3) 停止対象のない未承認発表は一覧に表示しない
+        unapproved_clean = make_event_detail(
+            self.event, status="pending", speaker="登壇者PendingClean", theme="未承認の未録画発表",
+            recording_policy=RecordingPolicy.PUBLIC,
+        )
+
+        self.client.force_login(self.staff)
+        list_resp = self.client.get(self._list_url())
+        self.assertEqual(list_resp.status_code, 200)
+        soup = BeautifulSoup(list_resp.content, "html.parser")
+
+        # 公開許可 1 件 + 緊急停止追跡 2 件 = 合計 3 件（unapproved_clean は含まれない）
+        summary = get_recording_list_summary(now=now)
+        self.assertEqual(summary.total_count, 3)
+        self.assertEqual(summary.failed_order_count, 1)
+        self.assertEqual(summary.stalled_order_count, 1)
+        self.assertIsNone(soup.select_one(f'[data-detail-id="{unapproved_clean.pk}"]'))
+
+        # 要対応バナーに 403 になる詳細/状態確認リンクを出さず、再試行ボタンのみ出す
+        action_box = soup.select_one('[data-testid="recording-action-required"]')
+        self.assertIsNotNone(action_box)
+        self.assertIsNotNone(action_box.select_one(f'[data-testid="list-retry-order-btn-{self.forbidden_detail.pk}"]'))
+        self.assertIsNone(action_box.select_one(f'[data-testid="action-failed-detail-link-{self.forbidden_detail.pk}"]'))
+        self.assertIsNone(action_box.select_one(f'[data-testid="action-stalled-detail-link-{unapproved_stalled.pk}"]'))
+
+        # 停止失敗 → 再試行成功 → 非公開確定・停止待ち空 になると、過去 FAILED が残っていても一覧と集計から消える
+        retried = retry_edit_order(
+            self.forbidden_detail.pk, failed_stop_order.pk, expected_revision=2, requested_by=self.staff
+        )
+        retried.status = RecordingEditOrder.Status.RUNNING
+        retried.started_at = now
+        retried.save(update_fields=["status", "started_at"])
+        complete_edit_order(
+            retried.pk,
+            target_revision=retried.target_revision,
+            status=RecordingEditOrder.Status.SUCCEEDED,
+            result_video_id="revFailVid1",
+        )
+        stalled_stop_order.status = RecordingEditOrder.Status.RUNNING
+        stalled_stop_order.started_at = now
+        stalled_stop_order.save(update_fields=["status", "started_at"])
+        complete_edit_order(
+            stalled_stop_order.pk,
+            target_revision=stalled_stop_order.target_revision,
+            status=RecordingEditOrder.Status.SUCCEEDED,
+            result_video_id="unappStall1",
+        )
+
+        after_summary = get_recording_list_summary(now=now)
+        self.assertEqual(after_summary.total_count, 1)
+        self.assertEqual(after_summary.failed_order_count, 0)
+        self.assertEqual(after_summary.stalled_order_count, 0)
+        pks = list(build_recording_list_queryset(now=now).values_list("pk", flat=True))
+        self.assertEqual(pks, [self.public_detail.pk])
 
     @patch("event.services.recording_ops.storage.boto3.client")
     def test_detail_ui_exposes_player_controls_and_hides_internal_terms(self, mock_boto: MagicMock):

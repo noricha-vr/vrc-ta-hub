@@ -152,9 +152,10 @@ def clamp_presigned_expires_in(expires_in: int | None) -> int:
 
 
 def ensure_recording_consent(detail: EventDetail, *, action: str = "recording_proxy") -> None:
-    """公開撮影の同意境界（recording_policy == public かつ community.recording_allowed）を検証する。"""
+    """公開撮影の同意境界（approved かつ recording_policy == public かつ community.recording_allowed）を検証する。"""
     if (
-        detail.recording_policy != RecordingPolicy.PUBLIC
+        detail.status != "approved"
+        or detail.recording_policy != RecordingPolicy.PUBLIC
         or not detail.event.community.recording_allowed
     ):
         logger.warning(
@@ -167,7 +168,7 @@ def ensure_recording_consent(detail: EventDetail, *, action: str = "recording_pr
             },
         )
         raise RecordingConsentError(
-            "撮影公開の同意（recording_policy=public かつ集会の自動撮影許可）がないため利用できません。"
+            "承認済みかつ撮影公開の同意（recording_policy=public かつ集会の自動撮影許可）がないため利用できません。"
         )
 
 

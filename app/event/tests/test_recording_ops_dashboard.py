@@ -357,17 +357,13 @@ class RecordingOpsDashboardViewsTest(TestCase):
         wait_card = list_soup.select_one(f'[data-testid="recording-review-row"][data-detail-id="{self.waiting_public.pk}"]')
         self.assertIn("記事: 下書き（生成待ち）", wait_card.get_text())
 
-        allowed_card = list_soup.select_one(f'[data-testid="recording-review-row"][data-detail-id="{self.allowed_uncreated.pk}"]')
-        self.assertIn("記事: 未作成", allowed_card.get_text())
-        self.assertIn("非公開固定（旧設定）", allowed_card.get_text())
-        self.assertIsNone(allowed_card.select_one('[data-testid="recording-detail-link"]'))
-        self.assertIsNotNone(allowed_card.select_one('[data-testid="recording-article-link"]'))
-
-        forbidden_card = list_soup.select_one(f'[data-testid="recording-review-row"][data-detail-id="{self.forbidden_ng.pk}"]')
-        self.assertIn("記事: 記事化 NG", forbidden_card.get_text())
-        self.assertIn("非配信", forbidden_card.get_text())
-        self.assertIsNone(forbidden_card.select_one('[data-testid="recording-detail-link"]'))
-        self.assertIsNotNone(forbidden_card.select_one('[data-testid="recording-article-link"]'))
+        # 公開許可のない allowed / forbidden は動画確認一覧には表示されない
+        self.assertIsNone(
+            list_soup.select_one(f'[data-testid="recording-review-row"][data-detail-id="{self.allowed_uncreated.pk}"]')
+        )
+        self.assertIsNone(
+            list_soup.select_one(f'[data-testid="recording-review-row"][data-detail-id="{self.forbidden_ng.pk}"]')
+        )
 
         # ダッシュボード側でも同じ記事ステータスと同意境界が保たれること
         dash_resp = self.client.get(self._dashboard_url())

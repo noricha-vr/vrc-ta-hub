@@ -24,7 +24,6 @@ from event.services.recording_ops.errors import (
 from event.services.recording_ops.orders import create_edit_order
 from event.services.recording_ops.queries import (
     ORDER_STATUS_FILTER_CHOICES,
-    POLICY_FILTER_CHOICES,
     STATUS_FILTER_CHOICES,
     build_recording_detail_context,
     build_recording_list_queryset,
@@ -126,13 +125,11 @@ class RecordingReviewListView(RecordingReviewSecurityMixin, View):
     def get(self, request: HttpRequest) -> HttpResponse:
         status_filter = request.GET.get("status", "").strip()
         order_filter = request.GET.get("order_status", "").strip()
-        policy_filter = request.GET.get("policy", "").strip()
         query = request.GET.get("q", "").strip()
 
         queryset = build_recording_list_queryset(
             status_filter=status_filter,
             order_filter=order_filter,
-            policy_filter=policy_filter,
             query=query,
         )
         paginator = Paginator(queryset, LIST_PAGINATE_BY)
@@ -142,7 +139,7 @@ class RecordingReviewListView(RecordingReviewSecurityMixin, View):
 
         params = request.GET.copy()
         params.pop("page", None)
-        has_filters = any((status_filter, order_filter, policy_filter, query))
+        has_filters = any((status_filter, order_filter, query))
 
         context = {
             "admin_nav_items": _build_operator_nav_items(request, current="recordings"),
@@ -152,10 +149,8 @@ class RecordingReviewListView(RecordingReviewSecurityMixin, View):
             "current_query_params": params.urlencode(),
             "status_choices": STATUS_FILTER_CHOICES,
             "order_choices": ORDER_STATUS_FILTER_CHOICES,
-            "policy_choices": POLICY_FILTER_CHOICES,
             "selected_status": status_filter,
             "selected_order_status": order_filter,
-            "selected_policy": policy_filter,
             "search_query": query,
             "has_filters": has_filters,
             "clear_filters_url": reverse("event:recording_review_list"),

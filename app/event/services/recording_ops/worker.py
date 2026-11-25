@@ -10,7 +10,6 @@ from django.db import connection, transaction
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 
-from community.constants import RecordingPolicy
 from event.models import EventDetail, RecordingEditOrder, RecordingReviewItem
 
 from .errors import ORDER_LEASE_TIMEOUT, RecordingValidationError
@@ -39,7 +38,7 @@ def _claim_invalidation_reason(
         return "detail_not_found"
     if detail.deleted_at is not None:
         return "detail_deleted"
-    if detail.recording_policy != RecordingPolicy.PUBLIC or not detail.event.community.recording_allowed:
+    if not is_recording_consent_valid(detail):
         return "consent_revoked"
     if item.is_public_locked:
         return "public_locked"

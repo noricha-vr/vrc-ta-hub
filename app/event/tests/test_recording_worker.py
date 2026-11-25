@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from community.constants import RecordingPolicy
-from event.models import Event, RecordingEditOrder, RecordingReviewItem
+from event.models import Event, EventDetail, RecordingEditOrder, RecordingReviewItem
 from event.services.recording_ops.completion import complete_edit_order
 from event.services.recording_ops.errors import (
     MAX_REVISION,
@@ -405,3 +405,120 @@ class RecordingWorkerClaimAndRecoveryTest(TestCase):
         d_ok.refresh_from_db()
         self.assertIsNone(d_ok.youtube_url)
         self.assertIn("recording_order_youtube_url_skipped", "\n".join(logs.output))
+
+    def test_unapproved_detail_cancels_apply_edl_claim_and_preserves_stop_publish(self):
+        for unapproved_status in ("pending", "rejected"):
+            with self.subTest(status=unapproved_status):
+                detail = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+                item = _create_item(
+                    detail,
+                    youtube_draft_video_id="unappVid001",
+                    youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.UNLISTED,
+                    review_status=RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+                )
+                apply_order = RecordingEditOrder.objects.create(
+                    review_item=item,
+                    event_detail=detail,
+                    order_type=RecordingEditOrder.OrderType.APPLY_EDL,
+                    base_revision=1,
+                    target_revision=2,
+                    edl_snapshot=_valid_edl(),
+                    status=RecordingEditOrder.Status.QUEUED,
+                    active_lock_key=f"item:{item.pk}",
+                )
+                # シグナルを経由せず直接 DB が未承認になったケースでも claim 側が apply_edl をキャンセルする
+                EventDetail.objects.filter(pk=detail.pk).update(status=unapproved_status)
+                claimed = claim_next_edit_order(order_types=[RecordingEditOrder.OrderType.APPLY_EDL])
+                self.assertIsNone(claimed)
+                apply_order.refresh_from_db()
+                self.assertEqual(apply_order.status, RecordingEditOrder.Status.CANCELED)
+                # 補償 stop_publish が自動投入され、stop_publish の claim は維持される
+                claimed_stop = claim_next_edit_order(order_types=[RecordingEditOrder.OrderType.STOP_PUBLISH])
+                self.assertIsNotNone(claimed_stop)
+                assert claimed_stop is not None
+                self.assertEqual(claimed_stop.review_item_id, item.pk)
+                self.assertEqual(claimed_stop.order_type, RecordingEditOrder.OrderType.STOP_PUBLISH)
+                claimed_stop.status = RecordingEditOrder.Status.SUCCEEDED
+                claimed_stop.active_lock_key = None
+                claimed_stop.save(update_fields=["status", "active_lock_key"])
+
+    def test_unapproving_detail_via_update_fields_triggers_revocation_compensation(self):
+        # 1) 公開済み（youtube_url あり）から status="pending" へ保存 → URL 消去 + 補償 stop_publish 投入
+        d_pub = make_event_detail(
+            self.event,
+            status="approved",
+            recording_policy=RecordingPolicy.PUBLIC,
+            youtube_url="https://www.youtube.com/watch?v=pubUnapp001",
+        )
+        item_pub = _create_item(
+            d_pub,
+            youtube_draft_video_id="pubUnapp001",
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PUBLIC,
+            review_status=RecordingReviewItem.ReviewStatus.PUBLISHED,
+        )
+        d_pub.status = "pending"
+        d_pub.save(update_fields=["status"])
+        d_pub.refresh_from_db()
+        self.assertIsNone(d_pub.youtube_url)
+        self.assertTrue(
+            RecordingEditOrder.objects.filter(
+                review_item=item_pub,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+                status=RecordingEditOrder.Status.QUEUED,
+                target_video_id="pubUnapp001",
+            ).exists()
+        )
+
+        # 2) queued apply_edl がある状態で status="rejected" へ保存 → queued 自動キャンセル + 補償 stop_publish 投入
+        d_q = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_q = _create_item(
+            d_q,
+            youtube_draft_video_id="qUnapp00001",
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.UNLISTED,
+            review_status=RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+        )
+        ord_q = RecordingEditOrder.objects.create(
+            review_item=item_q,
+            event_detail=d_q,
+            order_type=RecordingEditOrder.OrderType.APPLY_EDL,
+            base_revision=1,
+            target_revision=2,
+            edl_snapshot=_valid_edl(),
+            status=RecordingEditOrder.Status.QUEUED,
+            active_lock_key=f"item:{item_q.pk}",
+        )
+        d_q.status = "rejected"
+        d_q.save(update_fields=["status"])
+        ord_q.refresh_from_db()
+        self.assertEqual(ord_q.status, RecordingEditOrder.Status.CANCELED)
+        self.assertTrue(
+            RecordingEditOrder.objects.filter(
+                review_item=item_q,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+                status=RecordingEditOrder.Status.QUEUED,
+            ).exists()
+        )
+
+        # 3) running apply_edl がある状態で status="pending" へ保存 → compensating_stop_pending=True
+        d_run = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_run = _create_item(
+            d_run,
+            youtube_draft_video_id="runUnapp001",
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.UNLISTED,
+            review_status=RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+        )
+        RecordingEditOrder.objects.create(
+            review_item=item_run,
+            event_detail=d_run,
+            order_type=RecordingEditOrder.OrderType.APPLY_EDL,
+            base_revision=1,
+            target_revision=2,
+            edl_snapshot=_valid_edl(),
+            status=RecordingEditOrder.Status.RUNNING,
+            started_at=timezone.now(),
+            active_lock_key=f"item:{item_run.pk}",
+        )
+        d_run.status = "pending"
+        d_run.save(update_fields=["status"])
+        item_run.refresh_from_db()
+        self.assertTrue(item_run.compensating_stop_pending)
