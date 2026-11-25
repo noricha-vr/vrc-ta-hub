@@ -112,6 +112,9 @@
             } else if (cur > getEndSec() + 0.05) {
                 zoneBadgeEl.textContent = '末尾の余白（除外）';
                 zoneBadgeEl.className = 'recording-toolbar-chip';
+            } else if (findCutContaining(cur)) {
+                zoneBadgeEl.textContent = '途中カット（除外）';
+                zoneBadgeEl.className = 'recording-toolbar-chip';
             } else {
                 zoneBadgeEl.textContent = '本編（採用区間）';
                 zoneBadgeEl.className = 'recording-toolbar-chip is-zone-keep';
@@ -138,10 +141,10 @@
             adoptedDurationEl.textContent = dur > 0 ? formatSec(dur) + '（' + dur.toFixed(1) + '秒）' : '不正な範囲';
         }
 
-        function syncTimelinePositions(sec) {
+        function syncTimelinePositions(sec, forceSync) {
             const cur = Number.isFinite(sec) ? sec : getCurrentPlayerSec();
             updateZoneBadge(cur);
-            if (timelineCtrl && !timelineCtrl.isDragging()) {
+            if (timelineCtrl && (forceSync || !timelineCtrl.isDragging())) {
                 timelineCtrl.syncPositions({ startSec: getStartSec(), endSec: getEndSec(), currentSec: cur });
             }
         }
@@ -164,13 +167,13 @@
             return roundTrim(Math.min(safeMax, Math.max(Math.min(safeMax, roundTrim(getStartSec() + minGap)), parsed)));
         }
 
-        function refreshTrimViews() {
+        function refreshTrimViews(forceSync) {
             syncTrimDisplays(true);
             syncCandidateChips();
             if (cutsEditor) cutsEditor.onTrimChanged();
             updateModeUI();
             updateAdoptedDuration();
-            syncTimelinePositions();
+            syncTimelinePositions(undefined, forceSync);
         }
 
         function previewTrimValue(side, rawVal) {
@@ -178,7 +181,7 @@
             if (next === null) return null;
             if (side === 'start' && startRawInput) startRawInput.value = String(next);
             if (side === 'end' && endRawInput) endRawInput.value = String(next);
-            refreshTrimViews();
+            refreshTrimViews(true);
             return next;
         }
 
