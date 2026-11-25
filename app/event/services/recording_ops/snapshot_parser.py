@@ -13,6 +13,7 @@ from .state_summary import StatusBadge
 
 FUNNEL_PERIOD_KEYS: tuple[str, ...] = ("7", "30", "90")
 DEFAULT_FUNNEL_PERIOD = "30"
+MAX_DB_PK = 2**63 - 1
 
 FUNNEL_PERIOD_LABELS: dict[str, str] = {
     "7": "7日間",
@@ -137,7 +138,7 @@ def pct(numerator: int, denominator: int) -> int | None:
 
 def safe_url(value: Any) -> str:
     raw = as_str(value)
-    if not raw:
+    if not raw or "\\" in raw:
         return ""
     if raw.startswith("/") and not raw.startswith("//"):
         return raw
@@ -155,7 +156,7 @@ _RECORDING_DETAIL_PATH_RE = re.compile(r"/manage/recordings/(\d+)(?:/|$)")
 
 def extract_recording_detail_id_from_url(url: str) -> int | None:
     """URL が録画詳細画面を指す場合、正規化後の detail_id を返す。"""
-    if not url:
+    if not url or "\\" in url:
         return None
     try:
         parsed = urlparse(url)
@@ -167,9 +168,10 @@ def extract_recording_detail_id_from_url(url: str) -> int | None:
     if not match:
         return None
     try:
-        return int(match.group(1))
+        parsed_id = int(match.group(1))
     except ValueError:
         return None
+    return parsed_id if 0 < parsed_id <= MAX_DB_PK else None
 
 
 def resolve_venue_status(raw_status: Any) -> tuple[str, str, str]:

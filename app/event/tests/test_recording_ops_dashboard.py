@@ -209,6 +209,11 @@ class RecordingOpsDashboardViewsTest(TestCase):
                     "action_url": "https://[broken",
                     "detail_id": "5" * 5000,
                 },
+                {
+                    "title": "64bit上限超過IDテスト",
+                    "action_url": r"/event\manage\recordings\42/",
+                    "detail_id": "9223372036854775808",
+                },
             ],
             "funnel_stats": {
                 "periods": {
@@ -218,7 +223,7 @@ class RecordingOpsDashboardViewsTest(TestCase):
             },
             "venue_coverage": {},
             "upcoming_schedule": [
-                {"community_name": "最小スケジュール", "talks": ["bad-talk", {}]},
+                {"community_name": "最小スケジュール", "talks": ["bad-talk", {"detail_id": 10**400}]},
             ],
         }
         self._create_snapshot(payload=malformed_payload)
@@ -226,8 +231,10 @@ class RecordingOpsDashboardViewsTest(TestCase):
         resp = self.client.get(self._dashboard_url(), {"period": "7"})
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, "javascript:alert")
+        self.assertNotContains(resp, r"/event\manage\recordings")
         self.assertContains(resp, "危険URLテスト")
         self.assertContains(resp, "巨大桁・不正URLテスト")
+        self.assertContains(resp, "64bit上限超過IDテスト")
         self.assertContains(resp, "最小スケジュール")
         ctx = build_recording_ops_dashboard_context(user=self.staff, period="7")
         self.assertEqual(ctx.active_funnel.recorded_pct, 100)
@@ -285,6 +292,16 @@ class RecordingOpsDashboardViewsTest(TestCase):
                 "action_url": f"/event/manage/recordings/{self.published_public.pk}/",
             },
         ]
+        payload["next_session"] = {
+            "day": "2026-11-25",
+            "start_time": "22:00",
+            "community_id": self.community.pk,
+            "community_name": self.community.name,
+            "event_url": f"/event/manage/recordings/{self.allowed_uncreated.pk}/",
+            "venue_status": "confirmed",
+            "automatic": True,
+            "talk_count": 4,
+        }
         payload["upcoming_schedule"] = [
             {
                 "day": "2026-11-25",
@@ -363,6 +380,7 @@ class RecordingOpsDashboardViewsTest(TestCase):
         self.assertIsNotNone(allowed_action.select_one('[data-testid="dashboard-article-link"]'))
         self.assertIsNone(dash_soup.select_one('a[href*="999/../"]'))
         self.assertIsNone(dash_soup.select_one('a[href*="/manage/recordings/9999999/"]'))
+        self.assertIsNone(dash_soup.select_one('[data-testid="dashboard-next-session"] a[href*="/manage/recordings/"]'))
 
         pub_talk = dash_soup.select_one(f'[data-testid="dashboard-schedule-talk"][data-detail-id="{self.published_public.pk}"]')
         self.assertIn("記事: 公開済み", pub_talk.get_text())

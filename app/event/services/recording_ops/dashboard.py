@@ -17,6 +17,7 @@ from .snapshot_parser import (
     DEFAULT_FUNNEL_PERIOD,
     FUNNEL_PERIOD_KEYS,
     FUNNEL_PERIOD_LABELS,
+    MAX_DB_PK,
     FunnelPeriodSummary,
     NextSessionSummary,
     VenueCoverageSummary,
@@ -137,18 +138,22 @@ def _format_elapsed(snapshot_at: datetime, now: datetime) -> tuple[str, bool, in
 
 def _collect_detail_ids(payload: dict[str, Any]) -> set[int]:
     ids: set[int] = set()
+    next_event_url = safe_url(as_dict(payload.get("next_session")).get("event_url"))
+    next_target_id = extract_recording_detail_id_from_url(next_event_url)
+    if next_target_id is not None and 0 < next_target_id <= MAX_DB_PK:
+        ids.add(next_target_id)
     for raw_item in as_list(payload.get("action_items")):
         item_dict = as_dict(raw_item)
         detail_id = as_optional_int(item_dict.get("detail_id"))
-        if detail_id is not None and detail_id > 0:
+        if detail_id is not None and 0 < detail_id <= MAX_DB_PK:
             ids.add(detail_id)
         target_id = extract_recording_detail_id_from_url(safe_url(item_dict.get("action_url")))
-        if target_id is not None and target_id > 0:
+        if target_id is not None and 0 < target_id <= MAX_DB_PK:
             ids.add(target_id)
     for raw_session in as_list(payload.get("upcoming_schedule")):
         for raw_talk in as_list(as_dict(raw_session).get("talks")):
             detail_id = as_optional_int(as_dict(raw_talk).get("detail_id"))
-            if detail_id is not None and detail_id > 0:
+            if detail_id is not None and 0 < detail_id <= MAX_DB_PK:
                 ids.add(detail_id)
     return ids
 
@@ -312,6 +317,25 @@ def build_recording_ops_dashboard_context(
     detail_ids = _collect_detail_ids(payload)
     linked_details = _build_linked_details(detail_ids, user=user)
 
+    next_session = parse_next_session(payload.get("next_session"))
+    if next_session is not None and next_session.event_url:
+        next_target_id = extract_recording_detail_id_from_url(next_session.event_url)
+        if next_target_id is not None:
+            next_linked = linked_details.get(next_target_id)
+            if next_linked is None or not next_linked.can_access_recording:
+                next_session = NextSessionSummary(
+                    day=next_session.day,
+                    start_time=next_session.start_time,
+                    community_id=next_session.community_id,
+                    community_name=next_session.community_name,
+                    event_url="",
+                    venue_status=next_session.venue_status,
+                    venue_status_label=next_session.venue_status_label,
+                    venue_status_tone=next_session.venue_status_tone,
+                    automatic=next_session.automatic,
+                    talk_count=next_session.talk_count,
+                )
+
     return RecordingOpsDashboardContext(
         has_snapshot=True,
         snapshot_id=snapshot.pk,
@@ -325,7 +349,7 @@ def build_recording_ops_dashboard_context(
         period_tabs=period_tabs,
         funnel_since=as_str(as_dict(payload.get("funnel_stats")).get("since")),
         active_funnel=parse_funnel_period(payload.get("funnel_stats"), selected_period),
-        next_session=parse_next_session(payload.get("next_session")),
+        next_session=next_session,
         action_items=_parse_action_items(payload.get("action_items"), linked_details=linked_details),
         venue_coverage=parse_venue_coverage(payload.get("venue_coverage")),
         upcoming_schedule=_parse_upcoming_schedule(payload.get("upcoming_schedule"), linked_details=linked_details),
