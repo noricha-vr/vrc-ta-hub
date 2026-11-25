@@ -7,6 +7,7 @@ from .views import (
     EventDetailAPIViewSet, EventDetailReviewAPIView, RecurrenceRuleViewSet,
 )
 from .recurrence_preview import RecurrencePreviewAPIView
+from .recording_ops_snapshot_views import RecordingOpsSnapshotCreateAPIView
 from .recording_ops_views import (
     RecordingEditOrderClaimAPIView,
     RecordingEditOrderCompleteAPIView,
@@ -64,5 +65,10 @@ urlpatterns = [
         'recording-ops/orders/<int:order_id>/complete/',
         RecordingEditOrderCompleteAPIView.as_view(),
         name='recording-ops-order-complete',
+    ),
+    path(
+        'recording-ops/snapshot/',
+        RecordingOpsSnapshotCreateAPIView.as_view(),
+        name='recording-ops-snapshot',
     ),
 ] + router.urls

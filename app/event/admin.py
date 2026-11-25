@@ -13,7 +13,15 @@ from community.constants import (
     weekday_code,
 )
 
-from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecordingEditOrder, RecordingReviewItem, RecurrenceRule
+from .models import (
+    ARTICLE_CONTROL_FIELDS,
+    Event,
+    EventDetail,
+    RecordingEditOrder,
+    RecordingOpsSnapshot,
+    RecordingReviewItem,
+    RecurrenceRule,
+)
 
 
 class EventDetailAdminForm(forms.ModelForm):
@@ -338,6 +346,23 @@ class RecordingEditOrderAdmin(admin.ModelAdmin):
         'completed_at',
         'updated_at',
     )
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(RecordingOpsSnapshot)
+class RecordingOpsSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('id', 'schema_version', 'snapshot_at', 'received_at')
+    list_filter = ('schema_version',)
+    readonly_fields = ('schema_version', 'snapshot_at', 'payload', 'received_at')
+    ordering = ('-snapshot_at', '-id')
 
     def has_add_permission(self, request) -> bool:
         return False

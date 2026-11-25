@@ -1264,3 +1264,27 @@ class RecordingEditOrder(models.Model):
         if update_fields is not None and "status" in update_fields and "active_lock_key" not in update_fields:
             kwargs["update_fields"] = [*update_fields, "active_lock_key"]
         super().save(*args, **kwargs)
+
+
+class RecordingOpsSnapshot(models.Model):
+    """外部録画運用集計の統計スナップショットを保存する。"""
+
+    schema_version = models.PositiveSmallIntegerField("スキーマバージョン", default=1)
+    snapshot_at = models.DateTimeField("スナップショット日時")
+    payload = models.JSONField("スナップショット JSON", default=dict)
+    received_at = models.DateTimeField("受信日時", auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "録画運用スナップショット"
+        verbose_name_plural = "録画運用スナップショット"
+        db_table = "event_recording_ops_snapshot"
+        ordering = ["-snapshot_at", "-id"]
+        indexes = [
+            models.Index(fields=["snapshot_at", "id"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"RecordingOpsSnapshot(id={self.pk}, version={self.schema_version}, "
+            f"snapshot_at={self.snapshot_at})"
+        )
