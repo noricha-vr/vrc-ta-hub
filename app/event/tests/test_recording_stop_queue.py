@@ -156,7 +156,27 @@ class RecordingStopQueueTest(TestCase):
         self.assertFalse(preserve_unstopped_video_id(self.item, "draftVid001", "newVid00001"))
         self.assertFalse(item_has_unstopped_video(self.item))
 
+        # NEEDS_REVIEW + PRIVATE（apply_edl 前の非公開仮動画）も積まない & pending なしなら False
+        self.item.review_status = RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
+        self.item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PRIVATE
+        self.item.youtube_draft_video_id = "draftVid001"
+        self.assertFalse(preserve_unstopped_video_id(self.item, "draftVid001", "newVid00001"))
+        self.assertFalse(item_has_unstopped_video(self.item))
+
+        # 状態が不整合（UNLISTED_SCHEDULED/PUBLISHED なのに PRIVATE）な場合は安全側で積む・停止対象扱い
+        for live_status in (
+            RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+            RecordingReviewItem.ReviewStatus.PUBLISHED,
+        ):
+            self.item.pending_stop_video_ids = []
+            self.item.review_status = live_status
+            self.item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PRIVATE
+            self.assertTrue(item_has_unstopped_video(self.item))
+            self.assertTrue(preserve_unstopped_video_id(self.item, "draftVid001", "newVid00001"))
+            self.assertEqual(self.item.pending_stop_video_ids, ["draftVid001"])
+
         # pending_stop_video_ids が残っていれば PRIVATE_FIXED でも unstopped=True
+        self.item.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
         self.item.pending_stop_video_ids = ["stillLive01"]
         self.assertTrue(item_has_unstopped_video(self.item))
 
