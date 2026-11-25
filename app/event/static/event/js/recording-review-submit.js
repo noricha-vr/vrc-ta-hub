@@ -36,8 +36,23 @@
         }
 
         function setTrimInputsDisabled(disabled) {
-            const sel = 'input[name="start_sec"], input[name="end_sec"], input[name="start_candidate"], input[name="end_candidate"], [data-adjust-target], [data-action="set-start-from-player"], [data-action="set-end-from-player"]';
+            const sel = [
+                'input[name="start_sec"]',
+                'input[name="end_sec"]',
+                '#id_start_sec',
+                '#id_end_sec',
+                '[data-adjust-target]',
+                '[data-action="set-start-from-player"]',
+                '[data-action="set-end-from-player"]',
+                '[data-candidate-side]',
+                '[data-candidate-reset]',
+                '.recording-tl-handle',
+                '.recording-tl-cand',
+            ].join(', ');
             form.querySelectorAll(sel).forEach(function (el) { el.disabled = disabled; });
+            if (typeof ctx.onSubmitLockChanged === 'function') {
+                ctx.onSubmitLockChanged(!disabled);
+            }
         }
 
         form.addEventListener('submit', async function (event) {

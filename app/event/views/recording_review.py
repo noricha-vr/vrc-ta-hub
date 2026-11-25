@@ -30,6 +30,7 @@ from event.services.recording_ops.queries import (
     build_recording_list_queryset,
     build_recording_row_summary,
     estimate_remaining_minutes,
+    format_seconds_display,
     get_recording_list_summary,
 )
 from event.services.recording_ops.storage import RecordingConsentError
@@ -205,6 +206,18 @@ def render_recording_detail_response(
             "form_end_sec": end_value,
             "form_cuts": cuts_value,
             "form_cuts_json": json.dumps(cuts_value, ensure_ascii=False),
+            "safe_min_display": format_seconds_display(detail_ctx.safe_min_sec),
+            "safe_max_display": format_seconds_display(detail_ctx.safe_max_sec),
+            "candidates_payload": {
+                "start": [
+                    {"sec": c.sec, "sec_display": c.sec_display, "label": c.label}
+                    for c in detail_ctx.start_candidates
+                ],
+                "end": [
+                    {"sec": c.sec, "sec_display": c.sec_display, "label": c.label}
+                    for c in detail_ctx.end_candidates
+                ],
+            },
             "max_revision": MAX_REVISION,
         },
         status=status_code,

@@ -144,7 +144,7 @@
 
 {% block admin_content %}
     <section class="admin-card" aria-labelledby="proxy-player-heading">
-        {% include 'ta_hub/admin/includes/section_heading.html' with title='プロキシ動画プレビュー（720p）' heading_id='proxy-player-heading' only %}
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='プロキシ動画プレビュー・トリミング' heading_id='proxy-player-heading' only %}
 
         {% if ctx.proxy_state == 'ready' %}
             <div class="recording-video-wrap mb-2">
@@ -165,60 +165,42 @@
                 <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">ページを再読み込み</a>
             </div>
 
-            <div class="recording-controls-bar">
-                <fieldset>
-                    <legend class="visually-hidden">再生モード</legend>
-                    <div class="recording-mode-group">
-                        <label class="recording-mode-choice">
-                            <input type="radio" name="playback_mode" value="preview" checked>
-                            <span>トリミング後をプレビュー</span>
-                        </label>
-                        <label class="recording-mode-choice">
-                            <input type="radio" name="playback_mode" value="full">
-                            <span>余白込み全体を見る</span>
-                        </label>
-                    </div>
-                </fieldset>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-trim-range" data-testid="play-trim-range-btn">
-                    トリミング区間を再生
-                </button>
+            <div id="recording-mode-banner" class="recording-player-toolbar is-preview" data-testid="recording-mode-banner">
+                <div class="recording-toolbar-left">
+                    <span class="recording-toolbar-time tabular">
+                        <strong id="recording-current-time">0:00.0</strong>
+                        <span class="recording-toolbar-total">/ {{ safe_max_display }}</span>
+                    </span>
+                    <span id="recording-mode-badge" class="recording-toolbar-chip is-preview" data-testid="recording-mode-badge">プレビュー中</span>
+                    <span id="recording-zone-badge" class="recording-toolbar-chip is-zone-keep" data-testid="recording-zone-badge">本編（採用区間）</span>
+                </div>
+                <div class="recording-toolbar-right">
+                    <fieldset class="m-0 p-0 border-0">
+                        <legend class="visually-hidden">再生モード</legend>
+                        <div class="recording-mode-seg" role="group" aria-label="再生モード">
+                            <label class="recording-mode-seg-item">
+                                <input type="radio" name="playback_mode" value="preview" class="visually-hidden" checked>
+                                <span>トリミング後</span>
+                            </label>
+                            <label class="recording-mode-seg-item">
+                                <input type="radio" name="playback_mode" value="full" class="visually-hidden">
+                                <span>余白込み全体</span>
+                            </label>
+                        </div>
+                    </fieldset>
+                    <button type="button" class="btn btn-sm recording-toolbar-play-btn" data-action="play-trim-range" data-testid="play-trim-range-btn">
+                        開始から再生
+                    </button>
+                </div>
             </div>
-
-            <div id="recording-mode-banner" class="recording-mode-banner is-preview mt-2" data-testid="recording-mode-banner">
-                <span id="recording-mode-badge" class="detail-chip bg-primary-subtle text-primary-emphasis" data-testid="recording-mode-badge">プレビュー中</span>
-                <span id="recording-mode-description" data-testid="recording-mode-description">開始〜終了の範囲のみ再生します（余白・カット区間は自動スキップ）</span>
-                <span id="recording-playback-feedback" class="text-primary fw-semibold ms-auto" role="status" aria-live="polite" data-testid="recording-playback-feedback"></span>
-            </div>
-
-            <div class="recording-metrics mt-3">
-                <span>現在位置: <strong id="recording-current-time">0:00.0</strong></span>
-                <span>採用時間: <strong id="recording-adopted-duration">-</strong></span>
-                <span>録画全体: <strong>{{ ctx.safe_min_sec|floatformat:1 }}秒 〜 {{ ctx.safe_max_sec|floatformat:1 }}秒</strong></span>
+            <div class="recording-mode-subline">
+                <span id="recording-mode-description" class="small admin-muted" data-testid="recording-mode-description">開始〜終了の範囲のみ再生します（余白・カット区間は自動スキップ）</span>
                 {% if remaining_minutes != None %}
-                    <span>署名 URL 有効目安: 約 {{ remaining_minutes }} 分</span>
+                    <span class="small admin-muted">URL有効目安: 約 {{ remaining_minutes }} 分</span>
                 {% endif %}
             </div>
-
-            <div class="recording-timeline-panel" data-testid="recording-timeline-panel">
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1 small">
-                    <span class="fw-bold">タイムラインと採用区間</span>
-                    <span id="recording-keep-spans-summary" class="admin-muted" data-testid="keep-spans-summary">-</span>
-                </div>
-                <div id="recording-timeline-bar"
-                     class="recording-timeline-bar"
-                     role="region"
-                     aria-label="タイムライン表示（クリックで移動）"
-                     data-testid="recording-timeline-bar"></div>
-                <div class="recording-timeline-legend">
-                    <span><span class="recording-tl-swatch" style="background: rgba(27, 125, 230, 0.35);"></span>採用区間</span>
-                    <span><span class="recording-tl-swatch" style="background: repeating-linear-gradient(135deg, rgba(108, 117, 125, 0.3), rgba(108, 117, 125, 0.3) 2px, transparent 2px, transparent 4px); border: 1px solid #ced4da;"></span>余白（除外）</span>
-                    <span><span class="recording-tl-swatch" style="background: rgba(220, 53, 69, 0.8);"></span>カット（除外）</span>
-                    <span><span class="recording-tl-swatch" style="background: rgba(255, 193, 7, 0.85);"></span>未判断（残る）</span>
-                    <span><span class="recording-tl-swatch" style="background: rgba(108, 117, 125, 0.45);"></span>却下（残す）</span>
-                </div>
-            </div>
         {% else %}
-            <div class="alert {% if ctx.proxy_state == 'missing' %}alert-secondary{% else %}alert-warning{% endif %} mb-0" role="status" data-testid="proxy-state-card" data-proxy-state="{{ ctx.proxy_state }}">
+            <div class="alert {% if ctx.proxy_state == 'missing' %}alert-secondary{% else %}alert-warning{% endif %} mb-3" role="status" data-testid="proxy-state-card" data-proxy-state="{{ ctx.proxy_state }}">
                 <p class="fw-bold mb-1">
                     {% if ctx.proxy_state == 'missing' %}プロキシ動画が未登録です
                     {% elif ctx.is_proxy_expiring_soon %}プロキシ動画の視聴期限が間近のため視聴できません
@@ -232,10 +214,6 @@
                 <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">最新状態を再読み込み</a>
             </div>
         {% endif %}
-    </section>
-
-    <section class="admin-card" aria-labelledby="trim-editor-heading">
-        {% include 'ta_hub/admin/includes/section_heading.html' with title='開始・終了トリミング・途中カット確定' heading_id='trim-editor-heading' only %}
 
         <form id="recording-trim-form"
               method="post"
@@ -245,118 +223,206 @@
             {% csrf_token %}
             <input type="hidden" name="expected_revision" id="id_expected_revision" value="{{ expected_revision_value }}">
             <input type="hidden" name="cuts_json" id="id_cuts_json" value="{{ form_cuts_json }}">
+            <input type="hidden" name="start_sec" id="id_start_sec_raw" value="{{ form_start_sec|stringformat:'g' }}" {% if not can_submit %}disabled{% endif %}>
+            <input type="hidden" name="end_sec" id="id_end_sec_raw" value="{{ form_end_sec|stringformat:'g' }}" {% if not can_submit %}disabled{% endif %}>
 
-            <div class="recording-trim-grid">
-                <div class="recording-trim-panel">
-                    <h3 class="h6 fw-bold mb-2">開始位置</h3>
-                    {% if ctx.start_candidates %}
-                        <fieldset class="mb-2">
-                            <legend class="form-label small text-muted mb-1">開始候補</legend>
-                            <div class="recording-cand-list">
-                                {% for cand in ctx.start_candidates %}
-                                    <label class="recording-cand-item">
-                                        <input type="radio" name="start_candidate" value="{{ cand.sec|stringformat:'g' }}"
-                                               {% if cand.sec == form_start_sec %}checked{% endif %}
-                                               {% if not can_submit %}disabled{% endif %}>
-                                        <span>
-                                            <strong>{{ cand.sec_display }}</strong>（{{ cand.sec|floatformat:1 }}秒）
-                                            {% if cand.label %}<span class="text-muted">· {{ cand.label }}</span>{% endif %}
-                                        </span>
-                                    </label>
-                                {% endfor %}
+            {% if ctx.proxy_state == 'ready' %}
+                <div class="recording-timeline-panel" data-testid="recording-timeline-panel">
+                    <div class="recording-timeline-header">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="fw-bold small">タイムライン</span>
+                            <div class="btn-group btn-group-sm recording-zoom-group" role="group" aria-label="拡大範囲" data-testid="timeline-zoom-group">
+                                <button type="button" class="btn btn-outline-secondary is-active" data-zoom-mode="all" data-testid="zoom-btn-all" aria-pressed="true">全体</button>
+                                <button type="button" class="btn btn-outline-secondary" data-zoom-mode="start" data-testid="zoom-btn-start" aria-pressed="false">開始付近 ±2分</button>
+                                <button type="button" class="btn btn-outline-secondary" data-zoom-mode="end" data-testid="zoom-btn-end" aria-pressed="false">終了付近 ±2分</button>
                             </div>
-                        </fieldset>
-                    {% else %}
-                        <p class="small admin-muted mb-2">自動検出された開始候補はありません。動画の再生位置または数値欄で指定してください。</p>
-                    {% endif %}
-
-                    <div class="d-flex justify-content-between align-items-baseline mb-1">
-                        <label for="id_start_sec" class="form-label small mb-0">開始時刻（秒）</label>
-                        <span id="recording-start-display" class="small admin-muted fw-semibold" data-testid="recording-start-display"></span>
+                        </div>
+                        <div class="recording-adopted-meta small tabular">
+                            <span class="admin-muted">採用時間:</span>
+                            <strong id="recording-adopted-duration">-</strong>
+                            <span id="recording-keep-spans-summary" class="admin-muted" data-testid="keep-spans-summary">-</span>
+                        </div>
                     </div>
-                    <input type="number"
-                           id="id_start_sec"
-                           name="start_sec"
-                           class="form-control form-control-sm"
-                           step="any"
-                           min="{{ ctx.safe_min_sec|stringformat:'g' }}"
-                           max="{{ ctx.safe_max_sec|stringformat:'g' }}"
-                           value="{{ form_start_sec|stringformat:'g' }}"
-                           {% if not can_submit %}disabled{% endif %}
-                           required>
-                    <div class="recording-nudge-group">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="-5" {% if not can_submit %}disabled{% endif %}>-5秒</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="start" data-adjust-delta="5" {% if not can_submit %}disabled{% endif %}>+5秒</button>
-                        {% if ctx.proxy_state == 'ready' %}
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="set-start-from-player" data-testid="set-start-from-player-btn" aria-label="開始位置を現在の再生位置にする" {% if not can_submit %}disabled{% endif %}>現在位置を開始にする</button>
-                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-from-start" data-testid="play-from-start-btn">ここから再生</button>
-                        {% endif %}
+
+                    <div class="recording-timeline-stage">
+                        <div id="recording-timeline-bar"
+                             class="recording-timeline-bar"
+                             role="region"
+                             aria-label="タイムライン表示（ハンドルや再生ヘッドをドラッグ、またはクリックで移動）"
+                             data-testid="recording-timeline-bar">
+                            <div id="recording-tl-tooltip" class="recording-tl-tooltip" data-testid="timeline-drag-tooltip" hidden>0:00.0</div>
+                            <div id="recording-tl-layers" class="recording-tl-layers"></div>
+                            <button type="button"
+                                    id="recording-tl-handle-start"
+                                    class="recording-tl-handle is-start"
+                                    aria-label="開始位置ハンドル（ドラッグで調整）"
+                                    title="ドラッグして開始位置を調整"
+                                    data-testid="timeline-handle-start"
+                                    {% if not can_submit %}disabled{% endif %}>
+                                <span class="recording-tl-handle-grip"></span>
+                            </button>
+                            <button type="button"
+                                    id="recording-tl-handle-end"
+                                    class="recording-tl-handle is-end"
+                                    aria-label="終了位置ハンドル（ドラッグで調整）"
+                                    title="ドラッグして終了位置を調整"
+                                    data-testid="timeline-handle-end"
+                                    {% if not can_submit %}disabled{% endif %}>
+                                <span class="recording-tl-handle-grip"></span>
+                            </button>
+                            <div id="recording-tl-playhead"
+                                 class="recording-tl-playhead"
+                                 aria-label="再生ヘッド（ドラッグで再生位置を移動）"
+                                 title="ドラッグして再生位置を移動"
+                                 data-testid="timeline-playhead">
+                                <span class="recording-tl-playhead-knob"></span>
+                                <span class="recording-tl-playhead-line"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="recording-timeline-axis tabular">
+                        <span id="recording-tl-axis-min" data-testid="timeline-axis-min">0:00</span>
+                        <div class="recording-timeline-legend">
+                            <span><span class="recording-tl-swatch is-keep"></span>採用</span>
+                            <span><span class="recording-tl-swatch is-margin"></span>余白</span>
+                            {% if ctx.start_candidates or ctx.end_candidates %}
+                                <span><span class="recording-tl-swatch is-cand"></span>候補</span>
+                            {% endif %}
+                            <span><span class="recording-tl-swatch is-cut-accept"></span>カット</span>
+                            <span><span class="recording-tl-swatch is-cut-pending"></span>未判断</span>
+                            <span><span class="recording-tl-swatch is-cut-reject"></span>却下</span>
+                        </div>
+                        <span id="recording-tl-axis-max" data-testid="timeline-axis-max">{{ safe_max_display }}</span>
                     </div>
                 </div>
+            {% endif %}
 
-                <div class="recording-trim-panel">
-                    <h3 class="h6 fw-bold mb-2">終了位置</h3>
-                    <fieldset class="mb-2">
-                        <legend class="form-label small text-muted mb-1">終了確認の再生開始位置</legend>
-                        <div class="recording-offset-group">
-                            <label class="recording-mode-choice">
-                                <input type="radio" name="end_preview_offset" value="5" form="recording-preview-controls">
-                                <span>5秒前</span>
-                            </label>
-                            <label class="recording-mode-choice">
-                                <input type="radio" name="end_preview_offset" value="7" form="recording-preview-controls" checked>
-                                <span>7秒前（推奨）</span>
-                            </label>
-                            <label class="recording-mode-choice">
-                                <input type="radio" name="end_preview_offset" value="10" form="recording-preview-controls">
-                                <span>10秒前</span>
-                            </label>
+            <div class="recording-trim-dock" data-testid="recording-trim-dock">
+                <div class="recording-dock-row" data-testid="trim-start-row">
+                    <div class="recording-dock-controls">
+                        <label for="id_start_sec" class="recording-dock-label">開始</label>
+                        <input type="text"
+                               id="id_start_sec"
+                               class="form-control form-control-sm recording-timecode-input tabular"
+                               inputmode="decimal"
+                               value="{{ form_start_sec|stringformat:'g' }}"
+                               aria-label="開始時刻（秒 または M:SS.s）"
+                               title="秒数 または M:SS.s / H:MM:SS.s 形式で入力"
+                               {% if not can_submit %}disabled{% endif %}>
+                        <div class="btn-group btn-group-sm recording-nudge-group" role="group" aria-label="開始時刻微調整">
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="start" data-adjust-delta="-5" {% if not can_submit %}disabled{% endif %}>-5秒</button>
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="start" data-adjust-delta="-1" {% if not can_submit %}disabled{% endif %}>-1秒</button>
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="start" data-adjust-delta="1" {% if not can_submit %}disabled{% endif %}>+1秒</button>
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="start" data-adjust-delta="5" {% if not can_submit %}disabled{% endif %}>+5秒</button>
                         </div>
-                    </fieldset>
-
-                    {% if ctx.end_candidates %}
-                        <fieldset class="mb-2">
-                            <legend class="form-label small text-muted mb-1">終了候補</legend>
-                            <div class="recording-cand-list">
-                                {% for cand in ctx.end_candidates %}
-                                    <label class="recording-cand-item">
-                                        <input type="radio" name="end_candidate" value="{{ cand.sec|stringformat:'g' }}"
-                                               {% if cand.sec == form_end_sec %}checked{% endif %}
-                                               {% if not can_submit %}disabled{% endif %}>
-                                        <span>
-                                            <strong>{{ cand.sec_display }}</strong>（{{ cand.sec|floatformat:1 }}秒）
-                                            {% if cand.label %}<span class="text-muted">· {{ cand.label }}</span>{% endif %}
-                                        </span>
-                                    </label>
-                                {% endfor %}
-                            </div>
-                        </fieldset>
-                    {% else %}
-                        <p class="small admin-muted mb-2">自動検出された終了候補はありません。動画の再生位置または数値欄で指定してください。</p>
-                    {% endif %}
-
-                    <div class="d-flex justify-content-between align-items-baseline mb-1">
-                        <label for="id_end_sec" class="form-label small mb-0">終了時刻（秒）</label>
-                        <span id="recording-end-display" class="small admin-muted fw-semibold" data-testid="recording-end-display"></span>
-                    </div>
-                    <input type="number"
-                           id="id_end_sec"
-                           name="end_sec"
-                           class="form-control form-control-sm"
-                           step="any"
-                           min="{{ ctx.safe_min_sec|stringformat:'g' }}"
-                           max="{{ ctx.safe_max_sec|stringformat:'g' }}"
-                           value="{{ form_end_sec|stringformat:'g' }}"
-                           {% if not can_submit %}disabled{% endif %}
-                           required>
-                    <div class="recording-nudge-group">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="-5" {% if not can_submit %}disabled{% endif %}>-5秒</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" data-adjust-target="end" data-adjust-delta="5" {% if not can_submit %}disabled{% endif %}>+5秒</button>
                         {% if ctx.proxy_state == 'ready' %}
-                            <button type="button" class="btn btn-sm btn-outline-secondary" data-action="set-end-from-player" data-testid="set-end-from-player-btn" aria-label="終了位置を現在の再生位置にする" {% if not can_submit %}disabled{% endif %}>現在位置を終了にする</button>
-                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-before-end" data-testid="play-before-end-btn">7秒前から再生</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary recording-snap-btn" data-action="set-start-from-player" data-testid="set-start-from-player-btn" aria-label="開始位置を現在の再生位置にする" {% if not can_submit %}disabled{% endif %}>現在位置を開始にする</button>
                         {% endif %}
                     </div>
+                    {% if ctx.proxy_state == 'ready' %}
+                        <div class="recording-dock-play">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-from-start" data-testid="play-from-start-btn">ここから再生</button>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="recording-dock-row" data-testid="trim-end-row">
+                    <div class="recording-dock-controls">
+                        <label for="id_end_sec" class="recording-dock-label">終了</label>
+                        <input type="text"
+                               id="id_end_sec"
+                               class="form-control form-control-sm recording-timecode-input tabular"
+                               inputmode="decimal"
+                               value="{{ form_end_sec|stringformat:'g' }}"
+                               aria-label="終了時刻（秒 または H:MM:SS.s）"
+                               title="秒数 または M:SS.s / H:MM:SS.s 形式で入力"
+                               {% if not can_submit %}disabled{% endif %}>
+                        <div class="btn-group btn-group-sm recording-nudge-group" role="group" aria-label="終了時刻微調整">
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="end" data-adjust-delta="-5" {% if not can_submit %}disabled{% endif %}>-5秒</button>
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="end" data-adjust-delta="-1" {% if not can_submit %}disabled{% endif %}>-1秒</button>
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="end" data-adjust-delta="1" {% if not can_submit %}disabled{% endif %}>+1秒</button>
+                            <button type="button" class="btn btn-outline-secondary" data-adjust-target="end" data-adjust-delta="5" {% if not can_submit %}disabled{% endif %}>+5秒</button>
+                        </div>
+                        {% if ctx.proxy_state == 'ready' %}
+                            <button type="button" class="btn btn-sm btn-outline-secondary recording-snap-btn" data-action="set-end-from-player" data-testid="set-end-from-player-btn" aria-label="終了位置を現在の再生位置にする" {% if not can_submit %}disabled{% endif %}>現在位置を終了にする</button>
+                        {% endif %}
+                    </div>
+                    {% if ctx.proxy_state == 'ready' %}
+                        <div class="recording-dock-play">
+                            <select id="recording-end-preview-offset"
+                                    name="end_preview_offset"
+                                    form="recording-preview-controls"
+                                    class="form-select form-select-sm recording-preroll-select"
+                                    aria-label="終了確認の秒数"
+                                    data-testid="end-preview-offset-select">
+                                <option value="5">5秒前</option>
+                                <option value="7" selected>7秒前</option>
+                                <option value="10">10秒前</option>
+                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-action="play-before-end" data-testid="play-before-end-btn">終了前を再生</button>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if ctx.start_candidates %}
+                    <div class="recording-cand-chips-row" data-testid="start-candidates-row">
+                        <span class="recording-cand-chips-label">開始候補:</span>
+                        {% for cand in ctx.start_candidates %}
+                            <button type="button"
+                                    class="recording-cand-chip{% if cand.sec == form_start_sec %} is-active{% endif %}"
+                                    data-candidate-side="start"
+                                    data-candidate-sec="{{ cand.sec|stringformat:'g' }}"
+                                    data-testid="start-candidate-chip"
+                                    aria-pressed="{% if cand.sec == form_start_sec %}true{% else %}false{% endif %}"
+                                    {% if not can_submit %}disabled{% endif %}>
+                                <span class="recording-cand-dot is-start"></span>
+                                <span class="tabular fw-semibold">{{ cand.sec_display }}</span>
+                                {% if cand.label %}<span class="recording-cand-chip-text">{{ cand.label }}</span>{% endif %}
+                            </button>
+                        {% endfor %}
+                        <button type="button"
+                                class="recording-cand-chip is-reset"
+                                data-candidate-reset="start"
+                                data-candidate-sec="{{ ctx.safe_min_sec|stringformat:'g' }}"
+                                data-testid="start-candidate-reset-chip"
+                                {% if not can_submit %}disabled{% endif %}>
+                            先頭から ({{ safe_min_display }})
+                        </button>
+                    </div>
+                {% endif %}
+
+                {% if ctx.end_candidates %}
+                    <div class="recording-cand-chips-row" data-testid="end-candidates-row">
+                        <span class="recording-cand-chips-label">終了候補:</span>
+                        {% for cand in ctx.end_candidates %}
+                            <button type="button"
+                                    class="recording-cand-chip{% if cand.sec == form_end_sec %} is-active{% endif %}"
+                                    data-candidate-side="end"
+                                    data-candidate-sec="{{ cand.sec|stringformat:'g' }}"
+                                    data-testid="end-candidate-chip"
+                                    aria-pressed="{% if cand.sec == form_end_sec %}true{% else %}false{% endif %}"
+                                    {% if not can_submit %}disabled{% endif %}>
+                                <span class="recording-cand-dot is-end"></span>
+                                <span class="tabular fw-semibold">{{ cand.sec_display }}</span>
+                                {% if cand.label %}<span class="recording-cand-chip-text">{{ cand.label }}</span>{% endif %}
+                            </button>
+                        {% endfor %}
+                        <button type="button"
+                                class="recording-cand-chip is-reset"
+                                data-candidate-reset="end"
+                                data-candidate-sec="{{ ctx.safe_max_sec|stringformat:'g' }}"
+                                data-testid="end-candidate-reset-chip"
+                                {% if not can_submit %}disabled{% endif %}>
+                            末尾まで ({{ safe_max_display }})
+                        </button>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="recording-feedback-footer">
+                <div id="recording-playback-feedback" class="small text-primary fw-semibold" role="status" aria-live="polite" data-testid="recording-playback-feedback">
+                    {% if ctx.proxy_state == 'ready' %}ハンドルを左右にドラッグ、または再生中に止めて「現在位置を開始／終了にする」で調整できます。{% endif %}
                 </div>
             </div>
 
@@ -447,6 +513,7 @@
     {% endif %}
 
     {{ form_cuts|json_script:"recording-cuts-initial" }}
+    {{ candidates_payload|json_script:"recording-candidates-data" }}
     <script id="recording-review-config" type="application/json">
         {
             "safeMin": {{ ctx.safe_min_sec|stringformat:"f" }},
@@ -462,7 +529,9 @@
 {% block extra_js %}
     {{ block.super }}
     <script src="{% static 'event/js/recording-cuts-timeline.js' %}" defer></script>
+    <script src="{% static 'event/js/recording-review-timeline.js' %}" defer></script>
     <script src="{% static 'event/js/recording-cuts.js' %}" defer></script>
     <script src="{% static 'event/js/recording-review-submit.js' %}" defer></script>
+    <script src="{% static 'event/js/recording-review-player.js' %}" defer></script>
     <script src="{% static 'event/js/recording-review.js' %}" defer></script>
 {% endblock %}
