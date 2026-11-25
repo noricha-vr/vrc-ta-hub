@@ -1,4 +1,4 @@
-/* スタッフ向け録画確認 UI の途中カット（cuts[]）検証・keep_spans 算出・タイムライン描画。 */
+/* スタッフ向け録画確認 UI の途中カット検証・採用区間算出・タイムライン描画。 */
 (function () {
     'use strict';
 
@@ -15,6 +15,21 @@
         accept: { label: '採用', badgeClass: 'bg-danger-subtle text-danger-emphasis' },
         reject: { label: '却下', badgeClass: 'bg-secondary-subtle text-secondary-emphasis' },
     };
+
+    function formatSec(sec) {
+        const clamped = Math.max(0, Number(sec) || 0);
+        const tenths = Math.round(clamped * 10);
+        const whole = Math.floor(tenths / 10);
+        const frac = tenths % 10;
+        const mins = Math.floor(whole / 60);
+        const rem = whole % 60;
+        const hrs = Math.floor(mins / 60);
+        const remMin = mins % 60;
+        const base = hrs > 0
+            ? hrs + ':' + String(remMin).padStart(2, '0') + ':' + String(rem).padStart(2, '0')
+            : remMin + ':' + String(rem).padStart(2, '0');
+        return base + '.' + frac;
+    }
 
     function createEl(tag, className, text) {
         const el = document.createElement(tag);
@@ -37,7 +52,7 @@
         const trimStart = options.trimStart;
         const trimEnd = options.trimEnd;
         const allowAcceptCuts = options.allowAcceptCuts;
-        const formatSec = options.formatSec;
+        const fmt = options.formatSec || formatSec;
 
         const cutErrors = new Map();
         const globalErrors = [];
@@ -57,13 +72,13 @@
 
             if (!(trimStart <= cut.start_sec && cut.start_sec < cut.end_sec && cut.end_sec <= trimEnd)) {
                 errs.push(
-                    'trim 範囲（' + formatSec(trimStart) + ' 〜 ' + formatSec(trimEnd) + '）外です。区間を調整または削除してください。'
+                    '開始〜終了の範囲（' + fmt(trimStart) + ' 〜 ' + fmt(trimEnd) + '）外です。区間を調整または削除してください。'
                 );
             }
             if (cut.action === 'accept') {
                 if (prevAccept && cut.start_sec <= prevAccept.end_sec) {
                     errs.push(
-                        '他の採用カット（' + formatSec(prevAccept.start_sec) + ' 〜 ' + formatSec(prevAccept.end_sec) + '）と重複または接触しています。'
+                        '他の採用カット（' + fmt(prevAccept.start_sec) + ' 〜 ' + fmt(prevAccept.end_sec) + '）と重複または接触しています。'
                     );
                     const prevErrs = cutErrors.get(prevAccept.id) || [];
                     prevErrs.push('後続の採用カットと重複または接触しています。');
@@ -97,11 +112,11 @@
         adoptedDurationSec = Math.round(adoptedDurationSec * 1000) / 1000;
 
         if (cutErrors.size > 0) {
-            globalErrors.push('trim 範囲外のカットまたは重複している採用カットがあります。各カードの赤字を確認してください。');
+            globalErrors.push('開始〜終了の範囲外のカットまたは重複している採用カットがあります。各カードの赤字を確認してください。');
         }
         if (trimEnd > trimStart && adoptedDurationSec < MIN_KEEP_SEC) {
             globalErrors.push(
-                '維持時間（keep_spans 合計）が ' + adoptedDurationSec.toFixed(1) + ' 秒です。' + MIN_KEEP_SEC.toFixed(1) + ' 秒以上残るように調整してください。'
+                '採用時間が ' + adoptedDurationSec.toFixed(1) + ' 秒です。' + MIN_KEEP_SEC.toFixed(1) + ' 秒以上残るように調整してください。'
             );
         }
 
@@ -119,6 +134,15 @@
         };
     }
 
+    function appendMarginBand(timelineBar, startPct, endPct, title) {
+        if (endPct - startPct <= 0.05) return;
+        const margin = createEl('div', 'recording-tl-margin');
+        margin.style.left = startPct.toFixed(3) + '%';
+        margin.style.width = (endPct - startPct).toFixed(3) + '%';
+        margin.title = title;
+        timelineBar.appendChild(margin);
+    }
+
     function renderTimelineBar(params) {
         const timelineBar = params.timelineBar;
         const keepSpansSummaryEl = params.keepSpansSummaryEl;
@@ -128,7 +152,7 @@
 
         if (keepSpansSummaryEl) {
             if (state.keepSpans.length === 0) {
-                keepSpansSummaryEl.textContent = '維持区間なし（0.0秒）';
+                keepSpansSummaryEl.textContent = '採用区間なし（0.0秒）';
             } else {
                 const preview = state.keepSpans.slice(0, 4).map(function (s) {
                     return ctx.formatSec(s[0]) + '〜' + ctx.formatSec(s[1]);
@@ -141,7 +165,19 @@
 
         if (!timelineBar) return null;
         timelineBar.replaceChildren();
+        const isFullMode = typeof ctx.getPlaybackMode === 'function' && ctx.getPlaybackMode() === 'full';
+        timelineBar.classList.toggle('is-full-mode', isFullMode);
+
         const total = Math.max(0.001, ctx.safeMax - ctx.safeMin);
+        const startPct = Math.max(0, Math.min(100, ((state.trimStart - ctx.safeMin) / total) * 100));
+        const endPct = Math.max(startPct, Math.min(100, ((state.trimEnd - ctx.safeMin) / total) * 100));
+
+        if (state.trimStart > ctx.safeMin) {
+            appendMarginBand(timelineBar, 0, startPct, '開始前の余白: ' + ctx.formatSec(ctx.safeMin) + ' 〜 ' + ctx.formatSec(state.trimStart));
+        }
+        if (state.trimEnd < ctx.safeMax) {
+            appendMarginBand(timelineBar, endPct, 100, '終了後の余白: ' + ctx.formatSec(state.trimEnd) + ' 〜 ' + ctx.formatSec(ctx.safeMax));
+        }
 
         state.keepSpans.forEach(function (span) {
             const left = ((span[0] - ctx.safeMin) / total) * 100;
@@ -151,6 +187,16 @@
             band.style.width = width.toFixed(3) + '%';
             band.title = '採用区間: ' + ctx.formatSec(span[0]) + ' 〜 ' + ctx.formatSec(span[1]);
             timelineBar.appendChild(band);
+        });
+
+        [
+            { pct: startPct, title: '開始位置: ' + ctx.formatSec(state.trimStart) },
+            { pct: endPct, title: '終了位置: ' + ctx.formatSec(state.trimEnd) },
+        ].forEach(function (b) {
+            const line = createEl('div', 'recording-tl-bound');
+            line.style.left = 'calc(' + b.pct.toFixed(3) + '% - 1px)';
+            line.title = b.title;
+            timelineBar.appendChild(line);
         });
 
         cuts.forEach(function (cut) {
@@ -175,6 +221,7 @@
     window.VrcRecordingCutsTimeline = {
         KIND_LABELS: KIND_LABELS,
         ACTION_META: ACTION_META,
+        formatSec: formatSec,
         createEl: createEl,
         sortCuts: sortCuts,
         evaluateCutsState: evaluateCutsState,

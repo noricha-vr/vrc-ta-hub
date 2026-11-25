@@ -442,3 +442,23 @@ class RecordingReviewStaffViewsTest(TestCase):
         self.assertEqual(zero_resp.status_code, 200)
         self.assertContains(zero_resp, "録画管理の対象となる発表はまだありません。")
         self.assertIsNotNone(build_recording_detail_context)
+
+    @patch("event.services.recording_ops.storage.boto3.client")
+    def test_detail_ui_exposes_player_controls_and_hides_internal_terms(self, mock_boto: MagicMock):
+        mock_s3 = MagicMock()
+        mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/proxy.mp4?sig=1"
+        mock_boto.return_value = mock_s3
+
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._detail_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'data-testid="set-start-from-player-btn"')
+        self.assertContains(resp, 'data-testid="set-end-from-player-btn"')
+        self.assertContains(resp, 'data-testid="recording-mode-banner"')
+        self.assertContains(resp, "event/css/recording-review.css")
+        self.assertContains(resp, "event/js/recording-review-submit.js")
+        # 画面上のラベル・案内文に内部識別子（keep_spans / cuts[] / trim.start_sec）が露出しないこと
+        self.assertNotContains(resp, "keep_spans")
+        self.assertNotContains(resp, "cuts[]")
+        self.assertNotContains(resp, "trim.start_sec")
+        self.assertNotContains(resp, "trim.end_sec")

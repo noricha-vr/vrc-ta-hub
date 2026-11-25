@@ -46,12 +46,24 @@ COPY ./app /app
 COPY ./docs /docs
 COPY uwsgi.ini /uwsgi.ini
 COPY uwsgi_params /uwsgi_params
+COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # PYTHON_PATH
 ENV PYTHON_PATH=/app
 
+# JS / CSS 等の静的ファイルをコンテナ内 /app/static へ収集する（起動時 R2 同期の正本）
+RUN SECRET_KEY=build-only \
+    DEBUG=True \
+    TESTING=1 \
+    GOOGLE_API_KEY=build-only \
+    GOOGLE_CALENDAR_ID=build-only@group.calendar.google.com \
+    GEMINI_API_KEY=build-only \
+    REQUEST_TOKEN=build-only \
+    python3 manage.py collectstatic --noinput
+
 # ポートの公開
 EXPOSE 8080
 
-# Supervisorの実行
-CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]
+# 起動時 R2 同期 + Supervisor の実行
+CMD ["/docker-entrypoint.sh"]
