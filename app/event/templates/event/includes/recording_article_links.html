@@ -1,0 +1,10 @@
+{% load recording_ops_tags %}
+{% get_article_status detail request as article_status %}
+<a href="{{ article_status.detail_url }}"
+   class="btn btn-sm btn-outline-secondary"
+   data-testid="recording-article-link">記事</a>
+{% if article_status.edit_url %}
+    <a href="{{ article_status.edit_url }}"
+       class="btn btn-sm btn-outline-secondary"
+       data-testid="recording-article-edit-link">編集</a>
+{% endif %}

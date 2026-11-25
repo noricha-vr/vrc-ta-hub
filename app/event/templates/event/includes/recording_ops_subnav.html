@@ -1,0 +1,10 @@
+<nav class="d-flex flex-wrap gap-2 mb-3" aria-label="録画管理画面の切り替え" data-testid="recording-ops-subnav">
+    <a href="{% url 'event:recording_review_list' %}"
+       class="btn btn-sm {% if active_tab == 'list' %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+       {% if active_tab == 'list' %}aria-current="page"{% endif %}
+       data-testid="recording-tab-list">動画確認一覧</a>
+    <a href="{% url 'event:recording_ops_dashboard' %}"
+       class="btn btn-sm {% if active_tab == 'dashboard' %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+       {% if active_tab == 'dashboard' %}aria-current="page"{% endif %}
+       data-testid="recording-tab-dashboard">録画運用ダッシュボード</a>
+</nav>

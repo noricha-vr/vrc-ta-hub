@@ -1,0 +1,5 @@
+{% load recording_ops_tags %}
+{% get_article_status detail as article_status %}
+<span class="d-inline-flex" data-testid="recording-article-chip" data-article-status="{{ article_status.code }}">
+    {% include 'ta_hub/admin/includes/status_chip.html' with label=article_status.label tone=article_status.tone only %}
+</span>

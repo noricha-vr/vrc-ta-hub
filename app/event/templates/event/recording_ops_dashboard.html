@@ -1,0 +1,358 @@
+{% extends 'ta_hub/admin_base.html' %}
+{% load tz %}
+
+{% block meta %}
+    <title>録画運用ダッシュボード - {% site_name_seo %}</title>
+    <meta name="robots" content="noindex,nofollow">
+{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .hub-admin .ops-meta-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; margin-bottom: 1.25rem; font-size: .875rem; color: var(--admin-muted); }
+        .hub-admin .ops-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr)); gap: .85rem; }
+        .hub-admin .ops-kpi-box { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .85rem 1rem; background: var(--admin-surface-muted); min-width: 0; overflow-wrap: anywhere; }
+        .hub-admin .ops-kpi-label { font-size: .75rem; color: var(--admin-muted); margin-bottom: .25rem; }
+        .hub-admin .ops-kpi-value { font-size: 1.45rem; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+        .hub-admin .ops-kpi-sub { font-size: .75rem; color: var(--admin-muted); margin-top: .25rem; font-variant-numeric: tabular-nums; }
+        .hub-admin .ops-progress { height: 6px; margin-top: .5rem; background-color: #e4e9ef; }
+        .hub-admin .ops-progress-bar { background-color: var(--admin-primary); }
+        .hub-admin .ops-breakdown-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: .85rem; margin-top: 1rem; }
+        .hub-admin .ops-subbox { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .85rem 1rem; background: #fff; min-width: 0; }
+        .hub-admin .ops-subbox h3 { font-size: .875rem; font-weight: 700; margin-bottom: .5rem; }
+        .hub-admin .ops-kv-list { list-style: none; padding: 0; margin: 0; font-size: .875rem; }
+        .hub-admin .ops-kv-list li { display: flex; justify-content: space-between; gap: .5rem; padding: .2rem 0; font-variant-numeric: tabular-nums; }
+        .hub-admin .ops-session-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: 1rem; margin-bottom: .85rem; background: #fff; }
+        .hub-admin .ops-session-card:last-child { margin-bottom: 0; }
+        .hub-admin .ops-talk-row { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; flex-wrap: wrap; border-top: 1px solid #e5e9ee; padding-top: .75rem; margin-top: .75rem; }
+        .hub-admin .ops-talk-main { flex: 1 1 15rem; min-width: 0; overflow-wrap: anywhere; }
+        .hub-admin .ops-talk-actions { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+        .hub-admin .ops-talk-actions .btn,
+        .hub-admin .ops-period-tabs .btn,
+        .hub-admin .action-required .presentation-actions .btn { white-space: nowrap; }
+        .hub-admin .ops-action-item + .ops-action-item { border-top: 1px solid #ebdfc5; margin-top: .9rem; padding-top: .9rem; }
+        @media (max-width: 575.98px) {
+            .hub-admin .admin-card { padding: 1rem; }
+            .hub-admin .admin-card > .admin-section-heading { margin: -1rem -1rem 1rem; padding: .85rem 1rem; }
+            .hub-admin .ops-talk-actions { width: 100%; }
+            .hub-admin .ops-talk-actions .btn { flex: 1 1 auto; }
+        }
+    </style>
+{% endblock %}
+
+{% block admin_breadcrumbs %}
+    <nav aria-label="パンくず">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'event:recording_review_list' %}">録画・YouTube管理</a></li>
+            <li class="breadcrumb-item active" aria-current="page">録画運用ダッシュボード</li>
+        </ol>
+    </nav>
+{% endblock %}
+
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='録画運用ダッシュボード' target='運営用' subtitle='撮影予定・要対応キュー・達成率ファネル・会場下見状況と記事ステータスをまとめて確認します。' only %}
+{% endblock %}
+
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' items=admin_nav_items only %}
+{% endblock %}
+
+{% block admin_attention %}
+{% timezone "Asia/Tokyo" %}
+    {% if dashboard.has_snapshot %}
+        {% if dashboard.is_stale %}
+            <section class="action-required mb-3" role="alert" aria-labelledby="snapshot-stale-heading" data-testid="snapshot-stale-warning">
+                <div class="action-required-row">
+                    <div class="action-required-text">
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                            {% include 'ta_hub/admin/includes/status_chip.html' with label='同期遅延 (stale)' tone='warning' only %}
+                            <span class="small admin-muted">最終同期: {{ dashboard.snapshot_at|date:"Y/m/d H:i" }}（{{ dashboard.elapsed_display }}）</span>
+                        </div>
+                        <h2 id="snapshot-stale-heading" class="h6 fw-bold mb-1">スナップショットの最終同期から時間が経過しています</h2>
+                        <p class="small mb-0">24時間以上新しい統計スナップショットを受信していません。外部録画クライアント側の同期実行状況を確認してください。</p>
+                    </div>
+                </div>
+            </section>
+        {% endif %}
+
+        {% if dashboard.action_items %}
+            <section class="action-required" aria-labelledby="dashboard-action-heading" data-testid="dashboard-action-required">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <h2 id="dashboard-action-heading" class="h5 fw-bold mb-0">
+                        要対応 {{ dashboard.action_items|length }}
+                    </h2>
+                    <a href="{{ review_list_url }}" class="btn btn-sm btn-outline-secondary">動画確認一覧へ</a>
+                </div>
+                {% for item in dashboard.action_items %}
+                    <div class="ops-action-item" data-testid="dashboard-action-row" data-detail-id="{{ item.detail_id|default:'' }}">
+                        <div class="action-required-row">
+                            <div class="action-required-text">
+                                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='要対応' tone='warning' only %}
+                                    <span class="small text-muted">{% if item.day %}{{ item.day }} · {% endif %}{{ item.community_name }}</span>
+                                </div>
+                                <div class="fw-bold">{{ item.title }}</div>
+                                <div class="small mt-1">{{ item.label }}</div>
+                                {% if item.reason %}
+                                    <div class="small admin-muted mt-1">{{ item.reason }}</div>
+                                {% endif %}
+                                {% if item.linked_detail %}
+                                    <div class="d-flex flex-wrap gap-1 mt-2">
+                                        {% include 'ta_hub/admin/includes/status_chip.html' with label=item.linked_detail.policy_badge.label tone=item.linked_detail.policy_badge.tone only %}
+                                        <span class="d-inline-flex" data-testid="dashboard-article-chip" data-article-status="{{ item.linked_detail.article_status.code }}">
+                                            {% include 'ta_hub/admin/includes/status_chip.html' with label=item.linked_detail.article_status.label tone=item.linked_detail.article_status.tone only %}
+                                        </span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="presentation-actions">
+                                {% if item.linked_detail and item.linked_detail.can_access_recording and item.linked_detail.recording_detail_url %}
+                                    <a href="{{ item.linked_detail.recording_detail_url }}" class="btn btn-sm btn-primary" data-testid="recording-detail-link">確認・トリミング</a>
+                                {% elif item.action_url %}
+                                    <a href="{{ item.action_url }}" class="btn btn-sm btn-primary">対応画面へ</a>
+                                {% endif %}
+                                {% if item.linked_detail %}
+                                    <a href="{{ item.linked_detail.article_status.detail_url }}" class="btn btn-sm btn-outline-secondary" data-testid="dashboard-article-link">記事</a>
+                                    {% if item.linked_detail.article_status.edit_url %}
+                                        <a href="{{ item.linked_detail.article_status.edit_url }}" class="btn btn-sm btn-outline-secondary" data-testid="dashboard-article-edit-link">編集</a>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </section>
+        {% else %}
+            <div class="alert alert-light border mb-4" role="status" data-testid="dashboard-action-required">
+                <span class="fw-bold me-2">お知らせ</span>
+                <span class="small admin-muted">現在、スナップショット上の要対応キューはありません。</span>
+            </div>
+        {% endif %}
+    {% endif %}
+{% endtimezone %}
+{% endblock %}
+
+{% block admin_content %}
+{% timezone "Asia/Tokyo" %}
+    {% include 'event/includes/recording_ops_subnav.html' with active_tab='dashboard' only %}
+
+    {% if not dashboard.has_snapshot %}
+        <div data-testid="snapshot-empty-state">
+            {% include 'ta_hub/admin/includes/empty_state.html' with title='録画運用の統計スナップショットはまだ登録されていません。' description='外部録画クライアントからの定期同期を受信すると、次の撮影予定や達成率ファネルが表示されます。' action_url=review_list_url action_label='動画確認一覧を見る' only %}
+        </div>
+    {% else %}
+        <div class="ops-meta-bar" data-testid="snapshot-meta-bar">
+            {% if dashboard.is_stale %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='同期遅延' tone='warning' only %}
+            {% else %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='同期正常' tone='success' only %}
+            {% endif %}
+            <span>最終同期: {{ dashboard.snapshot_at|date:"Y/m/d H:i" }} JST（{{ dashboard.elapsed_display }}）</span>
+            <span>· 受信: {{ dashboard.received_at|date:"Y/m/d H:i" }}</span>
+            <span>· スキーマ v{{ dashboard.schema_version }}</span>
+        </div>
+
+        <section class="admin-card" aria-labelledby="next-session-heading" data-testid="dashboard-next-session">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='次の撮影予定' heading_id='next-session-heading' only %}
+            {% if dashboard.next_session %}
+                {% with ns=dashboard.next_session %}
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                        <div>
+                            <div class="small admin-muted mb-1">
+                                {{ ns.day }}{% if ns.start_time %} {{ ns.start_time }}{% endif %}
+                                {% if ns.talk_count is not None %} · 発表 {{ ns.talk_count }} 件{% endif %}
+                            </div>
+                            <h3 class="h5 fw-bold mb-2">{{ ns.community_name }}</h3>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% include 'ta_hub/admin/includes/status_chip.html' with label='会場: '|add:ns.venue_status_label tone=ns.venue_status_tone only %}
+                                {% if ns.automatic is True %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='自動撮影: ON' tone='success' only %}
+                                {% elif ns.automatic is False %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='自動撮影: OFF' only %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if ns.event_url %}
+                            <a href="{{ ns.event_url }}" class="btn btn-sm btn-outline-secondary">イベント詳細</a>
+                        {% endif %}
+                    </div>
+                {% endwith %}
+            {% else %}
+                <p class="admin-muted mb-0">直近の撮影予定はありません。</p>
+            {% endif %}
+        </section>
+
+        <section class="admin-card" aria-labelledby="funnel-heading" data-testid="dashboard-funnel-stats">
+            <div class="admin-section-heading d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                    <h2 id="funnel-heading" class="section-title">達成率ファネル</h2>
+                    {% if dashboard.funnel_since %}
+                        <p class="small admin-muted mb-0 mt-1">集計起点: {{ dashboard.funnel_since }}</p>
+                    {% endif %}
+                </div>
+                <nav class="ops-period-tabs d-flex flex-wrap gap-1" aria-label="集計期間の切り替え" data-testid="funnel-period-tabs">
+                    {% for tab in dashboard.period_tabs %}
+                        <a href="?period={{ tab.key }}"
+                           class="btn btn-sm {% if tab.active %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+                           {% if tab.active %}aria-current="page"{% endif %}
+                           data-testid="funnel-period-btn-{{ tab.key }}">{{ tab.label }}</a>
+                    {% endfor %}
+                </nav>
+            </div>
+
+            {% with f=dashboard.active_funnel %}
+                {% if not f.has_data %}
+                    <p class="small admin-muted mb-3">選択中の期間（{{ f.label }}）の集計データはスナップショットに含まれていません。</p>
+                {% endif %}
+                <div class="ops-kpi-grid" data-testid="funnel-metrics" data-active-period="{{ f.period_key }}">
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">対象発表数（{{ f.label }}）</div>
+                        <div class="ops-kpi-value">{{ f.required }}<span class="fs-6 fw-normal ms-1">件</span></div>
+                        <div class="ops-kpi-sub">公開対象: {{ f.publishable }} 件</div>
+                    </div>
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">撮影完了</div>
+                        <div class="ops-kpi-value">{{ f.recorded }}<span class="fs-6 fw-normal ms-1">件</span></div>
+                        <div class="ops-kpi-sub">{% if f.recorded_pct is not None %}{{ f.recorded_pct }}%{% else %}—{% endif %}</div>
+                        <div class="progress ops-progress" aria-hidden="true">
+                            <div class="progress-bar ops-progress-bar" style="width: {{ f.recorded_pct|default:0 }}%"></div>
+                        </div>
+                    </div>
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">YouTube 公開</div>
+                        <div class="ops-kpi-value">{{ f.published }}<span class="fs-6 fw-normal ms-1">件</span></div>
+                        <div class="ops-kpi-sub">{% if f.published_pct is not None %}{{ f.published_pct }}%（対公開対象）{% else %}—{% endif %}</div>
+                        <div class="progress ops-progress" aria-hidden="true">
+                            <div class="progress-bar ops-progress-bar" style="width: {{ f.published_pct|default:0 }}%"></div>
+                        </div>
+                    </div>
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">記事化済み</div>
+                        <div class="ops-kpi-value">{{ f.articles }}<span class="fs-6 fw-normal ms-1">件</span></div>
+                        <div class="ops-kpi-sub">
+                            {% if f.articles_pct is not None %}{{ f.articles_pct }}%{% else %}—{% endif %}
+                            {% if f.articles_unknown %} · 未確認 {{ f.articles_unknown }} 件{% endif %}
+                        </div>
+                        <div class="progress ops-progress" aria-hidden="true">
+                            <div class="progress-bar ops-progress-bar" style="width: {{ f.articles_pct|default:0 }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            {% endwith %}
+        </section>
+
+        <section class="admin-card" aria-labelledby="venue-coverage-heading" data-testid="dashboard-venue-coverage">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='会場下見・同意取得率' heading_id='venue-coverage-heading' only %}
+            {% with vc=dashboard.venue_coverage %}
+                {% if not vc.has_data %}
+                    <p class="small admin-muted mb-3">会場下見・同意取得率のデータはスナップショットに含まれていません。</p>
+                {% endif %}
+                <div class="ops-kpi-grid">
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">集会全体</div>
+                        <div class="ops-kpi-value">{{ vc.total_communities }}</div>
+                        <div class="ops-kpi-sub">登録集会数</div>
+                    </div>
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">会場下見済み</div>
+                        <div class="ops-kpi-value">{{ vc.scouted_communities }}</div>
+                        <div class="ops-kpi-sub">{% if vc.scouted_pct is not None %}{{ vc.scouted_pct }}%{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">撮影許可</div>
+                        <div class="ops-kpi-value">{{ vc.allowed_communities }}</div>
+                        <div class="ops-kpi-sub">{% if vc.allowed_pct is not None %}{{ vc.allowed_pct }}%{% else %}—{% endif %}</div>
+                    </div>
+                    <div class="ops-kpi-box">
+                        <div class="ops-kpi-label">撮影準備完了（下見＋許可）</div>
+                        <div class="ops-kpi-value">{{ vc.scouted_and_allowed }}</div>
+                        <div class="ops-kpi-sub">{% if vc.ready_pct is not None %}{{ vc.ready_pct }}%{% else %}—{% endif %}</div>
+                    </div>
+                </div>
+                <div class="ops-breakdown-grid">
+                    <div class="ops-subbox">
+                        <h3>対応ステータス別</h3>
+                        <ul class="ops-kv-list">
+                            <li><span>準備完了（下見＋許可）</span><strong>{{ vc.group_ready }} 件</strong></li>
+                            <li><span>下見済み・許可待ち</span><strong>{{ vc.group_scout }} 件</strong></li>
+                            <li><span>許可あり・下見待ち</span><strong>{{ vc.group_waiting }} 件</strong></li>
+                            <li><span>未対応（活動中 {{ vc.none_active }} / 休止 {{ vc.none_dormant }}）</span><strong>{{ vc.group_none }} 件</strong></li>
+                        </ul>
+                    </div>
+                    <div class="ops-subbox">
+                        <h3>未下見・許可なしの内訳</h3>
+                        <ul class="ops-kv-list">
+                            <li><span>非公開ワールド</span><strong>{{ vc.gap_private }} 件</strong></li>
+                            <li><span>状況不明</span><strong>{{ vc.gap_unknown }} 件</strong></li>
+                            <li><span>スクリーン・画面なし</span><strong>{{ vc.gap_noscreen }} 件</strong></li>
+                            <li><span>休止中の集会</span><strong>{{ vc.gap_dormant }} 件</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            {% endwith %}
+        </section>
+
+        <section class="admin-card" aria-labelledby="schedule-heading" data-testid="dashboard-upcoming-schedule">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='今後の撮影スケジュール' heading_id='schedule-heading' only %}
+            {% if dashboard.upcoming_schedule %}
+                {% for session in dashboard.upcoming_schedule %}
+                    <article class="ops-session-card" data-testid="dashboard-schedule-session">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <div>
+                                <div class="small admin-muted">
+                                    {{ session.day }}{% if session.start_time %} {{ session.start_time }}{% endif %}
+                                    · 発表 {{ session.talk_count }} 件
+                                </div>
+                                <h3 class="h6 fw-bold mb-0 mt-1">{{ session.community_name }}</h3>
+                            </div>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% include 'ta_hub/admin/includes/status_chip.html' with label='会場: '|add:session.venue_status_label tone=session.venue_status_tone only %}
+                                {% if session.automatic is True %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='自動撮影: ON' tone='success' only %}
+                                {% elif session.automatic is False %}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='自動撮影: OFF' only %}
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% for talk in session.talks %}
+                            <div class="ops-talk-row" data-testid="dashboard-schedule-talk" data-detail-id="{{ talk.detail_id|default:'' }}">
+                                <div class="ops-talk-main">
+                                    <div class="fw-bold">{{ talk.theme }}</div>
+                                    <div class="small admin-muted">{{ talk.speaker }}</div>
+                                    <div class="d-flex flex-wrap gap-1 mt-2">
+                                        {% include 'ta_hub/admin/includes/status_chip.html' with label=talk.policy_badge.label tone=talk.policy_badge.tone only %}
+                                        {% if talk.linked_detail %}
+                                            <span class="d-inline-flex" data-testid="dashboard-article-chip" data-article-status="{{ talk.linked_detail.article_status.code }}">
+                                                {% include 'ta_hub/admin/includes/status_chip.html' with label=talk.linked_detail.article_status.label tone=talk.linked_detail.article_status.tone only %}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="ops-talk-actions">
+                                    {% if talk.linked_detail and talk.linked_detail.can_access_recording and talk.linked_detail.recording_detail_url %}
+                                        <a href="{{ talk.linked_detail.recording_detail_url }}" class="btn btn-sm btn-outline-primary" data-testid="recording-detail-link">確認・トリミング</a>
+                                    {% elif talk.is_restricted_policy %}
+                                        <span class="small admin-muted" data-testid="recording-restricted-note">対象外（再生・編集不可）</span>
+                                    {% endif %}
+                                    {% if talk.linked_detail %}
+                                        <a href="{{ talk.linked_detail.article_status.detail_url }}" class="btn btn-sm btn-outline-secondary" data-testid="dashboard-article-link">記事</a>
+                                        {% if talk.linked_detail.article_status.edit_url %}
+                                            <a href="{{ talk.linked_detail.article_status.edit_url }}" class="btn btn-sm btn-outline-secondary" data-testid="dashboard-article-edit-link">編集</a>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p class="small admin-muted mb-0 mt-2">この開催の発表予定はまだ登録されていません。</p>
+                        {% endfor %}
+                    </article>
+                {% endfor %}
+            {% else %}
+                <p class="admin-muted mb-0">今後の撮影スケジュールはありません。</p>
+            {% endif %}
+        </section>
+    {% endif %}
+{% endtimezone %}
+{% endblock %}

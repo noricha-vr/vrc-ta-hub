@@ -22,6 +22,7 @@ from event.views.recording_ops_actions import (  # noqa: F401
     RecordingOrderRetryView,
     RecordingStopPublishView,
 )
+from event.views.recording_ops_dashboard import RecordingOpsDashboardView  # noqa: F401
 from event.views.recording_review import (  # noqa: F401
     RecordingReviewDetailView,
     RecordingReviewListView,

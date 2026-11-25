@@ -176,6 +176,7 @@
 
 {% block admin_content %}
 {% timezone "Asia/Tokyo" %}
+    {% include 'event/includes/recording_ops_subnav.html' with active_tab='list' only %}
     <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small" data-testid="recording-summary-counts">
         {% with cnt=summary.needs_review_count|stringformat:"d" %}
             {% if summary.needs_review_count %}
@@ -272,6 +273,7 @@
                                     {% endif %}
                                     {% include 'ta_hub/admin/includes/status_chip.html' with label='公開: '|add:row.publish_badge.label tone=row.publish_badge.tone only %}
                                 {% endif %}
+                                {% include 'event/includes/recording_article_chip.html' with detail=row.detail only %}
                             </div>
                             {% if row.is_failed_order and row.latest_order.error_message %}
                                 <p class="small text-danger mb-0 mt-2">{{ row.latest_order.error_message|truncatechars:140 }}</p>
@@ -287,6 +289,7 @@
                             {% else %}
                                 <span class="small admin-muted" data-testid="recording-restricted-note">対象外（再生・編集不可）</span>
                             {% endif %}
+                            {% include 'event/includes/recording_article_links.html' with detail=row.detail request=request only %}
                         </div>
                     </div>
                 </div>
