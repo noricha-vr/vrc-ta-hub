@@ -28,7 +28,30 @@ VERSIONED_ASSET_PREFIX = '_assets'
 def is_versioned_app_asset(name: str) -> bool:
     """R2 のコンテンツハッシュ付きキーで配信するアプリ同梱 JS/CSS 資産か判定する。"""
     normalized = str(name).lstrip('/')
+    if '..' in Path(normalized).parts:
+        return False
     return normalized.startswith(_APP_STATIC_PREFIXES) and normalized.endswith(_APP_STATIC_SUFFIXES)
+
+
+def resolve_app_asset_path(name: str, static_root: str | Path | None = None) -> Path | None:
+    """STATIC_ROOT 配下に実在するアプリ JS/CSS ファイルの安全パスを返す（symlink 越境を拒否）。"""
+    normalized = str(name).lstrip('/')
+    if not is_versioned_app_asset(normalized):
+        return None
+    root = static_root if static_root is not None else getattr(settings, 'STATIC_ROOT', None)
+    if not root:
+        return None
+    try:
+        resolved_root = Path(root).resolve(strict=True)
+        candidate = Path(root) / normalized
+        if candidate.is_symlink():
+            return None
+        resolved_candidate = candidate.resolve(strict=True)
+    except OSError:
+        return None
+    if not resolved_candidate.is_relative_to(resolved_root) or not resolved_candidate.is_file():
+        return None
+    return resolved_candidate
 
 
 @lru_cache(maxsize=512)
@@ -43,13 +66,10 @@ def _static_file_version(path_str: str) -> str:
 def versioned_asset_key(name: str, static_root: str | Path | None = None) -> str | None:
     """collectstatic 済み静的ファイルが存在する場合、ハッシュ付き R2 キーを返す。"""
     normalized = str(name).lstrip('/')
-    if not is_versioned_app_asset(normalized):
+    resolved_candidate = resolve_app_asset_path(normalized, static_root=static_root)
+    if resolved_candidate is None:
         return None
-    root = static_root if static_root is not None else getattr(settings, 'STATIC_ROOT', None)
-    if not root:
-        return None
-    candidate = Path(root) / normalized
-    version = _static_file_version(str(candidate))
+    version = _static_file_version(str(resolved_candidate))
     if not version:
         return None
     return f'{VERSIONED_ASSET_PREFIX}/{version}/{normalized}'

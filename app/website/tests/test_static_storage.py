@@ -82,3 +82,17 @@ class GuideStaticFilesStorageTest(SimpleTestCase):
                     self.storage.url('guide/images/community/create-01.webp'),
                     'https://data.vrc-ta-hub.com/guide/images/community/create-01.webp',
                 )
+
+    def test_traversal_and_symlink_escape_do_not_resolve_to_versioned_key(self):
+        from website.storage import versioned_asset_key
+
+        _static_file_version.cache_clear()
+        with TemporaryDirectory() as tmpdir, TemporaryDirectory() as outside_dir:
+            root = Path(tmpdir)
+            outside = Path(outside_dir) / 'secret.js'
+            outside.write_text('secret', encoding='utf-8')
+            (root / 'event' / 'js').mkdir(parents=True)
+            (root / 'event' / 'js' / 'leak.js').symlink_to(outside)
+
+            self.assertIsNone(versioned_asset_key('event/js/../../etc/passwd.js', static_root=root))
+            self.assertIsNone(versioned_asset_key('event/js/leak.js', static_root=root))

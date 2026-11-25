@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from website.storage import is_versioned_app_asset, versioned_asset_key
+from website.storage import resolve_app_asset_path, versioned_asset_key
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +41,15 @@ def _collect_targets(static_root: Path) -> list[tuple[Path, str]]:
         return []
     targets: list[tuple[Path, str]] = []
     for path in sorted(static_root.rglob('*')):
-        if not path.is_file():
+        if path.is_symlink() or not path.is_file():
             continue
         rel = path.relative_to(static_root).as_posix()
-        if not is_versioned_app_asset(rel):
+        resolved_path = resolve_app_asset_path(rel, static_root=static_root)
+        if resolved_path is None:
             continue
         key = versioned_asset_key(rel, static_root=static_root)
         if key:
-            targets.append((path, key))
+            targets.append((resolved_path, key))
     return targets
 
 
@@ -112,9 +113,20 @@ class Command(BaseCommand):
         endpoint_url = getattr(settings, 'AWS_S3_ENDPOINT_URL', None)
         access_key = getattr(settings, 'AWS_ACCESS_KEY_ID', None)
         secret_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', None)
-        if not (bucket and endpoint_url and access_key and secret_key):
-            self.stdout.write('R2 設定が未構成のため sync_container_static をスキップします。')
-            return
+        missing = [
+            env_name
+            for env_name, val in (
+                ('AWS_STORAGE_BUCKET_NAME', bucket),
+                ('AWS_S3_ENDPOINT_URL', endpoint_url),
+                ('AWS_ACCESS_KEY_ID', access_key),
+                ('AWS_SECRET_ACCESS_KEY', secret_key),
+            )
+            if not val
+        ]
+        if missing:
+            raise CommandError(
+                f'R2 静的資産同期に必要な設定が不足しているため起動を中断します: {", ".join(missing)}'
+            )
 
         static_root_raw = getattr(settings, 'STATIC_ROOT', None)
         if not static_root_raw:

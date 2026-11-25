@@ -103,3 +103,30 @@ class SyncContainerStaticCommandTests(SimpleTestCase):
 
             self.assertEqual(mock_client.head_object.call_count, 3)
             self.assertEqual(mock_sleep.call_count, 2)
+
+    def test_raises_command_error_when_r2_config_missing_in_production(self) -> None:
+        with override_settings(
+            DEBUG=False,
+            AWS_STORAGE_BUCKET_NAME='',
+            AWS_S3_ENDPOINT_URL='https://r2.example.invalid',
+            AWS_ACCESS_KEY_ID='key',
+            AWS_SECRET_ACCESS_KEY='secret',
+        ):
+            with self.assertRaises(CommandError):
+                call_command('sync_container_static')
+
+    def test_collect_targets_rejects_symlinks_pointing_outside_static_root(self) -> None:
+        from ta_hub.management.commands.sync_container_static import _collect_targets
+
+        with TemporaryDirectory() as tmpdir, TemporaryDirectory() as outside_dir:
+            root = Path(tmpdir)
+            outside = Path(outside_dir) / 'secret.js'
+            outside.write_text('secret', encoding='utf-8')
+            (root / 'event' / 'js').mkdir(parents=True)
+            valid = root / 'event' / 'js' / 'ok.js'
+            valid.write_text('console.log(1);', encoding='utf-8')
+            symlink_target = root / 'event' / 'js' / 'leak.js'
+            symlink_target.symlink_to(outside)
+
+            targets = _collect_targets(root)
+            self.assertEqual([p.name for p, _ in targets], ['ok.js'])
