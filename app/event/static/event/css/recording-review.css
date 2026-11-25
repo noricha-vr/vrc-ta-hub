@@ -67,6 +67,12 @@
     color: #fff;
     font-weight: 600;
 }
+.hub-admin .recording-mode-seg-item:has(input:focus-visible) {
+    outline: 2px solid #93c5fd;
+    outline-offset: -2px;
+    position: relative;
+    z-index: 1;
+}
 .hub-admin .recording-toolbar-play-btn {
     border-color: rgba(110, 168, 254, 0.65);
     color: #dbeafe;
@@ -199,6 +205,10 @@
 .hub-admin .recording-tl-cand.is-start { background: #198754; }
 .hub-admin .recording-tl-cand.is-end { background: #f59e0b; }
 .hub-admin .recording-tl-cand:hover:not(:disabled) { transform: scaleX(1.3); }
+.hub-admin .recording-tl-cand:focus-visible {
+    outline: 2px solid var(--admin-primary);
+    outline-offset: 1px;
+}
 .hub-admin .recording-tl-cand:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .hub-admin .recording-tl-handle {
@@ -242,6 +252,13 @@
 .hub-admin .recording-tl-handle.is-dragging .recording-tl-handle-grip {
     background: #0b5ed7;
     transform: scaleX(1.12);
+}
+.hub-admin .recording-tl-handle:focus-visible {
+    outline: none;
+}
+.hub-admin .recording-tl-handle:focus-visible .recording-tl-handle-grip {
+    outline: 2px solid #0b5ed7;
+    outline-offset: 2px;
 }
 
 .hub-admin .recording-tl-playhead {

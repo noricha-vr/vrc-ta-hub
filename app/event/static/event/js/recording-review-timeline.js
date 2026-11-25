@@ -204,13 +204,6 @@
             el.addEventListener('pointerdown', function (ev) {
                 beginDrag(type, el, ev);
             });
-            el.addEventListener('pointermove', function (ev) {
-                if (!dragState || dragState.type !== type) return;
-                if (ev.pointerId !== undefined && dragState.pointerId !== undefined && ev.pointerId !== dragState.pointerId) return;
-                applyDragMove(ev.clientX);
-            });
-            el.addEventListener('pointerup', finishDrag);
-            el.addEventListener('pointercancel', finishDrag);
         }
 
         bindPointerTarget(handleStartEl, 'start');
@@ -224,13 +217,6 @@
                 }
                 beginDrag('playhead', timelineBar, ev);
             });
-            timelineBar.addEventListener('pointermove', function (ev) {
-                if (!dragState || dragState.type !== 'playhead') return;
-                if (ev.pointerId !== undefined && dragState.pointerId !== undefined && ev.pointerId !== dragState.pointerId) return;
-                applyDragMove(ev.clientX);
-            });
-            timelineBar.addEventListener('pointerup', finishDrag);
-            timelineBar.addEventListener('pointercancel', finishDrag);
         }
 
         window.addEventListener('pointermove', function (ev) {
