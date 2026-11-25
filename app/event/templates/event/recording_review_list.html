@@ -98,7 +98,9 @@
                                     {% endwith %}
                                 {% endwith %}
                             {% endif %}
-                            <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-secondary">詳細</a>
+                            {% if row.can_access_recording %}
+                                <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-secondary" data-testid="action-failed-detail-link-{{ row.detail.pk }}">詳細</a>
+                            {% endif %}
                         </div>
                     </div>
                     {% if row.can_cancel_order %}
@@ -140,7 +142,9 @@
                                     {% endwith %}
                                 {% endwith %}
                             {% endif %}
-                            <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-primary">状態を確認</a>
+                            {% if row.can_access_recording %}
+                                <a href="{% url 'event:recording_review_detail' row.detail.pk %}" class="btn btn-sm btn-outline-primary" data-testid="action-stalled-detail-link-{{ row.detail.pk }}">状態を確認</a>
+                            {% endif %}
                         </div>
                     </div>
                     {% if row.can_cancel_order %}
@@ -227,14 +231,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <div>
-                <label for="id_policy" class="form-label small mb-1">ボットによる自動撮影</label>
-                <select id="id_policy" name="policy" class="form-select form-select-sm">
-                    {% for val, label in policy_choices %}
-                        <option value="{{ val }}"{% if selected_policy == val %} selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
-            </div>
             <div class="d-flex flex-wrap gap-2">
                 <button type="submit" class="btn btn-sm btn-primary">絞り込む</button>
                 {% if has_filters %}
@@ -299,7 +295,7 @@
                 {% if has_filters %}
                     {% include 'ta_hub/admin/includes/empty_state.html' with title='条件に一致する発表はありません。' description='キーワードや絞り込み条件を変えて探してください。' action_url=clear_filters_url action_label='絞り込みを解除' only %}
                 {% else %}
-                    {% include 'ta_hub/admin/includes/empty_state.html' with title='録画管理の対象となる発表はまだありません。' description='ボットによる自動撮影が許可された集会の承認済み発表がここに表示されます。' only %}
+                    {% include 'ta_hub/admin/includes/empty_state.html' with title='録画管理の対象となる発表はまだありません。' description='公開撮影が許可された承認済み発表がここに表示されます。' only %}
                 {% endif %}
             </div>
         {% endfor %}

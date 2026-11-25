@@ -227,13 +227,14 @@ def import_approved_detail_to_vket(sender, instance, raw=False, **kwargs):
 
 @receiver(post_save, sender=EventDetail)
 def revoke_recording_on_detail_save(sender, instance, created=False, raw=False, update_fields=None, **kwargs):
-    """発表の撮影同意撤回・論理削除・非許可集会への所属変更時に公開停止を予約する。"""
+    """発表の撮影同意撤回・承認取消・論理削除・非許可集会への所属変更時に公開停止を予約する。"""
     if raw or created:
         return
-    if update_fields is not None and not ({'recording_policy', 'deleted_at', 'event', 'event_id'} & set(update_fields)):
+    if update_fields is not None and not ({'recording_policy', 'status', 'deleted_at', 'event', 'event_id'} & set(update_fields)):
         return
     if (
-        instance.recording_policy == RecordingPolicy.PUBLIC
+        instance.status == 'approved'
+        and instance.recording_policy == RecordingPolicy.PUBLIC
         and instance.deleted_at is None
         and update_fields is not None
         and not ({'event', 'event_id'} & set(update_fields))

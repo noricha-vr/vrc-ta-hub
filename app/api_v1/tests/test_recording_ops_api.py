@@ -2371,3 +2371,79 @@ class RecordingOpsAPITest(TestCase):
             security = paths[path][method]["security"]
             self.assertEqual(security, [{"APIKeyAuth": []}])
             self.assertNotIn({}, security)
+
+    def test_unapproved_detail_blocks_normal_ops_but_allows_stop_publish_and_blocks_stop_cancel(self):
+        from event.services.recording_ops.errors import RecordingConflictError
+        from event.services.recording_ops.order_actions import cancel_edit_order
+
+        super_client = self._api_client(self.super_write_key)
+        staff_client = self._api_client(self.staff_write_key)
+
+        for unapproved_status in ("pending", "rejected"):
+            with self.subTest(status=unapproved_status):
+                detail = make_event_detail(
+                    self.event, status=unapproved_status, recording_policy=RecordingPolicy.PUBLIC
+                )
+                item = RecordingReviewItem.objects.create(
+                    event_detail=detail,
+                    proxy_r2_key=f"recording-proxy/{detail.pk}/{uuid.uuid4().hex}.mp4",
+                    proxy_duration_sec=1200.0,
+                    proxy_uploaded_at=timezone.now(),
+                    proxy_expires_at=timezone.now() + timedelta(days=7),
+                    review_status=RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+                    youtube_draft_video_id="unappStop01",
+                    youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.UNLISTED,
+                    edl_revision=1,
+                    edl_json=_valid_edl(),
+                )
+
+                up_resp = super_client.post(
+                    reverse("recording-ops-proxy-upload-url", kwargs={"detail_id": detail.pk}),
+                    {},
+                    format="json",
+                )
+                self.assertEqual(up_resp.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(up_resp.data["code"], "recording_not_permitted")
+
+                dl_resp = staff_client.get(
+                    reverse("recording-ops-proxy-url", kwargs={"detail_id": detail.pk})
+                )
+                self.assertEqual(dl_resp.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(dl_resp.data["code"], "recording_not_permitted")
+
+                upsert_resp = super_client.put(
+                    reverse("recording-ops-item-upsert", kwargs={"detail_id": detail.pk}),
+                    {
+                        "expected_revision": 1,
+                        "proxy_r2_key": f"recording-proxy/{detail.pk}/{uuid.uuid4().hex}.mp4",
+                        "edl_json": _valid_edl(),
+                    },
+                    format="json",
+                )
+                self.assertEqual(upsert_resp.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(upsert_resp.data["code"], "recording_not_permitted")
+
+                apply_resp = staff_client.post(
+                    reverse("recording-ops-order-create", kwargs={"detail_id": detail.pk}),
+                    {"expected_revision": 1, "order_type": RecordingEditOrder.OrderType.APPLY_EDL},
+                    format="json",
+                )
+                self.assertEqual(apply_resp.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertEqual(apply_resp.data["code"], "recording_not_permitted")
+
+                # 停止対象動画がある場合の stop_publish 作成は緊急停止例外として許可され、取り消しは拒否される
+                stop_resp = staff_client.post(
+                    reverse("recording-ops-order-create", kwargs={"detail_id": detail.pk}),
+                    {"expected_revision": 1, "order_type": RecordingEditOrder.OrderType.STOP_PUBLISH},
+                    format="json",
+                )
+                self.assertEqual(stop_resp.status_code, status.HTTP_201_CREATED)
+                item.refresh_from_db()
+                with self.assertRaises(RecordingConflictError) as ctx:
+                    cancel_edit_order(
+                        detail.pk,
+                        stop_resp.data["id"],
+                        expected_revision=item.edl_revision,
+                        requested_by=self.staff,
+                    )
+                self.assertEqual(ctx.exception.code, "stop_publish_required")

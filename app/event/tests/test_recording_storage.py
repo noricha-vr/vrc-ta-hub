@@ -161,6 +161,13 @@ class RecordingStoragePresignTest(TestCase):
 
         self.detail.recording_policy = RecordingPolicy.PUBLIC
         self.detail.save(update_fields=["recording_policy"])
+        for unapproved_status in ("pending", "rejected"):
+            self.detail.status = unapproved_status
+            self.detail.save(update_fields=["status"])
+            with self.subTest(status=unapproved_status), self.assertRaises(RecordingConsentError):
+                create_presigned_proxy_upload_url(self.detail)
+        self.detail.status = "approved"
+        self.detail.save(update_fields=["status"])
         self.community.recording_allowed = False
         self.community.save(update_fields=["recording_allowed"])
         with self.assertRaises(RecordingConsentError):

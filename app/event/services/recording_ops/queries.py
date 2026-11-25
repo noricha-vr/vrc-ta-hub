@@ -56,18 +56,12 @@ ORDER_STATUS_FILTER_CHOICES: tuple[tuple[str, str], ...] = (
     ("stalled", "滞留中 (30分超)"),
     (RecordingEditOrder.Status.SUCCEEDED, "完了 (succeeded)"), (RecordingEditOrder.Status.FAILED, "失敗 (failed)"),
 )
-POLICY_FILTER_CHOICES: tuple[tuple[str, str], ...] = (
-    ("", "すべて"), (RecordingPolicy.PUBLIC.value, "公開撮影 (public)"),
-    (RecordingPolicy.ALLOWED.value, "旧設定 (allowed)"), (RecordingPolicy.FORBIDDEN.value, "撮影しない (forbidden)"),
-)
 _VALID_STATUS_FILTERS = frozenset(k for k, _ in STATUS_FILTER_CHOICES if k)
 _VALID_ORDER_FILTERS = frozenset(k for k, _ in ORDER_STATUS_FILTER_CHOICES if k)
-_VALID_POLICY_FILTERS = frozenset(k for k, _ in POLICY_FILTER_CHOICES if k)
 
 __all__ = [
     "BoundaryCandidateOption",
     "ORDER_STATUS_FILTER_CHOICES",
-    "POLICY_FILTER_CHOICES",
     "RecordingDetailContext",
     "RecordingListSummary",
     "RecordingRowSummary",
@@ -178,6 +172,7 @@ class RecordingDetailContext:
 def needs_review_q() -> Q:
     """運営の確認・トリミング確定が必要な発表を選ぶ Q。"""
     return Q(
+        status="approved",
         recording_policy=RecordingPolicy.PUBLIC, event__community__recording_allowed=True,
         recording_review__review_status=RecordingReviewItem.ReviewStatus.NEEDS_REVIEW,
         recording_review__public_locked_at__isnull=True,
@@ -211,11 +206,63 @@ def _stalled_order_q(now: datetime) -> Q:
     )
 
 
+def _private_video_q() -> Q:
+    """stop_queue._is_private_video() と等価な DB クエリ条件。"""
+    return Q(
+        recording_review__youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PRIVATE,
+    ) & ~Q(
+        recording_review__review_status__in=(
+            RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+            RecordingReviewItem.ReviewStatus.PUBLISHED,
+        ),
+    )
+
+
+def _emergency_stop_tracking_q() -> Q:
+    """同意撤回・集会許可OFF・承認取消後でも緊急停止追跡が必要な発表を選ぶ Q。"""
+    active_stop_orders = RecordingEditOrder.objects.filter(
+        review_item__event_detail_id=OuterRef("pk"),
+        order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+        status__in=RecordingEditOrder.ACTIVE_STATUSES,
+    )
+    has_unstopped_video_q = (
+        Q(recording_review__pending_stop_video_ids__isnull=False)
+        & ~Q(recording_review__pending_stop_video_ids=[])
+    ) | (
+        ~_private_video_q()
+        & (
+            ~Q(recording_review__youtube_draft_video_id="")
+            | Q(
+                recording_review__review_status__in=(
+                    RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+                    RecordingReviewItem.ReviewStatus.PUBLISHED,
+                )
+            )
+            | Q(
+                recording_review__youtube_draft_privacy__in=(
+                    RecordingReviewItem.YouTubePrivacy.UNLISTED,
+                    RecordingReviewItem.YouTubePrivacy.PUBLIC,
+                )
+            )
+        )
+    )
+    return Q(recording_review__isnull=False) & (
+        Q(recording_review__compensating_stop_pending=True)
+        | has_unstopped_video_q
+        | (Q(youtube_url__isnull=False) & ~Q(youtube_url=""))
+        | Q(Exists(active_stop_orders))
+    )
+
+
 def _base_recording_queryset() -> QuerySet[EventDetail]:
-    """一覧母集団: 承認済み発表（撮影許可集会の LT/SPECIAL、または既存録画アイテム付き）。"""
+    """一覧母集団: 公開許可された承認済み発表、または緊急停止追跡が必要な既存録画付き発表。"""
+    public_permitted_q = Q(
+        status="approved",
+        event__community__recording_allowed=True,
+        recording_policy=RecordingPolicy.PUBLIC,
+    ) & (Q(detail_type__in=("LT", "SPECIAL")) | Q(recording_review__isnull=False))
     return (
-        EventDetail.objects.filter(status="approved")
-        .filter(Q(event__community__recording_allowed=True, detail_type__in=("LT", "SPECIAL")) | Q(recording_review__isnull=False))
+        EventDetail.objects.filter(public_permitted_q | _emergency_stop_tracking_q())
         .select_related("event", "event__community", "recording_review")
     )
 
@@ -225,7 +272,7 @@ def _apply_status_filter(qs: QuerySet[EventDetail], status_filter: str, now: dat
     if status_filter == "needs_review":
         return qs.filter(needs_review_q())
     if status_filter == "unrecorded":
-        return qs.filter(recording_policy=RecordingPolicy.PUBLIC, event__community__recording_allowed=True).filter(
+        return qs.filter(status="approved", recording_policy=RecordingPolicy.PUBLIC, event__community__recording_allowed=True).filter(
             Q(recording_review__isnull=True) | Q(recording_review__review_status=rs.UNRECORDED)
             | (Q(recording_review__proxy_r2_key="") & ~Q(recording_review__review_status__in=(rs.PROCESSING, rs.PUBLISHED, rs.PRIVATE_FIXED, rs.EXPIRED)))
         ).exclude(_expired_q(now))
@@ -240,15 +287,13 @@ def _apply_status_filter(qs: QuerySet[EventDetail], status_filter: str, now: dat
 
 
 def build_recording_list_queryset(
-    *, status_filter: str = "", order_filter: str = "", policy_filter: str = "", query: str = "", now: datetime | None = None,
+    *, status_filter: str = "", order_filter: str = "", query: str = "", now: datetime | None = None,
 ) -> QuerySet[EventDetail]:
     """フィルタ・検索・最新オーダー注釈済みのスタッフ録画一覧 QuerySet を返す。"""
     current_time = now or timezone.now()
     qs = _base_recording_queryset()
     if status_filter in _VALID_STATUS_FILTERS:
         qs = _apply_status_filter(qs, status_filter, current_time)
-    if policy_filter in _VALID_POLICY_FILTERS:
-        qs = qs.filter(recording_policy=policy_filter)
     if trimmed := query.strip():
         qs = qs.filter(Q(theme__icontains=trimmed) | Q(h1__icontains=trimmed) | Q(speaker__icontains=trimmed) | Q(event__community__name__icontains=trimmed))
 
@@ -276,7 +321,7 @@ def build_recording_row_summary(detail: EventDetail, *, now: datetime | None = N
     current_time = now or timezone.now()
     item: RecordingReviewItem | None = getattr(detail, "recording_review", None)
     community_allowed = bool(detail.event.community.recording_allowed)
-    can_access = detail.recording_policy == RecordingPolicy.PUBLIC and community_allowed
+    can_access = detail.status == "approved" and detail.recording_policy == RecordingPolicy.PUBLIC and community_allowed
     proxy_status, proxy_badge = resolve_proxy_state(detail, item, can_access=can_access, now=current_time)
     latest_order, active_order, order_status, order_badge = resolve_order_state(item)
     publish_badge, is_public_locked = resolve_publish_state(detail, item)

@@ -36,9 +36,10 @@ def lock_event_detail_or_none(detail_id: int, *, include_deleted: bool = False) 
 
 
 def is_recording_consent_valid(detail: EventDetail) -> bool:
-    """発表が録画公開同意および集会許可を満たしており未削除かを返す。"""
+    """発表が承認済み・未削除で録画公開同意および集会許可を満たしているかを返す。"""
     return (
         detail.deleted_at is None
+        and detail.status == "approved"
         and detail.recording_policy == RecordingPolicy.PUBLIC
         and bool(detail.event.community.recording_allowed)
     )
