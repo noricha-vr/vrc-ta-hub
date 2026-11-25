@@ -108,8 +108,9 @@ class RecordingCutsViewsAndOrdersTest(TestCase):
         self.detail_url = reverse("event:recording_review_detail", kwargs={"detail_id": self.detail.pk})
         self.api_order_url = reverse("recording-ops-order-create", kwargs={"detail_id": self.detail.pk})
 
+    @patch("event.services.recording_ops.edl.ALLOW_ACCEPT_CUTS", False)
     @patch("event.services.recording_ops.storage.boto3.client")
-    def test_default_flag_blocks_accept_cuts_on_ui_and_api_with_400(self, mock_boto):
+    def test_flag_off_blocks_accept_cuts_on_ui_and_api_with_400(self, mock_boto):
         mock_s3 = MagicMock()
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/signed?sig=cuts"
         mock_boto.return_value = mock_s3
@@ -191,6 +192,7 @@ class RecordingCutsViewsAndOrdersTest(TestCase):
         )
         self.assertEqual(stop_resp.status_code, 201)
 
+    @patch("event.services.recording_ops.edl.ALLOW_ACCEPT_CUTS", False)
     @patch("event.services.recording_ops.storage.boto3.client")
     def test_pending_and_reject_cuts_submit_allowed_when_flag_off(self, mock_boto):
         mock_s3 = MagicMock()
@@ -221,7 +223,6 @@ class RecordingCutsViewsAndOrdersTest(TestCase):
         self.assertEqual(data["keep_spans"], [[30.0, 900.0]])
         self.assertAlmostEqual(data["adopted_duration_sec"], 870.0)
 
-    @patch("event.services.recording_ops.edl.ALLOW_ACCEPT_CUTS", True)
     @patch("event.services.recording_ops.storage.boto3.client")
     def test_accept_and_manual_cuts_submit_with_logging_and_validation(self, mock_boto):
         mock_s3 = MagicMock()
@@ -229,6 +230,12 @@ class RecordingCutsViewsAndOrdersTest(TestCase):
         mock_boto.return_value = mock_s3
 
         self.client.force_login(self.staff)
+        get_resp = self.client.get(self.detail_url)
+        self.assertEqual(get_resp.status_code, 200)
+        soup = BeautifulSoup(get_resp.content, "html.parser")
+        self.assertIsNone(soup.select_one('[data-testid="accept-cuts-disabled-notice"]'))
+        config = json.loads(soup.select_one("#recording-review-config").get_text())
+        self.assertTrue(config["allowAcceptCuts"])
         cuts_payload = [
             {**_edl_with_pending_cuts()["cuts"][0], "action": "accept"},
             {**_edl_with_pending_cuts()["cuts"][1], "action": "reject"},

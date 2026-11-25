@@ -8,8 +8,8 @@ from typing import Any
 
 EDL_SCHEMA_VERSION = 1
 EDL_CUT_ACTIONS = frozenset({"pending", "accept", "reject"})
-# 録画側ワーカーの途中カット（action="accept"）対応が完了するまで False で安全に抑止する。
-ALLOW_ACCEPT_CUTS: bool = False
+# 途中カット（action="accept"）確定の有効化フラグ（緊急抑止時は False に戻す）。
+ALLOW_ACCEPT_CUTS: bool = True
 MIN_KEEP_DURATION_SEC = Decimal("1.0")
 MAX_CUTS_COUNT = 200
 _TOP_LEVEL_REQUIRED_KEYS = frozenset({"schema_version", "safe_bounds", "trim", "cuts"})

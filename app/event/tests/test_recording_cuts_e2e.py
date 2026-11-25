@@ -175,8 +175,9 @@ class RecordingCutsE2ETests(PlaywrightLiveServerTestCase):
             f"Horizontal overflow detected in {label}: {overflow}",
         )
 
+    @patch("event.services.recording_ops.edl.ALLOW_ACCEPT_CUTS", False)
     @patch("event.services.recording_ops.storage.boto3.client")
-    def test_default_flag_off_guards_accept_and_confirms_pending(self, mock_boto: MagicMock) -> None:
+    def test_flag_off_guards_accept_and_confirms_pending(self, mock_boto: MagicMock) -> None:
         mock_s3 = MagicMock()
         mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/vrc-ta-hub-private/sample.mp4?X-Amz-Signature=sig1"
         mock_boto.return_value = mock_s3
@@ -219,7 +220,6 @@ class RecordingCutsE2ETests(PlaywrightLiveServerTestCase):
         self.assertEqual([c["action"] for c in order.edl_snapshot["cuts"]], ["reject", "pending"])
         self.assertEqual(self.page_errors, [])
 
-    @patch("event.services.recording_ops.edl.ALLOW_ACCEPT_CUTS", True)
     @patch("event.services.recording_ops.storage.boto3.client")
     def test_accept_manual_edit_delete_timeline_and_mobile_screenshots(self, mock_boto: MagicMock) -> None:
         mock_s3 = MagicMock()

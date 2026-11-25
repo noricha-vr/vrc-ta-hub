@@ -237,7 +237,7 @@ class EDLv1ValidationTest(TestCase):
             validate_edl_v1(edl)
 
     def test_keep_spans_min_duration_and_summarize_cuts(self):
-        self.assertFalse(ALLOW_ACCEPT_CUTS)
+        self.assertTrue(ALLOW_ACCEPT_CUTS)
         edl = _valid_edl(
             trim={"start_sec": 30.0, "end_sec": 100.0},
             cuts=[
