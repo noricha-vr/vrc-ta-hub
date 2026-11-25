@@ -26,7 +26,7 @@ from .snapshot_parser import (
     as_optional_bool,
     as_optional_int,
     as_str,
-    is_recording_detail_url,
+    extract_recording_detail_id_from_url,
     parse_funnel_period,
     parse_next_session,
     parse_venue_coverage,
@@ -138,9 +138,13 @@ def _format_elapsed(snapshot_at: datetime, now: datetime) -> tuple[str, bool, in
 def _collect_detail_ids(payload: dict[str, Any]) -> set[int]:
     ids: set[int] = set()
     for raw_item in as_list(payload.get("action_items")):
-        detail_id = as_optional_int(as_dict(raw_item).get("detail_id"))
+        item_dict = as_dict(raw_item)
+        detail_id = as_optional_int(item_dict.get("detail_id"))
         if detail_id is not None and detail_id > 0:
             ids.add(detail_id)
+        target_id = extract_recording_detail_id_from_url(safe_url(item_dict.get("action_url")))
+        if target_id is not None and target_id > 0:
+            ids.add(target_id)
     for raw_session in as_list(payload.get("upcoming_schedule")):
         for raw_talk in as_list(as_dict(raw_session).get("talks")):
             detail_id = as_optional_int(as_dict(raw_talk).get("detail_id"))
@@ -194,8 +198,11 @@ def _parse_action_items(
         detail_id = as_optional_int(data.get("detail_id"))
         linked = linked_details.get(detail_id) if detail_id is not None else None
         action_url = safe_url(data.get("action_url"))
-        if linked is not None and not linked.can_access_recording and is_recording_detail_url(action_url, detail_id):
-            action_url = ""
+        target_detail_id = extract_recording_detail_id_from_url(action_url)
+        if target_detail_id is not None:
+            target_linked = linked_details.get(target_detail_id)
+            if target_linked is None or not target_linked.can_access_recording:
+                action_url = ""
         items.append(
             DashboardActionItem(
                 day=as_str(data.get("day")),

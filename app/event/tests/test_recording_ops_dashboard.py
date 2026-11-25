@@ -196,16 +196,26 @@ class RecordingOpsDashboardViewsTest(TestCase):
     def test_missing_keys_and_unsafe_urls_do_not_crash_or_leak(self):
         malformed_payload = {
             "schema_version": 1,
-            "next_session": {"event_url": "javascript:alert(1)"},
+            "next_session": {"event_url": "https://[broken", "talk_count": "²"},
             "action_items": [
                 "unexpected-string-entry",
                 {
                     "title": "危険URLテスト",
                     "action_url": "javascript:alert(2)",
-                    "detail_id": "not-an-int",
+                    "detail_id": "²",
+                },
+                {
+                    "title": "巨大桁・不正URLテスト",
+                    "action_url": "https://[broken",
+                    "detail_id": "5" * 5000,
                 },
             ],
-            "funnel_stats": {"periods": {"7": {"required": "bad"}}},
+            "funnel_stats": {
+                "periods": {
+                    "7": {"required": 1, "recorded": 10**400, "published": 0, "publishable": 0, "articles": 0},
+                    "30": {"required": "bad"},
+                }
+            },
             "venue_coverage": {},
             "upcoming_schedule": [
                 {"community_name": "最小スケジュール", "talks": ["bad-talk", {}]},
@@ -217,7 +227,11 @@ class RecordingOpsDashboardViewsTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertNotContains(resp, "javascript:alert")
         self.assertContains(resp, "危険URLテスト")
+        self.assertContains(resp, "巨大桁・不正URLテスト")
         self.assertContains(resp, "最小スケジュール")
+        ctx = build_recording_ops_dashboard_context(user=self.staff, period="7")
+        self.assertEqual(ctx.active_funnel.recorded_pct, 100)
+        self.assertIsNone(ctx.active_funnel.published_pct)
 
     def test_article_status_integration_and_consent_boundary_on_list_and_dashboard(self):
         # allowed / forbidden にも RecordingReviewItem があっても再生・録画編集導線を出さない
@@ -230,7 +244,7 @@ class RecordingOpsDashboardViewsTest(TestCase):
             )
 
         payload = _load_fixture_payload()
-        # action_items に allowed_uncreated への危険な URL が紛れても境界で抑止されること
+        # action_items に allowed_uncreated への危険な URL（難読化・ID 欠損・未解決 ID）が紛れても境界で抑止されること
         payload["action_items"] = [
             {
                 "day": "2026-11-24",
@@ -240,7 +254,25 @@ class RecordingOpsDashboardViewsTest(TestCase):
                 "title": self.allowed_uncreated.theme,
                 "label": "旧設定の境界テスト",
                 "reason": "",
-                "action_url": f"/event/manage/recordings/{self.allowed_uncreated.pk}/",
+                "action_url": f"/event/manage/recordings/00{self.allowed_uncreated.pk}/",
+            },
+            {
+                "day": "2026-11-24",
+                "community_id": self.community.pk,
+                "community_name": self.community.name,
+                "title": "ID欠損トラバーサル境界テスト",
+                "label": "ID未指定でもURLから判定",
+                "reason": "",
+                "action_url": f"/event/manage/recordings/999/../{self.forbidden_ng.pk}/",
+            },
+            {
+                "day": "2026-11-24",
+                "community_id": self.community.pk,
+                "community_name": self.community.name,
+                "title": "未解決ID境界テスト",
+                "label": "DB未存在IDは抑止",
+                "reason": "",
+                "action_url": "/event/manage/recordings/9999999/",
             },
             {
                 "day": "2026-11-24",
@@ -327,8 +359,10 @@ class RecordingOpsDashboardViewsTest(TestCase):
 
         allowed_action = dash_soup.select_one(f'[data-testid="dashboard-action-row"][data-detail-id="{self.allowed_uncreated.pk}"]')
         self.assertIsNotNone(allowed_action)
-        self.assertIsNone(allowed_action.select_one(f'a[href*="/manage/recordings/{self.allowed_uncreated.pk}/"]'))
+        self.assertIsNone(allowed_action.select_one('a[href*="/manage/recordings/"]'))
         self.assertIsNotNone(allowed_action.select_one('[data-testid="dashboard-article-link"]'))
+        self.assertIsNone(dash_soup.select_one('a[href*="999/../"]'))
+        self.assertIsNone(dash_soup.select_one('a[href*="/manage/recordings/9999999/"]'))
 
         pub_talk = dash_soup.select_one(f'[data-testid="dashboard-schedule-talk"][data-detail-id="{self.published_public.pk}"]')
         self.assertIn("記事: 公開済み", pub_talk.get_text())

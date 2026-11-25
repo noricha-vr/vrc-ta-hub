@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import posixpath
+import re
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from community.constants import RecordingPolicy
 
@@ -106,8 +108,13 @@ def as_optional_int(value: Any) -> int | None:
         return None
     if isinstance(value, int):
         return value
-    if isinstance(value, str) and value.strip().isdigit():
-        return int(value.strip())
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped and stripped.isascii() and stripped.isdigit():
+            try:
+                return int(stripped)
+            except ValueError:
+                return None
     return None
 
 
@@ -119,9 +126,13 @@ def as_non_negative_int(value: Any, default: int = 0) -> int:
 
 
 def pct(numerator: int, denominator: int) -> int | None:
-    if denominator <= 0:
+    if denominator <= 0 or numerator < 0:
         return None
-    return min(100, max(0, round((numerator * 100) / denominator)))
+    if numerator == 0:
+        return 0
+    if numerator >= denominator:
+        return 100
+    return min(100, (numerator * 100 + denominator // 2) // denominator)
 
 
 def safe_url(value: Any) -> str:
@@ -130,18 +141,35 @@ def safe_url(value: Any) -> str:
         return ""
     if raw.startswith("/") and not raw.startswith("//"):
         return raw
-    parsed = urlparse(raw)
+    try:
+        parsed = urlparse(raw)
+    except ValueError:
+        return ""
     if parsed.scheme in ("http", "https") and parsed.netloc:
         return raw
     return ""
 
 
-def is_recording_detail_url(url: str, detail_id: int | None) -> bool:
-    if not url or detail_id is None:
-        return False
-    parsed = urlparse(url)
-    path = parsed.path or url
-    return f"/manage/recordings/{detail_id}" in path
+_RECORDING_DETAIL_PATH_RE = re.compile(r"/manage/recordings/(\d+)(?:/|$)")
+
+
+def extract_recording_detail_id_from_url(url: str) -> int | None:
+    """URL が録画詳細画面を指す場合、正規化後の detail_id を返す。"""
+    if not url:
+        return None
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    raw_path = unquote(parsed.path or url)
+    normalized = posixpath.normpath(raw_path)
+    match = _RECORDING_DETAIL_PATH_RE.search(normalized)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
 
 
 def resolve_venue_status(raw_status: Any) -> tuple[str, str, str]:
@@ -189,8 +217,9 @@ def parse_funnel_period(raw_funnel: Any, period_key: str) -> FunnelPeriodSummary
     published = as_non_negative_int(data.get("published"))
     articles = as_non_negative_int(data.get("articles"))
     articles_unknown = as_non_negative_int(data.get("articles_unknown"))
-    publishable = as_non_negative_int(data.get("publishable"), default=required)
-    publish_denom = publishable if publishable > 0 else required
+    has_publishable = "publishable" in data and as_optional_int(data.get("publishable")) is not None
+    publishable = as_non_negative_int(data.get("publishable"), default=required) if has_publishable else required
+    publish_denom = publishable if has_publishable else required
     return FunnelPeriodSummary(
         period_key=period_key,
         label=FUNNEL_PERIOD_LABELS.get(period_key, f"{period_key}日間"),
