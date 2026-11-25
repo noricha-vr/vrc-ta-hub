@@ -257,11 +257,15 @@ class RecordingCutsE2ETests(PlaywrightLiveServerTestCase):
         expect(self.page.get_by_test_id("cut-row")).to_have_count(3)
         expect(self.page.locator("#recording-adopted-duration")).to_contain_text("8.0秒")
 
-        # 手動カット（中央の行 index 1）をインライン編集（end 9.5 → 9.0 で採用尺 8.5s）
+        # 手動カット（中央の行 index 1）をインライン編集（拡大切替を挟んでも入力値が消えないこと）
         manual_row = self.page.get_by_test_id("cut-row").nth(1)
         manual_row.get_by_test_id("cut-edit-btn").click()
         manual_row.get_by_test_id("cut-edit-end").fill("9")
         manual_row.get_by_test_id("cut-edit-label").fill("マイク再接続済み")
+        self.page.get_by_test_id("zoom-btn-start").click()
+        self.page.get_by_test_id("zoom-btn-all").click()
+        expect(manual_row.get_by_test_id("cut-edit-end")).to_have_value("9")
+        expect(manual_row.get_by_test_id("cut-edit-label")).to_have_value("マイク再接続済み")
         manual_row.get_by_test_id("cut-edit-apply").click()
         expect(manual_row).to_contain_text("マイク再接続済み")
         expect(self.page.locator("#recording-adopted-duration")).to_contain_text("8.5秒")

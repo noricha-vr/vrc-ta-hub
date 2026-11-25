@@ -167,21 +167,23 @@
             return roundTrim(Math.min(safeMax, Math.max(Math.min(safeMax, roundTrim(getStartSec() + minGap)), parsed)));
         }
 
-        function refreshTrimViews(forceSync) {
-            syncTrimDisplays(true);
-            syncCandidateChips();
-            if (cutsEditor) cutsEditor.onTrimChanged();
-            updateModeUI();
-            updateAdoptedDuration();
-            syncTimelinePositions(undefined, forceSync);
-        }
-
         function previewTrimValue(side, rawVal) {
             const next = clampTrimSide(side, rawVal);
             if (next === null) return null;
             if (side === 'start' && startRawInput) startRawInput.value = String(next);
-            if (side === 'end' && endRawInput) endRawInput.value = String(next);
-            refreshTrimViews(true);
+            if (side === 'end' && endRawInput) {
+                endRawInput.value = String(next);
+                if (playerCtrl) playerCtrl.onEndTrimChanged(next);
+            }
+            syncTrimDisplays(true);
+            syncCandidateChips();
+            if (cutsEditor) {
+                if (typeof cutsEditor.onTrimPreview === 'function') cutsEditor.onTrimPreview();
+                else cutsEditor.onTrimChanged();
+            }
+            updateModeUI();
+            updateAdoptedDuration();
+            syncTimelinePositions(undefined, true);
             return next;
         }
 

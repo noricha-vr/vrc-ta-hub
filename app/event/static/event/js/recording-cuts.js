@@ -266,8 +266,7 @@
             return card;
         }
 
-        function renderAll() {
-            const state = evaluateState();
+        function renderTimelineOnly(state) {
             const win = typeof ctx.getTimelineWindow === 'function'
                 ? ctx.getTimelineWindow()
                 : { viewMin: ctx.safeMin, viewMax: ctx.safeMax };
@@ -285,6 +284,11 @@
                 onCandidateClick: ctx.onCandidateClick,
             });
             updatePlayhead(lastPlayerSec);
+        }
+
+        function renderAll() {
+            const state = evaluateState();
+            renderTimelineOnly(state);
 
             if (countsEl) {
                 countsEl.textContent = '採用 ' + state.acceptCount + ' / 未判断 ' + state.pendingCount + ' / 却下 ' + state.rejectCount;
@@ -437,11 +441,14 @@
             onTrimChanged: function () {
                 renderAll();
             },
+            onTrimPreview: function () {
+                renderTimelineOnly(evaluateState());
+            },
             onPlaybackModeChanged: function () {
-                renderAll();
+                renderTimelineOnly(evaluateState());
             },
             onZoomChanged: function () {
-                renderAll();
+                renderTimelineOnly(evaluateState());
             },
             onPlayerTimeUpdate: function (sec) {
                 updatePlayhead(sec);
