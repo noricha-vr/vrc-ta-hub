@@ -52,10 +52,15 @@ def remove_pending_stop_video_id(item: RecordingReviewItem, *video_ids: str) -> 
     return True
 
 
-def _is_private_fixed(item: RecordingReviewItem) -> bool:
+def _is_private_video(item: RecordingReviewItem) -> bool:
+    """保持中の動画が非公開であり、公開・限定公開状態ではないかを返す。"""
     return (
-        item.review_status == RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
-        and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE
+        item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE
+        and item.review_status
+        not in (
+            RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED,
+            RecordingReviewItem.ReviewStatus.PUBLISHED,
+        )
     )
 
 
@@ -64,8 +69,8 @@ def preserve_unstopped_video_id(
     prior_video_id: str,
     new_video_id: str,
 ) -> bool:
-    """置き換え前の動画 ID が非公開確定済みでなければ停止待ち一覧へ保全する。"""
-    if not prior_video_id or prior_video_id == new_video_id or _is_private_fixed(item):
+    """置き換え前の動画 ID が非公開でなければ停止待ち一覧へ保全する。"""
+    if not prior_video_id or prior_video_id == new_video_id or _is_private_video(item):
         return False
     return add_pending_stop_video_id(item, prior_video_id)
 
@@ -79,10 +84,10 @@ def next_stop_target_video_id(item: RecordingReviewItem) -> str:
 
 
 def item_has_unstopped_video(item: RecordingReviewItem) -> bool:
-    """非公開確定済みではなく、停止対象となり得る外部動画または公開状態が存在するか。"""
+    """非公開状態ではなく、停止対象となり得る外部動画または公開状態が存在するか。"""
     if [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]:
         return True
-    if _is_private_fixed(item):
+    if _is_private_video(item):
         return False
     return (
         bool(item.youtube_draft_video_id)

@@ -1788,6 +1788,99 @@ class RecordingOpsAPITest(TestCase):
         self.assertEqual(item_v.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
         self.assertEqual(item_v.pending_stop_video_ids, [])
 
+        # 4) needs_review + youtube_draft_privacy="private" の旧仮動画から新動画（private）へ
+        # apply_edl succeeded した場合は、旧動画 ID へ巻き戻らず不要 stop_publish も起票しない
+        detail_priv_draft = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_priv_draft = self._register_item(
+            detail_priv_draft,
+            youtube_draft_video_id="zoXMaW0pT6E",
+            youtube_draft_privacy="private",
+        )
+        self.assertEqual(item_priv_draft.review_status, RecordingReviewItem.ReviewStatus.NEEDS_REVIEW)
+
+        ord_priv_draft = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_priv_draft.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        self.assertEqual(ord_priv_draft.status_code, status.HTTP_201_CREATED)
+        claim_priv_draft = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertEqual(claim_priv_draft.data["order"]["id"], ord_priv_draft.data["id"])
+
+        done_priv_draft = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_priv_draft.data["id"]}),
+            {
+                "target_revision": ord_priv_draft.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "5KYgDL4H-Yg",
+                "youtube_draft_privacy": "private",
+                "review_status": "private_fixed",
+            },
+            format="json",
+        )
+        self.assertEqual(done_priv_draft.status_code, status.HTTP_200_OK)
+        item_priv_draft.refresh_from_db()
+        self.assertEqual(item_priv_draft.youtube_draft_video_id, "5KYgDL4H-Yg")
+        self.assertEqual(item_priv_draft.youtube_draft_privacy, RecordingReviewItem.YouTubePrivacy.PRIVATE)
+        self.assertEqual(item_priv_draft.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(item_priv_draft.pending_stop_video_ids, [])
+        self.assertEqual(item_priv_draft.edl_revision, 2)
+        self.assertFalse(
+            RecordingEditOrder.objects.filter(
+                review_item=item_priv_draft,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+            ).exists()
+        )
+        with patch("event.services.recording_ops.storage.boto3.client") as mock_boto:
+            mock_boto.return_value.generate_presigned_url.return_value = (
+                "https://r2.example.invalid/vrc-ta-hub-private/signed-966"
+            )
+            proxy_resp = staff_client.get(
+                reverse("recording-ops-proxy-url", kwargs={"detail_id": detail_priv_draft.pk})
+            )
+        self.assertEqual(proxy_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(proxy_resp.data["youtube_draft_video_id"], "5KYgDL4H-Yg")
+        self.assertEqual(proxy_resp.data["youtube_draft_privacy"], RecordingReviewItem.YouTubePrivacy.PRIVATE)
+        self.assertEqual(proxy_resp.data["review_status"], RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertEqual(proxy_resp.data["edl_revision"], 2)
+
+        # 5) needs_review + private の旧仮動画から unlisted へ差し替えた場合も旧仮動画は pending に積まない
+        detail_priv_to_unl = make_event_detail(self.event, status="approved", recording_policy=RecordingPolicy.PUBLIC)
+        item_priv_to_unl = self._register_item(
+            detail_priv_to_unl,
+            youtube_draft_video_id="oldPriv1234",
+            youtube_draft_privacy="private",
+        )
+        ord_priv_to_unl = staff_client.post(
+            reverse("recording-ops-order-create", kwargs={"detail_id": detail_priv_to_unl.pk}),
+            {"expected_revision": 1},
+            format="json",
+        )
+        super_client.post(self.order_claim_url, {}, format="json")
+        done_priv_to_unl = super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": ord_priv_to_unl.data["id"]}),
+            {
+                "target_revision": ord_priv_to_unl.data["target_revision"],
+                "status": "succeeded",
+                "result_video_id": "newUnl56789",
+                "youtube_draft_privacy": "unlisted",
+                "review_status": "unlisted_scheduled",
+            },
+            format="json",
+        )
+        self.assertEqual(done_priv_to_unl.status_code, status.HTTP_200_OK)
+        item_priv_to_unl.refresh_from_db()
+        self.assertEqual(item_priv_to_unl.youtube_draft_video_id, "newUnl56789")
+        self.assertEqual(item_priv_to_unl.youtube_draft_privacy, RecordingReviewItem.YouTubePrivacy.UNLISTED)
+        self.assertEqual(item_priv_to_unl.review_status, RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED)
+        self.assertEqual(item_priv_to_unl.pending_stop_video_ids, [])
+        self.assertFalse(
+            RecordingEditOrder.objects.filter(
+                review_item=item_priv_to_unl,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+            ).exists()
+        )
+
     def test_physical_delete_stop_publish_failure_and_lease_expiry_retries(self):
         staff_client = self._api_client(self.staff_write_key)
         super_client = self._api_client(self.super_write_key)
