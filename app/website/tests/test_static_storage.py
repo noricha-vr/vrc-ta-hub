@@ -55,7 +55,9 @@ class GuideStaticFilesStorageTest(SimpleTestCase):
                 for asset in (
                     'event/js/recording-cuts-timeline.js',
                     'event/js/recording-cuts.js',
+                    'event/js/recording-review-player.js',
                     'event/js/recording-review-submit.js',
+                    'event/js/recording-review-timeline.js',
                     'event/js/recording-review.js',
                     'event/css/recording-review.css',
                     'ta_hub/css/admin-ui.css',

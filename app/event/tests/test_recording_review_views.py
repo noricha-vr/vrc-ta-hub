@@ -455,10 +455,35 @@ class RecordingReviewStaffViewsTest(TestCase):
         self.assertContains(resp, 'data-testid="set-start-from-player-btn"')
         self.assertContains(resp, 'data-testid="set-end-from-player-btn"')
         self.assertContains(resp, 'data-testid="recording-mode-banner"')
+        self.assertContains(resp, 'data-testid="recording-trim-dock"')
+        self.assertContains(resp, 'data-testid="timeline-zoom-group"')
+        self.assertContains(resp, 'data-testid="start-candidates-row"')
+        self.assertContains(resp, 'data-testid="end-candidates-row"')
         self.assertContains(resp, "event/css/recording-review.css")
+        self.assertContains(resp, "event/js/recording-review-timeline.js")
+        self.assertContains(resp, "event/js/recording-review-player.js")
         self.assertContains(resp, "event/js/recording-review-submit.js")
         # 画面上のラベル・案内文に内部識別子（keep_spans / cuts[] / trim.start_sec）が露出しないこと
         self.assertNotContains(resp, "keep_spans")
         self.assertNotContains(resp, "cuts[]")
         self.assertNotContains(resp, "trim.start_sec")
         self.assertNotContains(resp, "trim.end_sec")
+
+    @patch("event.services.recording_ops.storage.boto3.client")
+    def test_detail_ui_hides_candidate_rows_when_candidates_empty(self, mock_boto: MagicMock):
+        mock_s3 = MagicMock()
+        mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/proxy.mp4?sig=2"
+        mock_boto.return_value = mock_s3
+
+        edl = _valid_edl()
+        edl["boundary_candidates"] = {"start": [], "end": []}
+        self.review_item.edl_json = edl
+        self.review_item.save(update_fields=["edl_json"])
+
+        self.client.force_login(self.staff)
+        resp = self.client.get(self._detail_url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, 'data-testid="start-candidates-row"')
+        self.assertNotContains(resp, 'data-testid="end-candidates-row"')
+        self.assertNotContains(resp, "自動検出された開始候補はありません")
+        self.assertNotContains(resp, "自動検出された終了候補はありません")

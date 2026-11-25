@@ -14,6 +14,7 @@
         const emptyEl = document.getElementById('cuts-empty-state');
         const countsEl = document.getElementById('recording-cuts-counts');
         const timelineBar = document.getElementById('recording-timeline-bar');
+        const timelineLayersEl = document.getElementById('recording-tl-layers');
         const keepSpansSummaryEl = document.getElementById('recording-keep-spans-summary');
         const validationBanner = document.getElementById('cuts-validation-banner');
         const acceptBlockedBanner = document.getElementById('cuts-accept-blocked-banner');
@@ -42,7 +43,6 @@
         const allowAcceptCuts = Boolean(ctx.config.allowAcceptCuts);
         const editingCutIds = new Set();
         const originalSubmitText = submitBtn ? submitBtn.textContent : '';
-        let playheadEl = null;
         let lastPlayerSec = ctx.getStartSec();
 
         function syncHiddenInput(emitDirty) {
@@ -67,10 +67,9 @@
 
         function updatePlayhead(sec) {
             lastPlayerSec = sec;
-            if (!playheadEl) return;
-            const total = Math.max(0.001, ctx.safeMax - ctx.safeMin);
-            const pct = Math.max(0, Math.min(100, ((sec - ctx.safeMin) / total) * 100));
-            playheadEl.style.left = pct.toFixed(3) + '%';
+            if (typeof ctx.onTimelineSync === 'function') {
+                ctx.onTimelineSync(sec);
+            }
         }
 
         function buildInlineEditForm(cut) {
@@ -267,16 +266,29 @@
             return card;
         }
 
-        function renderAll() {
-            const state = evaluateState();
-            playheadEl = tl.renderTimelineBar({
+        function renderTimelineOnly(state) {
+            const win = typeof ctx.getTimelineWindow === 'function'
+                ? ctx.getTimelineWindow()
+                : { viewMin: ctx.safeMin, viewMax: ctx.safeMax };
+            tl.renderTimelineLayers({
                 timelineBar: timelineBar,
+                layersEl: timelineLayersEl,
                 keepSpansSummaryEl: keepSpansSummaryEl,
                 state: state,
                 cuts: cuts,
                 ctx: ctx,
+                viewMin: win.viewMin,
+                viewMax: win.viewMax,
+                candidates: ctx.candidates,
+                canSubmit: !isDisabled,
+                onCandidateClick: ctx.onCandidateClick,
             });
             updatePlayhead(lastPlayerSec);
+        }
+
+        function renderAll() {
+            const state = evaluateState();
+            renderTimelineOnly(state);
 
             if (countsEl) {
                 countsEl.textContent = '採用 ' + state.acceptCount + ' / 未判断 ' + state.pendingCount + ' / 却下 ' + state.rejectCount;
@@ -325,33 +337,6 @@
                     submitBtn.textContent = originalSubmitText;
                 }
             }
-        }
-
-        if (timelineBar) {
-            timelineBar.addEventListener('click', function (ev) {
-                if (!ctx.video) return;
-                const rect = timelineBar.getBoundingClientRect();
-                if (rect.width <= 0) return;
-                const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-                const rawTarget = ctx.roundTrim(ctx.safeMin + ratio * (ctx.safeMax - ctx.safeMin));
-                const mode = typeof ctx.getPlaybackMode === 'function' ? ctx.getPlaybackMode() : 'preview';
-                if (mode === 'full') {
-                    ctx.seekAndPlay(rawTarget, null, { allowBeforeStart: true, allowCutThrough: true });
-                    if (typeof ctx.showFeedback === 'function') {
-                        ctx.showFeedback('全体モード: ' + ctx.formatSec(rawTarget) + ' へ移動しました');
-                    }
-                    return;
-                }
-                const trimS = ctx.getStartSec();
-                const trimE = ctx.getEndSec();
-                const clamped = Math.max(trimS, Math.min(Math.max(trimS, trimE - 0.1), rawTarget));
-                ctx.seekAndPlay(clamped, trimE);
-                if (rawTarget < trimS || rawTarget >= trimE) {
-                    if (typeof ctx.showFeedback === 'function') {
-                        ctx.showFeedback('プレビュー中のため開始〜終了範囲内へ移動しました（余白を見るには「余白込み全体を見る」を選択）');
-                    }
-                }
-            });
         }
 
         document.querySelectorAll('[data-action="fill-cut-start-from-player"]').forEach(function (btn) {
@@ -456,8 +441,14 @@
             onTrimChanged: function () {
                 renderAll();
             },
+            onTrimPreview: function () {
+                renderTimelineOnly(evaluateState());
+            },
             onPlaybackModeChanged: function () {
-                renderAll();
+                renderTimelineOnly(evaluateState());
+            },
+            onZoomChanged: function () {
+                renderTimelineOnly(evaluateState());
             },
             onPlayerTimeUpdate: function (sec) {
                 updatePlayhead(sec);

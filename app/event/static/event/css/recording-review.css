@@ -1,35 +1,474 @@
-/* スタッフ向け録画プロキシ再生・トリミング画面のスタイル */
+/* スタッフ向け録画プロキシ再生・縮約トリミング画面のスタイル */
+.hub-admin .tabular { font-variant-numeric: tabular-nums; }
 .hub-admin .recording-video-wrap { background: #11161d; border-radius: var(--admin-radius-control); overflow: hidden; }
 .hub-admin .recording-video-player { display: block; width: 100%; max-height: 60vh; background: #000; }
-.hub-admin .recording-controls-bar { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; margin-top: .85rem; }
-.hub-admin .recording-mode-group, .hub-admin .recording-offset-group { display: flex; flex-wrap: wrap; gap: .5rem; }
-.hub-admin .recording-mode-choice { display: inline-flex; align-items: center; gap: .4rem; border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .4rem .7rem; background: #fff; cursor: pointer; font-size: .875rem; }
-.hub-admin .recording-mode-choice:has(input:checked) { border-color: var(--admin-primary); background: var(--admin-primary-soft); font-weight: 700; }
-.hub-admin .recording-mode-banner { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .75rem; padding: .55rem .75rem; border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); background: var(--admin-surface-muted); font-size: .8125rem; }
-.hub-admin .recording-mode-banner.is-preview { border-color: rgba(27, 125, 230, 0.35); background: var(--admin-primary-soft); }
-.hub-admin .recording-trim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr)); gap: 1.25rem; }
-.hub-admin .recording-trim-panel { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: 1rem; background: var(--admin-surface-muted); min-width: 0; }
-.hub-admin .recording-cand-list { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .75rem; }
-.hub-admin .recording-cand-item { display: flex; align-items: flex-start; gap: .5rem; padding: .5rem .65rem; border: 1px solid var(--admin-border); border-radius: .4rem; background: #fff; cursor: pointer; font-size: .875rem; overflow-wrap: anywhere; }
-.hub-admin .recording-cand-item:has(input:checked) { border-color: var(--admin-primary); background: var(--admin-primary-soft); }
-.hub-admin .recording-nudge-group { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
-.hub-admin .recording-nudge-group .btn { white-space: nowrap; }
-.hub-admin .recording-metrics { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; font-size: .875rem; color: var(--admin-muted); font-variant-numeric: tabular-nums; }
-.hub-admin .recording-timeline-panel { margin-top: .85rem; padding-top: .75rem; border-top: 1px solid var(--admin-border); }
-.hub-admin .recording-timeline-bar { position: relative; width: 100%; height: 28px; background: #e9ecef; border-radius: .375rem; overflow: hidden; border: 1px solid var(--admin-border); cursor: pointer; }
+
+/* 動画直下の統合ツールバー */
+.hub-admin .recording-player-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem .75rem;
+    background: #161a20;
+    color: #fff;
+    border-radius: var(--admin-radius-control);
+    padding: .5rem .75rem;
+}
+.hub-admin .recording-toolbar-left,
+.hub-admin .recording-toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .4rem .6rem;
+    min-width: 0;
+}
+.hub-admin .recording-toolbar-time { font-size: .8125rem; white-space: nowrap; }
+.hub-admin .recording-toolbar-total { color: rgba(255, 255, 255, 0.58); }
+.hub-admin .recording-toolbar-chip {
+    display: inline-flex;
+    align-items: center;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: .15rem .5rem;
+    border-radius: .35rem;
+    white-space: nowrap;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.12);
+    color: #f8f9fa;
+}
+.hub-admin .recording-toolbar-chip.is-preview,
+.hub-admin .recording-toolbar-chip.is-zone-keep {
+    background: rgba(27, 125, 230, 0.28);
+    border-color: rgba(110, 168, 254, 0.45);
+    color: #dbeafe;
+}
+.hub-admin .recording-mode-seg {
+    display: inline-flex;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    border-radius: .35rem;
+    overflow: hidden;
+}
+.hub-admin .recording-mode-seg-item {
+    margin: 0;
+    padding: .22rem .55rem;
+    font-size: .75rem;
+    color: rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: background-color .12s ease, color .12s ease;
+}
+.hub-admin .recording-mode-seg-item:not(:first-child) {
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+.hub-admin .recording-mode-seg-item:has(input:checked) {
+    background: var(--custom-primary, rgb(27, 125, 230));
+    color: #fff;
+    font-weight: 600;
+}
+.hub-admin .recording-mode-seg-item:has(input:focus-visible) {
+    outline: 2px solid #93c5fd;
+    outline-offset: -2px;
+    position: relative;
+    z-index: 1;
+}
+.hub-admin .recording-toolbar-play-btn {
+    border-color: rgba(110, 168, 254, 0.65);
+    color: #dbeafe;
+    background: transparent;
+    white-space: nowrap;
+    font-size: .75rem;
+    padding: .22rem .6rem;
+}
+.hub-admin .recording-toolbar-play-btn:hover {
+    background: rgba(27, 125, 230, 0.25);
+    color: #fff;
+    border-color: #93c5fd;
+}
+.hub-admin .recording-mode-subline {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: .25rem .75rem;
+    margin-top: .4rem;
+}
+
+/* ドラッグ対応タイムライン */
+.hub-admin .recording-timeline-panel {
+    margin-top: .75rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--admin-border);
+}
+.hub-admin .recording-timeline-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: .4rem .75rem;
+    margin-bottom: .35rem;
+}
+.hub-admin .recording-zoom-group .btn {
+    font-size: .75rem;
+    padding: .18rem .55rem;
+    white-space: nowrap;
+}
+.hub-admin .recording-zoom-group .btn.is-active {
+    background: var(--admin-primary-soft);
+    border-color: var(--admin-primary);
+    color: #0a58ca;
+    font-weight: 600;
+    z-index: 1;
+}
+.hub-admin .recording-adopted-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .4rem;
+}
+.hub-admin .recording-timeline-stage {
+    position: relative;
+    padding: 2rem 12px .25rem;
+    user-select: none;
+}
+.hub-admin .recording-timeline-bar {
+    position: relative;
+    width: 100%;
+    height: 36px;
+    background: #f1f5f9;
+    border-radius: .375rem;
+    border: 1px solid #cbd5e1;
+    cursor: pointer;
+    overflow: visible;
+}
 .hub-admin .recording-timeline-bar.is-full-mode { background: #f8f9fa; }
-.hub-admin .recording-tl-margin { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, rgba(108, 117, 125, 0.14), rgba(108, 117, 125, 0.14) 4px, transparent 4px, transparent 8px); pointer-events: none; transition: opacity .15s ease; }
-.hub-admin .recording-timeline-bar.is-full-mode .recording-tl-margin { opacity: 0.35; }
-.hub-admin .recording-tl-keep { position: absolute; top: 0; bottom: 0; background: rgba(27, 125, 230, 0.28); border-left: 1px solid rgba(27, 125, 230, 0.55); border-right: 1px solid rgba(27, 125, 230, 0.55); pointer-events: none; }
-.hub-admin .recording-timeline-bar.is-full-mode .recording-tl-keep { background: rgba(27, 125, 230, 0.14); }
-.hub-admin .recording-tl-bound { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--admin-primary); pointer-events: none; }
-.hub-admin .recording-tl-cut { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; cursor: pointer; }
+.hub-admin .recording-tl-layers {
+    position: absolute;
+    inset: 0;
+    border-radius: .3rem;
+    overflow: hidden;
+    pointer-events: none;
+}
+.hub-admin .recording-tl-margin {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background-color: #e9ecef;
+    background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(108, 117, 125, 0.18) 0px,
+        rgba(108, 117, 125, 0.18) 4px,
+        transparent 4px,
+        transparent 8px
+    );
+    pointer-events: none;
+    transition: opacity .15s ease;
+}
+.hub-admin .recording-timeline-bar.is-full-mode .recording-tl-margin { opacity: 0.45; }
+.hub-admin .recording-tl-keep {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(59, 130, 246, 0.34);
+    border-top: 1px solid rgba(27, 125, 230, 0.45);
+    border-bottom: 1px solid rgba(27, 125, 230, 0.45);
+    pointer-events: none;
+}
+.hub-admin .recording-timeline-bar.is-full-mode .recording-tl-keep { background: rgba(59, 130, 246, 0.22); }
+.hub-admin .recording-tl-cut {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    border-radius: 2px;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 2;
+}
 .hub-admin .recording-tl-cut.is-accept { background: rgba(220, 53, 69, 0.8); }
 .hub-admin .recording-tl-cut.is-pending { background: rgba(255, 193, 7, 0.85); }
-.hub-admin .recording-tl-cut.is-reject { background: rgba(108, 117, 125, 0.4); }
-.hub-admin .recording-tl-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #11161d; pointer-events: none; z-index: 2; }
-.hub-admin .recording-timeline-legend { display: flex; flex-wrap: wrap; gap: .5rem 1rem; font-size: .75rem; color: var(--admin-muted); margin-top: .4rem; }
-.hub-admin .recording-tl-swatch { display: inline-block; width: .65rem; height: .65rem; border-radius: 2px; vertical-align: middle; margin-right: .25rem; }
+.hub-admin .recording-tl-cut.is-reject { background: rgba(108, 117, 125, 0.45); }
+.hub-admin .recording-tl-cand {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    margin-left: -3px;
+    padding: 0;
+    border: 0;
+    background: #f59e0b;
+    cursor: pointer;
+    pointer-events: auto;
+    z-index: 3;
+    transition: background-color .12s ease, transform .12s ease;
+}
+.hub-admin .recording-tl-cand.is-start { background: #198754; }
+.hub-admin .recording-tl-cand.is-end { background: #f59e0b; }
+.hub-admin .recording-tl-cand:hover:not(:disabled) { transform: scaleX(1.3); }
+.hub-admin .recording-tl-cand:focus-visible {
+    outline: 2px solid var(--admin-primary);
+    outline-offset: 1px;
+}
+.hub-admin .recording-tl-cand:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.hub-admin .recording-tl-handle {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 20px;
+    margin-left: -10px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    user-select: none;
+    cursor: ew-resize;
+    z-index: 7;
+}
+.hub-admin .recording-tl-handle[hidden] { display: none; }
+.hub-admin .recording-tl-handle:disabled { cursor: not-allowed; opacity: 0.5; }
+.hub-admin .recording-tl-handle-grip {
+    width: 12px;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--admin-primary);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color .12s ease, transform .12s ease;
+}
+.hub-admin .recording-tl-handle-grip::after {
+    content: "";
+    width: 2px;
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.9);
+}
+.hub-admin .recording-tl-handle:hover:not(:disabled) .recording-tl-handle-grip,
+.hub-admin .recording-tl-handle.is-dragging .recording-tl-handle-grip {
+    background: #0b5ed7;
+    transform: scaleX(1.12);
+}
+.hub-admin .recording-tl-handle:focus-visible {
+    outline: none;
+}
+.hub-admin .recording-tl-handle:focus-visible .recording-tl-handle-grip {
+    outline: 2px solid #0b5ed7;
+    outline-offset: 2px;
+}
+
+.hub-admin .recording-tl-playhead {
+    position: absolute;
+    top: -12px;
+    bottom: -3px;
+    width: 16px;
+    margin-left: -8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    user-select: none;
+    z-index: 8;
+}
+.hub-admin .recording-tl-playhead[hidden] { display: none; }
+.hub-admin .recording-tl-playhead-knob {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    touch-action: none;
+    cursor: grab;
+    flex-shrink: 0;
+}
+.hub-admin .recording-tl-playhead.is-dragging .recording-tl-playhead-knob { cursor: grabbing; }
+.hub-admin .recording-tl-playhead-knob::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #212529;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.hub-admin .recording-tl-playhead-line {
+    width: 2px;
+    flex: 1;
+    background: #212529;
+    pointer-events: none;
+}
+.hub-admin .recording-tl-tooltip {
+    position: absolute;
+    top: -34px;
+    transform: translateX(-50%);
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: #212529;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+}
+.hub-admin .recording-timeline-axis {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .35rem .75rem;
+    font-size: .75rem;
+    color: var(--admin-muted);
+    margin-top: .25rem;
+}
+.hub-admin .recording-timeline-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .75rem;
+    align-items: center;
+}
+.hub-admin .recording-tl-swatch {
+    display: inline-block;
+    width: .65rem;
+    height: .65rem;
+    border-radius: 2px;
+    vertical-align: middle;
+    margin-right: .22rem;
+}
+.hub-admin .recording-tl-swatch.is-keep { background: rgba(59, 130, 246, 0.45); }
+.hub-admin .recording-tl-swatch.is-margin {
+    background: repeating-linear-gradient(-45deg, rgba(108, 117, 125, 0.25) 0 2px, transparent 2px 4px);
+    border: 1px solid #cbd5e1;
+}
+.hub-admin .recording-tl-swatch.is-cand { background: #f59e0b; }
+.hub-admin .recording-tl-swatch.is-cut-accept { background: rgba(220, 53, 69, 0.8); }
+.hub-admin .recording-tl-swatch.is-cut-pending { background: rgba(255, 193, 7, 0.85); }
+.hub-admin .recording-tl-swatch.is-cut-reject { background: rgba(108, 117, 125, 0.45); }
+
+/* 開始・終了 2 行統合ドック */
+.hub-admin .recording-trim-dock {
+    margin-top: .75rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--admin-border);
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+.hub-admin .recording-dock-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .4rem .6rem;
+}
+.hub-admin .recording-dock-controls,
+.hub-admin .recording-dock-play {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+}
+.hub-admin .recording-dock-label {
+    width: 2.25rem;
+    font-size: .8125rem;
+    font-weight: 700;
+    color: #495057;
+    margin: 0;
+    flex-shrink: 0;
+}
+.hub-admin .recording-timecode-input {
+    width: 5.75rem;
+    font-size: .8125rem;
+    font-weight: 600;
+    text-align: center;
+    background: #f8f9fa;
+    padding: .22rem .4rem;
+}
+.hub-admin .recording-timecode-input:focus {
+    background: #fff;
+}
+.hub-admin .recording-nudge-group .btn,
+.hub-admin .recording-snap-btn,
+.hub-admin .recording-dock-play .btn {
+    white-space: nowrap;
+    font-size: .75rem;
+    padding: .24rem .5rem;
+}
+.hub-admin .recording-preroll-select {
+    width: auto;
+    font-size: .75rem;
+    padding: .22rem 1.75rem .22rem .5rem;
+}
+
+/* 候補チップ行 */
+.hub-admin .recording-cand-chips-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem;
+    padding-top: .15rem;
+}
+.hub-admin .recording-cand-chips-label {
+    font-size: .75rem;
+    color: var(--admin-muted);
+    white-space: nowrap;
+}
+.hub-admin .recording-cand-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .22rem .65rem;
+    border-radius: 999px;
+    border: 1px solid #ced4da;
+    background: #fff;
+    color: #343a40;
+    font-size: .75rem;
+    max-width: 100%;
+    cursor: pointer;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.hub-admin .recording-cand-chip:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+}
+.hub-admin .recording-cand-chip.is-active {
+    background: var(--admin-primary-soft);
+    border-color: var(--admin-primary);
+    color: #0a58ca;
+    font-weight: 600;
+}
+.hub-admin .recording-cand-chip.is-reset { color: var(--admin-muted); }
+.hub-admin .recording-cand-chip:disabled { opacity: 0.55; cursor: not-allowed; }
+.hub-admin .recording-cand-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+.hub-admin .recording-cand-dot.is-start { background: #198754; }
+.hub-admin .recording-cand-dot.is-end { background: #f59e0b; }
+.hub-admin .recording-cand-chip-text {
+    color: var(--admin-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: min(240px, 55vw);
+}
+.hub-admin .recording-feedback-footer {
+    margin-top: .65rem;
+    padding-top: .5rem;
+    border-top: 1px solid #e9ecef;
+    min-height: 1.4rem;
+}
+
+/* 途中カットセクション */
 .hub-admin .recording-cut-add-panel { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: .85rem; background: var(--admin-surface-muted); }
 .hub-admin .recording-cut-add-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(9.5rem, 100%), 1fr)); gap: .6rem; align-items: end; }
 .hub-admin .recording-cuts-list { display: flex; flex-direction: column; gap: .6rem; }
@@ -42,8 +481,11 @@
 .hub-admin .recording-cut-actions .btn { white-space: nowrap; }
 .hub-admin .recording-cut-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(8.5rem, 100%), 1fr)); gap: .5rem; margin-top: .65rem; padding-top: .65rem; border-top: 1px dashed var(--admin-border); }
 .hub-admin .recording-cuts-empty { border: 1px dashed var(--admin-border); border-radius: var(--admin-radius-control); padding: .85rem 1rem; background: var(--admin-surface-muted); }
+
 @media (max-width: 575.98px) {
-    .hub-admin .recording-trim-panel { padding: .85rem; }
+    .hub-admin .recording-timeline-legend { order: 3; flex-basis: 100%; }
+    .hub-admin .recording-dock-label { width: auto; }
+    .hub-admin .recording-dock-play { width: 100%; justify-content: flex-end; }
     .hub-admin .recording-cut-card { padding: .7rem .75rem; }
     .hub-admin .recording-submit-row .btn { width: 100%; }
 }

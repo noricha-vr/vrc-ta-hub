@@ -1,78 +1,75 @@
-/* スタッフ向け録画プロキシ再生・開始終了トリミング制御 UI。 */
+/* スタッフ向け録画プロキシ再生・開始終了トリミング統合ドック制御。 */
 (function () {
     'use strict';
 
     function fallbackFormatSec(sec) {
-        const clamped = Math.max(0, Number(sec) || 0);
-        const tenths = Math.round(clamped * 10);
-        const whole = Math.floor(tenths / 10);
-        const frac = tenths % 10;
-        const mins = Math.floor(whole / 60);
-        const rem = whole % 60;
-        const hrs = Math.floor(mins / 60);
-        const remMin = mins % 60;
-        const base = hrs > 0
-            ? hrs + ':' + String(remMin).padStart(2, '0') + ':' + String(rem).padStart(2, '0')
-            : remMin + ':' + String(rem).padStart(2, '0');
-        return base + '.' + frac;
+        const t = Math.round(Math.max(0, Number(sec) || 0) * 10);
+        const w = Math.floor(t / 10);
+        const s = String(w % 60).padStart(2, '0');
+        const m = Math.floor(w / 60);
+        const h = Math.floor(m / 60);
+        return (h > 0 ? h + ':' + String(m % 60).padStart(2, '0') + ':' + s : m + ':' + s) + '.' + (t % 10);
     }
 
     function roundTrim(val) {
         return Math.round(val * 1000) / 1000;
     }
 
-    function init() {
-        const configEl = document.getElementById('recording-review-config');
-        const form = document.getElementById('recording-trim-form');
-        if (!configEl || !form) return;
-
-        let config;
+    function parseJsonEl(id, fallback) {
+        const el = document.getElementById(id);
+        if (!el) return fallback;
         try {
-            config = JSON.parse(configEl.textContent || '{}');
+            return JSON.parse(el.textContent || '');
         } catch (_) {
-            return;
+            return fallback;
         }
+    }
 
+    function init() {
+        const config = parseJsonEl('recording-review-config', null);
+        const form = document.getElementById('recording-trim-form');
+        if (!config || !form) return;
+
+        const candidates = parseJsonEl('recording-candidates-data', { start: [], end: [] });
         const tl = window.VrcRecordingCutsTimeline;
         const formatSec = tl && typeof tl.formatSec === 'function' ? tl.formatSec : fallbackFormatSec;
+        const parseTimeInput = tl && typeof tl.parseTimeInput === 'function'
+            ? tl.parseTimeInput
+            : function (s) { const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : null; };
+
         const safeMin = Number(config.safeMin) || 0;
         const safeMax = Number(config.safeMax) || 0;
         const video = document.getElementById('recording-proxy-player');
-        const loadingEl = document.getElementById('recording-player-loading');
-        const errorEl = document.getElementById('recording-player-error');
         const currentTimeEl = document.getElementById('recording-current-time');
         const adoptedDurationEl = document.getElementById('recording-adopted-duration');
         const modeBannerEl = document.getElementById('recording-mode-banner');
         const modeBadgeEl = document.getElementById('recording-mode-badge');
+        const zoneBadgeEl = document.getElementById('recording-zone-badge');
         const modeDescEl = document.getElementById('recording-mode-description');
         const feedbackEl = document.getElementById('recording-playback-feedback');
         const startInput = document.getElementById('id_start_sec');
         const endInput = document.getElementById('id_end_sec');
-        const startDisplayEl = document.getElementById('recording-start-display');
-        const endDisplayEl = document.getElementById('recording-end-display');
-        const playBeforeEndBtn = form.querySelector('[data-action="play-before-end"]');
-        const playFromStartBtn = form.querySelector('[data-action="play-from-start"]');
-        const setStartFromPlayerBtn = form.querySelector('[data-action="set-start-from-player"]');
-        const setEndFromPlayerBtn = form.querySelector('[data-action="set-end-from-player"]');
-        const playTrimRangeBtn = document.querySelector('[data-action="play-trim-range"]');
+        const startRawInput = document.getElementById('id_start_sec_raw');
+        const endRawInput = document.getElementById('id_end_sec_raw');
+        const endOffsetSelect = document.getElementById('recording-end-preview-offset');
 
-        let segmentStopAt = null;
-        let pendingSeek = null;
         let isSyncingTrim = false;
-        let allowBeforeStartPreview = false;
-        let allowCutThroughPreview = false;
-        let programmaticSeekTarget = null;
-        let metadataApplied = false;
         let cutsEditor = null;
+        let timelineCtrl = null;
+        let playerCtrl = null;
 
         function getStartSec() {
-            const parsed = Number(startInput.value);
+            const parsed = Number(startRawInput ? startRawInput.value : (startInput ? startInput.value : ''));
             return Number.isFinite(parsed) ? parsed : safeMin;
         }
 
         function getEndSec() {
-            const parsed = Number(endInput.value);
+            const parsed = Number(endRawInput ? endRawInput.value : (endInput ? endInput.value : ''));
             return Number.isFinite(parsed) ? parsed : safeMax;
+        }
+
+        function getCurrentPlayerSec() {
+            return playerCtrl ? playerCtrl.getCurrentPlayerSec() : getStartSec();
         }
 
         function getPlaybackMode() {
@@ -81,8 +78,7 @@
         }
 
         function getEndOffset() {
-            const checked = document.querySelector('input[name="end_preview_offset"]:checked');
-            const parsed = checked ? Number(checked.value) : 7;
+            const parsed = endOffsetSelect ? Number(endOffsetSelect.value) : 7;
             return Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
         }
 
@@ -90,9 +86,39 @@
             if (feedbackEl) feedbackEl.textContent = msg || '';
         }
 
-        function updateTrimTimeDisplays() {
-            if (startDisplayEl) startDisplayEl.textContent = formatSec(getStartSec());
-            if (endDisplayEl) endDisplayEl.textContent = formatSec(getEndSec());
+        function syncTrimDisplays(forceDisplay) {
+            if (startInput && (forceDisplay || document.activeElement !== startInput)) startInput.value = formatSec(getStartSec());
+            if (endInput && (forceDisplay || document.activeElement !== endInput)) endInput.value = formatSec(getEndSec());
+        }
+
+        function syncCandidateChips() {
+            const s = getStartSec();
+            const e = getEndSec();
+            form.querySelectorAll('[data-candidate-side], [data-candidate-reset]').forEach(function (btn) {
+                const side = btn.dataset.candidateSide || btn.dataset.candidateReset;
+                const candSec = Number(btn.dataset.candidateSec);
+                const active = Number.isFinite(candSec) && Math.abs((side === 'start' ? s : e) - candSec) < 0.05;
+                btn.classList.toggle('is-active', active);
+                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+        }
+
+        function updateZoneBadge(sec) {
+            if (!zoneBadgeEl) return;
+            const cur = Number.isFinite(sec) ? sec : getCurrentPlayerSec();
+            if (cur < getStartSec() - 0.05) {
+                zoneBadgeEl.textContent = '冒頭の余白（除外）';
+                zoneBadgeEl.className = 'recording-toolbar-chip';
+            } else if (cur > getEndSec() + 0.05) {
+                zoneBadgeEl.textContent = '末尾の余白（除外）';
+                zoneBadgeEl.className = 'recording-toolbar-chip';
+            } else if (findCutContaining(cur)) {
+                zoneBadgeEl.textContent = '途中カット（除外）';
+                zoneBadgeEl.className = 'recording-toolbar-chip';
+            } else {
+                zoneBadgeEl.textContent = '本編（採用区間）';
+                zoneBadgeEl.className = 'recording-toolbar-chip is-zone-keep';
+            }
         }
 
         function updateModeUI() {
@@ -100,9 +126,7 @@
             if (modeBannerEl) modeBannerEl.classList.toggle('is-preview', isPreview);
             if (modeBadgeEl) {
                 modeBadgeEl.textContent = isPreview ? 'プレビュー中' : '全体表示中';
-                modeBadgeEl.className = isPreview
-                    ? 'detail-chip bg-primary-subtle text-primary-emphasis'
-                    : 'detail-chip bg-secondary-subtle text-secondary-emphasis';
+                modeBadgeEl.className = isPreview ? 'recording-toolbar-chip is-preview' : 'recording-toolbar-chip';
             }
             if (modeDescEl) {
                 modeDescEl.textContent = isPreview
@@ -117,10 +141,12 @@
             adoptedDurationEl.textContent = dur > 0 ? formatSec(dur) + '（' + dur.toFixed(1) + '秒）' : '不正な範囲';
         }
 
-        function syncCandidateSelection(radioName, targetValue) {
-            form.querySelectorAll('input[name="' + radioName + '"]').forEach(function (radio) {
-                radio.checked = Math.abs(Number(radio.value) - targetValue) < 0.005;
-            });
+        function syncTimelinePositions(sec, forceSync) {
+            const cur = Number.isFinite(sec) ? sec : getCurrentPlayerSec();
+            updateZoneBadge(cur);
+            if (timelineCtrl && (forceSync || !timelineCtrl.isDragging())) {
+                timelineCtrl.syncPositions({ startSec: getStartSec(), endSec: getEndSec(), currentSec: cur });
+            }
         }
 
         function findCutContaining(sec) {
@@ -130,296 +156,237 @@
             }) || null;
         }
 
-        function enforcePreviewStartBounds() {
-            if (!video || video.readyState < 1) return false;
-            if (getPlaybackMode() !== 'preview' || allowBeforeStartPreview) return false;
-            const start = getStartSec();
-            if (video.currentTime < start - 0.05) {
-                programmaticSeekTarget = start;
-                video.currentTime = start;
-                showFeedback('プレビュー中のため開始位置（' + formatSec(start) + '）へ移動しました');
-                return true;
+        function clampTrimSide(side, rawVal) {
+            const totalSpan = Math.max(0, safeMax - safeMin);
+            const minGap = totalSpan > 0 ? Math.min(0.1, Math.max(0.01, totalSpan / 2)) : 0;
+            const parsed = Number(rawVal);
+            if (!Number.isFinite(parsed)) return null;
+            if (side === 'start') {
+                return roundTrim(Math.max(safeMin, Math.min(Math.max(safeMin, roundTrim(getEndSec() - minGap)), parsed)));
             }
-            return false;
+            return roundTrim(Math.min(safeMax, Math.max(Math.min(safeMax, roundTrim(getStartSec() + minGap)), parsed)));
         }
 
-        function tryPlayVideo() {
-            if (!video) return;
-            const playPromise = video.play();
-            if (playPromise && typeof playPromise.catch === 'function') {
-                playPromise.catch(function (err) {
-                    if (err && err.name === 'AbortError') return;
-                    showFeedback('自動再生が制限されました。動画の再生ボタンを押してください。');
-                });
+        function previewTrimValue(side, rawVal) {
+            const next = clampTrimSide(side, rawVal);
+            if (next === null) return null;
+            if (side === 'start' && startRawInput) startRawInput.value = String(next);
+            if (side === 'end' && endRawInput) {
+                endRawInput.value = String(next);
+                if (playerCtrl) playerCtrl.onEndTrimChanged(next);
             }
+            syncTrimDisplays(true);
+            syncCandidateChips();
+            if (cutsEditor) {
+                if (typeof cutsEditor.onTrimPreview === 'function') cutsEditor.onTrimPreview();
+                else cutsEditor.onTrimChanged();
+            }
+            updateModeUI();
+            updateAdoptedDuration();
+            syncTimelinePositions(undefined, true);
+            return next;
         }
 
         function setTrimValue(side, rawVal, options) {
             const emitChange = !options || options.emitChange !== false;
             const seekPausedStart = Boolean(options && options.seekPausedStart);
-            let next = Number(rawVal);
-            if (!Number.isFinite(next)) return null;
+            const forceDisplaySync = Boolean(options && options.forceDisplaySync);
+            const next = clampTrimSide(side, rawVal);
+            if (next === null) return null;
+
             isSyncingTrim = true;
             try {
-                if (side === 'start') {
-                    const maxAllowed = Math.max(safeMin, roundTrim(getEndSec() - 0.1));
-                    next = roundTrim(Math.max(safeMin, Math.min(maxAllowed, next)));
-                    startInput.value = String(next);
-                    syncCandidateSelection('start_candidate', next);
-                    allowBeforeStartPreview = false;
-                    if (!enforcePreviewStartBounds() && seekPausedStart && video && video.readyState >= 1 && video.paused && getPlaybackMode() === 'preview') {
-                        programmaticSeekTarget = next;
-                        video.currentTime = next;
-                    }
-                    if (emitChange) startInput.dispatchEvent(new Event('change', { bubbles: true }));
-                } else {
-                    const minAllowed = Math.min(safeMax, roundTrim(getStartSec() + 0.1));
-                    next = roundTrim(Math.min(safeMax, Math.max(minAllowed, next)));
-                    endInput.value = String(next);
-                    syncCandidateSelection('end_candidate', next);
-                    if (segmentStopAt !== null) segmentStopAt = next;
-                    if (emitChange) endInput.dispatchEvent(new Event('change', { bubbles: true }));
+                const targetRaw = side === 'start' ? startRawInput : endRawInput;
+                if (targetRaw) targetRaw.value = String(next);
+                if (playerCtrl) {
+                    if (side === 'start') playerCtrl.onStartTrimChanged(next, seekPausedStart);
+                    else playerCtrl.onEndTrimChanged(next);
                 }
+                if (emitChange && targetRaw) targetRaw.dispatchEvent(new Event('change', { bubbles: true }));
             } finally {
                 isSyncingTrim = false;
             }
+            syncTrimDisplays(forceDisplaySync);
+            syncCandidateChips();
             if (cutsEditor) cutsEditor.onTrimChanged();
-            updateTrimTimeDisplays();
             updateModeUI();
             updateAdoptedDuration();
+            syncTimelinePositions();
             return next;
         }
 
         function seekAndPlay(targetSec, stopAtSec, options) {
-            if (!video) return;
-            const bounded = Math.max(safeMin, Math.min(safeMax, targetSec));
-            allowBeforeStartPreview = Boolean(options && options.allowBeforeStart);
-            allowCutThroughPreview = Boolean(options && options.allowCutThrough);
-            programmaticSeekTarget = bounded;
-            segmentStopAt = stopAtSec !== null && stopAtSec !== undefined ? Math.max(safeMin, Math.min(safeMax, stopAtSec)) : null;
-            if (video.readyState >= 1) {
-                video.currentTime = bounded;
-                tryPlayVideo();
-            } else {
-                pendingSeek = bounded;
-                tryPlayVideo();
-            }
+            if (playerCtrl) playerCtrl.seekAndPlay(targetSec, stopAtSec, options);
         }
 
-        function onMetadataReady() {
-            if (!video || video.readyState < 1) return;
-            if (pendingSeek !== null) {
-                programmaticSeekTarget = pendingSeek;
-                video.currentTime = pendingSeek;
-                pendingSeek = null;
-                metadataApplied = true;
+        function applyCandidate(side, rawSec, isReset) {
+            const val = setTrimValue(side, rawSec, { emitChange: true, forceDisplaySync: true });
+            if (val === null) return;
+            if (isReset) {
+                showFeedback((side === 'start' ? '開始位置を先頭（' : '終了位置を末尾（') + formatSec(val) + '）に戻しました');
                 return;
             }
-            if (!metadataApplied && getPlaybackMode() === 'preview') {
-                const start = getStartSec();
-                if (start > 0 && video.currentTime < start) {
-                    programmaticSeekTarget = start;
-                    video.currentTime = start;
-                    showFeedback('プレビュー中のため開始位置（' + formatSec(start) + '）へ移動しました');
-                }
+            if (side === 'start') {
+                showFeedback('開始候補（' + formatSec(val) + '）を適用して再生します');
+                seekAndPlay(val, getPlaybackMode() === 'preview' ? getEndSec() : null);
+            } else {
+                const offset = getEndOffset();
+                const seekTo = Math.max(safeMin, val - offset);
+                showFeedback('終了候補（' + formatSec(val) + '）を適用し、' + offset + ' 秒前から再生します');
+                seekAndPlay(seekTo, val, { allowBeforeStart: seekTo < getStartSec() });
             }
-            metadataApplied = true;
         }
 
-        form.querySelectorAll('input[name="start_candidate"]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                if (radio.checked) {
-                    const val = setTrimValue('start', Number(radio.value), { emitChange: true });
-                    if (val !== null) showFeedback('開始位置を ' + formatSec(val) + ' に設定しました');
+        function bindTimecodeInput(inputEl, side) {
+            if (!inputEl) return;
+            inputEl.addEventListener('focus', function () {
+                if (typeof inputEl.select === 'function') inputEl.select();
+            });
+            inputEl.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    inputEl.blur();
                 }
             });
-        });
-        form.querySelectorAll('input[name="end_candidate"]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                if (radio.checked) {
-                    const val = setTrimValue('end', Number(radio.value), { emitChange: true });
-                    if (val !== null) showFeedback('終了位置を ' + formatSec(val) + ' に設定しました');
+            inputEl.addEventListener('change', function () {
+                if (isSyncingTrim) return;
+                const parsed = parseTimeInput(inputEl.value);
+                if (parsed === null) {
+                    showFeedback('時刻は 90.5 または 1:30.5 の形式で入力してください');
+                    syncTrimDisplays(true);
+                    return;
                 }
+                const applied = setTrimValue(side, parsed, { emitChange: true, seekPausedStart: side === 'start', forceDisplaySync: true });
+                if (applied !== null) showFeedback((side === 'start' ? '開始' : '終了') + '位置を ' + formatSec(applied) + ' に設定しました');
             });
-        });
+        }
 
+        if (window.VrcRecordingPlayerController) {
+            playerCtrl = window.VrcRecordingPlayerController.createPlayerController({
+                video: video,
+                safeMin: safeMin,
+                safeMax: safeMax,
+                formatSec: formatSec,
+                loadingEl: document.getElementById('recording-player-loading'),
+                errorEl: document.getElementById('recording-player-error'),
+                currentTimeEl: currentTimeEl,
+                getStartSec: getStartSec,
+                getEndSec: getEndSec,
+                getPlaybackMode: getPlaybackMode,
+                findCutContaining: findCutContaining,
+                showFeedback: showFeedback,
+                onTimeChanged: function (sec) {
+                    if (cutsEditor) cutsEditor.onPlayerTimeUpdate(sec);
+                },
+            });
+        }
+
+        bindTimecodeInput(startInput, 'start');
+        bindTimecodeInput(endInput, 'end');
+
+        form.querySelectorAll('[data-candidate-side]').forEach(function (btn) {
+            btn.addEventListener('click', function () { applyCandidate(btn.dataset.candidateSide, Number(btn.dataset.candidateSec), false); });
+        });
+        form.querySelectorAll('[data-candidate-reset]').forEach(function (btn) {
+            btn.addEventListener('click', function () { applyCandidate(btn.dataset.candidateReset, Number(btn.dataset.candidateSec), true); });
+        });
         form.querySelectorAll('[data-adjust-target]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 const side = btn.dataset.adjustTarget;
-                const delta = Number(btn.dataset.adjustDelta) || 0;
                 const base = side === 'start' ? getStartSec() : getEndSec();
-                const val = setTrimValue(side, base + delta, { emitChange: true, seekPausedStart: side === 'start' });
-                if (val !== null) {
-                    showFeedback((side === 'start' ? '開始' : '終了') + '位置を ' + formatSec(val) + '（' + val.toFixed(1) + '秒）へ調整しました');
-                }
+                const val = setTrimValue(side, base + (Number(btn.dataset.adjustDelta) || 0), {
+                    emitChange: true,
+                    seekPausedStart: side === 'start',
+                    forceDisplaySync: true,
+                });
+                if (val !== null) showFeedback((side === 'start' ? '開始' : '終了') + '位置を ' + formatSec(val) + '（' + val.toFixed(1) + '秒）へ調整しました');
             });
         });
 
         [
-            { btn: setStartFromPlayerBtn, side: 'start', label: '開始' },
-            { btn: setEndFromPlayerBtn, side: 'end', label: '終了' },
+            { sel: '[data-action="set-start-from-player"]', side: 'start', label: '開始' },
+            { sel: '[data-action="set-end-from-player"]', side: 'end', label: '終了' },
         ].forEach(function (item) {
-            if (!item.btn) return;
-            item.btn.addEventListener('click', function () {
+            const btn = form.querySelector(item.sel);
+            if (!btn) return;
+            btn.addEventListener('click', function () {
                 if (!video || video.readyState < 1) {
                     showFeedback('動画の読み込み後に実行してください');
                     return;
                 }
-                const val = setTrimValue(item.side, video.currentTime, { emitChange: true });
-                if (val !== null) {
-                    showFeedback(item.label + '位置を現在位置（' + formatSec(val) + '）に設定しました');
-                }
+                const val = setTrimValue(item.side, video.currentTime, { emitChange: true, forceDisplaySync: true });
+                if (val !== null) showFeedback(item.label + '位置を現在位置（' + formatSec(val) + '）に設定しました');
             });
         });
 
-        startInput.addEventListener('change', function () {
-            if (!isSyncingTrim) setTrimValue('start', startInput.value, { emitChange: false });
-        });
-        endInput.addEventListener('change', function () {
-            if (!isSyncingTrim) setTrimValue('end', endInput.value, { emitChange: false });
-        });
-
-        document.querySelectorAll('input[name="end_preview_offset"]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                if (playBeforeEndBtn) playBeforeEndBtn.textContent = getEndOffset() + '秒前から再生';
-            });
-        });
-
+        const playFromStartBtn = form.querySelector('[data-action="play-from-start"]');
+        const playBeforeEndBtn = form.querySelector('[data-action="play-before-end"]');
+        const playTrimRangeBtn = document.querySelector('[data-action="play-trim-range"]');
         if (playFromStartBtn) {
             playFromStartBtn.addEventListener('click', function () {
                 const start = getStartSec();
-                const stopAt = getPlaybackMode() === 'preview' ? getEndSec() : null;
                 showFeedback('開始位置（' + formatSec(start) + '）から再生します');
-                seekAndPlay(start, stopAt);
+                seekAndPlay(start, getPlaybackMode() === 'preview' ? getEndSec() : null);
             });
         }
-
         if (playBeforeEndBtn) {
             playBeforeEndBtn.addEventListener('click', function () {
                 const cand = getEndSec();
-                const seekTo = Math.max(safeMin, cand - getEndOffset());
-                showFeedback('終了位置の ' + getEndOffset() + ' 秒前（' + formatSec(seekTo) + '）から再生します');
+                const offset = getEndOffset();
+                const seekTo = Math.max(safeMin, cand - offset);
+                showFeedback('終了位置の ' + offset + ' 秒前（' + formatSec(seekTo) + '）から再生します');
                 seekAndPlay(seekTo, cand, { allowBeforeStart: seekTo < getStartSec() });
             });
         }
-
         if (playTrimRangeBtn) {
             playTrimRangeBtn.addEventListener('click', function () {
                 const start = getStartSec();
-                const end = getEndSec();
-                showFeedback('トリミング区間（' + formatSec(start) + ' 〜 ' + formatSec(end) + '）を再生します');
-                seekAndPlay(start, end);
+                showFeedback('開始位置（' + formatSec(start) + '）から再生します');
+                seekAndPlay(start, getEndSec());
             });
         }
 
         document.querySelectorAll('input[name="playback_mode"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-                if (!video) return;
-                allowBeforeStartPreview = false;
-                allowCutThroughPreview = false;
-                if (getPlaybackMode() === 'preview') {
-                    const start = getStartSec();
-                    const end = getEndSec();
-                    segmentStopAt = end;
-                    if (video.currentTime < start || video.currentTime >= end) {
-                        if (video.readyState >= 1) {
-                            programmaticSeekTarget = start;
-                            video.currentTime = start;
-                        }
-                        showFeedback('開始位置（' + formatSec(start) + '）へ移動しました');
-                    } else {
-                        const cutSpan = findCutContaining(video.currentTime);
-                        if (cutSpan && video.readyState >= 1) {
-                            programmaticSeekTarget = cutSpan[1];
-                            video.currentTime = cutSpan[1];
-                            showFeedback('採用カット区間をスキップしました（' + formatSec(cutSpan[1]) + '）');
-                        } else {
-                            showFeedback('トリミング後プレビューに切り替えました');
-                        }
-                    }
-                } else {
-                    segmentStopAt = null;
-                    showFeedback('余白込み全体モードに切り替えました（先頭や余白も自由に再生できます）');
-                }
+                if (playerCtrl) playerCtrl.onPlaybackModeChanged();
                 updateModeUI();
-                if (cutsEditor && typeof cutsEditor.onPlaybackModeChanged === 'function') {
-                    cutsEditor.onPlaybackModeChanged();
-                }
+                if (cutsEditor && typeof cutsEditor.onPlaybackModeChanged === 'function') cutsEditor.onPlaybackModeChanged();
             });
         });
 
-        if (video) {
-            video.addEventListener('loadstart', function () {
-                if (loadingEl) loadingEl.hidden = false;
-                if (errorEl) errorEl.hidden = true;
-            });
-            video.addEventListener('waiting', function () {
-                if (loadingEl) loadingEl.hidden = false;
-            });
-            video.addEventListener('loadedmetadata', onMetadataReady);
-            video.addEventListener('canplay', function () {
-                if (loadingEl) loadingEl.hidden = true;
-            });
-            video.addEventListener('error', function () {
-                if (loadingEl) loadingEl.hidden = true;
-                if (errorEl) errorEl.hidden = false;
-            });
-            video.addEventListener('seeking', function () {
-                const isProgrammatic = programmaticSeekTarget !== null && Math.abs(video.currentTime - programmaticSeekTarget) <= 0.15;
-                if (!isProgrammatic) {
-                    allowBeforeStartPreview = false;
-                    allowCutThroughPreview = false;
-                    enforcePreviewStartBounds();
-                }
-            });
-            video.addEventListener('seeked', function () {
-                const isProgrammatic = programmaticSeekTarget !== null && Math.abs(video.currentTime - programmaticSeekTarget) <= 0.15;
-                programmaticSeekTarget = null;
-                if (!isProgrammatic) {
-                    allowBeforeStartPreview = false;
-                    allowCutThroughPreview = false;
-                }
-                if (currentTimeEl) currentTimeEl.textContent = formatSec(video.currentTime);
-                if (cutsEditor) cutsEditor.onPlayerTimeUpdate(video.currentTime);
-                enforcePreviewStartBounds();
-            });
-            video.addEventListener('play', function () {
-                if (allowBeforeStartPreview && video.currentTime >= getStartSec() - 0.05) {
-                    allowBeforeStartPreview = false;
-                }
-                enforcePreviewStartBounds();
-            });
-            video.addEventListener('timeupdate', function () {
-                if (currentTimeEl) currentTimeEl.textContent = formatSec(video.currentTime);
-                if (cutsEditor) cutsEditor.onPlayerTimeUpdate(video.currentTime);
-                if (allowBeforeStartPreview && video.currentTime >= getStartSec() - 0.05) {
-                    allowBeforeStartPreview = false;
-                }
-                if (enforcePreviewStartBounds()) return;
-                if (segmentStopAt !== null && video.currentTime >= segmentStopAt) {
-                    video.pause();
-                    video.currentTime = segmentStopAt;
-                    showFeedback('終了位置（' + formatSec(segmentStopAt) + '）で停止しました');
-                    segmentStopAt = null;
-                    allowBeforeStartPreview = false;
-                    allowCutThroughPreview = false;
-                } else if (getPlaybackMode() === 'preview' && !video.paused) {
-                    if (!allowCutThroughPreview) {
-                        const skipSpan = findCutContaining(video.currentTime);
-                        if (skipSpan) {
-                            programmaticSeekTarget = skipSpan[1];
-                            video.currentTime = skipSpan[1];
-                            showFeedback('採用カットをスキップしました（' + formatSec(skipSpan[0]) + ' → ' + formatSec(skipSpan[1]) + '）');
-                            return;
-                        }
-                    }
-                    const end = getEndSec();
-                    if (video.currentTime >= end) {
-                        video.pause();
-                        video.currentTime = end;
-                        showFeedback('終了位置（' + formatSec(end) + '）で停止しました');
-                    }
-                }
+        if (window.VrcRecordingTimelineController && document.getElementById('recording-timeline-bar')) {
+            timelineCtrl = window.VrcRecordingTimelineController.createTimelineController({
+                timelineBar: document.getElementById('recording-timeline-bar'),
+                handleStartEl: document.getElementById('recording-tl-handle-start'),
+                handleEndEl: document.getElementById('recording-tl-handle-end'),
+                playheadEl: document.getElementById('recording-tl-playhead'),
+                tooltipEl: document.getElementById('recording-tl-tooltip'),
+                axisMinEl: document.getElementById('recording-tl-axis-min'),
+                axisMaxEl: document.getElementById('recording-tl-axis-max'),
+                zoomButtons: document.querySelectorAll('[data-zoom-mode]'),
+                safeMin: safeMin,
+                safeMax: safeMax,
+                canSubmit: Boolean(config.canSubmit),
+                getStartSec: getStartSec,
+                getEndSec: getEndSec,
+                getCurrentSec: getCurrentPlayerSec,
+                getPlaybackMode: getPlaybackMode,
+                formatSec: formatSec,
+                onDragPreview: previewTrimValue,
+                onDragCommit: function (side, finalVal) {
+                    const applied = setTrimValue(side, finalVal, { emitChange: true, seekPausedStart: side === 'start', forceDisplaySync: true });
+                    if (applied !== null) showFeedback((side === 'start' ? '開始' : '終了') + '位置を ' + formatSec(applied) + ' に調整しました');
+                },
+                onPlayheadPreview: function (sec) {
+                    if (currentTimeEl) currentTimeEl.textContent = formatSec(sec);
+                    updateZoneBadge(sec);
+                },
+                onPlayheadSeek: function (sec) {
+                    if (playerCtrl) playerCtrl.seekFromTimeline(sec);
+                },
+                onZoomChanged: function () {
+                    if (cutsEditor && typeof cutsEditor.onZoomChanged === 'function') cutsEditor.onZoomChanged();
+                },
             });
         }
 
@@ -432,6 +399,9 @@
                 getStartSec: getStartSec,
                 getEndSec: getEndSec,
                 getCutsEditor: function () { return cutsEditor; },
+                onSubmitLockChanged: function (unlocked) {
+                    if (timelineCtrl) timelineCtrl.setCanSubmit(unlocked);
+                },
             });
         }
 
@@ -440,11 +410,17 @@
                 form: form,
                 config: config,
                 video: video,
+                candidates: candidates,
                 safeMin: safeMin,
                 safeMax: safeMax,
                 getStartSec: getStartSec,
                 getEndSec: getEndSec,
                 getPlaybackMode: getPlaybackMode,
+                getTimelineWindow: function () {
+                    return timelineCtrl ? timelineCtrl.getWindow() : { viewMin: safeMin, viewMax: safeMax };
+                },
+                onTimelineSync: syncTimelinePositions,
+                onCandidateClick: function (side, sec) { applyCandidate(side, sec, false); },
                 seekAndPlay: seekAndPlay,
                 showFeedback: showFeedback,
                 formatSec: formatSec,
@@ -452,15 +428,15 @@
                 onCutsUpdated: updateAdoptedDuration,
             });
         }
-        updateTrimTimeDisplays();
+
+        syncTrimDisplays(true);
+        syncCandidateChips();
         updateModeUI();
         updateAdoptedDuration();
-        onMetadataReady();
+        syncTimelinePositions();
+        if (playerCtrl) playerCtrl.onMetadataReady();
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
 })();

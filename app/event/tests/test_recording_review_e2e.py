@@ -229,51 +229,71 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         expect(self.page.locator("#recording-proxy-player")).to_be_visible()
         # 初期状態（preview モード、start_sec=2.0）でタイムライン・時刻表示・モードバナーが初期化されていること
         expect(self.page.get_by_test_id("recording-mode-badge")).to_have_text("プレビュー中")
-        expect(self.page.get_by_test_id("recording-start-display")).to_have_text("0:02.0")
-        expect(self.page.get_by_test_id("recording-end-display")).to_have_text("0:12.0")
+        expect(self.page.locator("#id_start_sec")).to_have_value("0:02.0")
+        expect(self.page.locator("#id_end_sec")).to_have_value("0:12.0")
         expect(self.page.locator("#recording-timeline-bar .recording-tl-keep")).to_have_count(1)
         expect(self.page.locator("#recording-timeline-bar .recording-tl-margin")).to_have_count(2)
-        expect(self.page.locator("#recording-timeline-bar .recording-tl-bound")).to_have_count(2)
+        expect(self.page.locator("#recording-timeline-bar .recording-tl-handle")).to_have_count(2)
+        expect(self.page.get_by_test_id("timeline-cand-start")).to_have_count(2)
+        expect(self.page.get_by_test_id("timeline-cand-end")).to_have_count(2)
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 1.9; }"
         )
 
-        # 候補ラジオ・数値直編集・±5秒微調整が無限再帰しないこと（1操作で change 発火は最大1回）
+        # 候補チップ・時刻直入力（M:SS.s & 秒）・±1秒/±5秒微調整が無限再帰しないこと（1操作で change 発火は最大1回）
         self.page.evaluate(
             """() => {
                 window.__startChangeCount = 0;
-                const el = document.getElementById('id_start_sec');
+                const el = document.getElementById('id_start_sec_raw');
                 el.addEventListener('change', () => { window.__startChangeCount += 1; });
             }"""
         )
-        self.page.locator('input[name="start_candidate"][value="4"]').check()
-        expect(self.page.locator("#id_start_sec")).to_have_value("4")
+        self.page.locator('[data-testid="start-candidate-chip"][data-candidate-sec="4"]').click()
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("4")
+        expect(self.page.locator("#id_start_sec")).to_have_value("0:04.0")
         self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 1)
         expect(self.page.locator('[data-admin-form-status="recording-trim-form"]')).to_contain_text("未保存の変更があります")
+        self.page.evaluate("() => document.getElementById('recording-proxy-player').pause()")
 
+        # 秒数形式入力
         self.page.locator("#id_start_sec").fill("2.5")
         self.page.locator("#id_start_sec").press("Tab")
-        expect(self.page.locator("#id_start_sec")).to_have_value("2.5")
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("2.5")
+        expect(self.page.locator("#id_start_sec")).to_have_value("0:02.5")
         self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 2)
 
-        self.page.locator('[data-adjust-target="start"][data-adjust-delta="-5"]').click()
-        expect(self.page.locator("#id_start_sec")).to_have_value("0")  # safe_bounds.min_sec (0) にクランプ
+        # M:SS.s 形式入力
+        self.page.locator("#id_start_sec").fill("0:03.5")
+        self.page.locator("#id_start_sec").press("Enter")
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("3.5")
+        expect(self.page.locator("#id_start_sec")).to_have_value("0:03.5")
         self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 3)
 
-        self.page.locator('input[name="end_preview_offset"][value="10"]').check()
-        expect(self.page.get_by_test_id("play-before-end-btn")).to_have_text("10秒前から再生")
-        # 終了位置を 12.0s にして [10秒前から再生] → max(0, 12-10)=2.0s 付近へシークして再生されること
+        # ±1秒・±5秒微調整
+        self.page.locator('[data-adjust-target="start"][data-adjust-delta="-1"]').click()
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("2.5")
+        self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 4)
+
+        self.page.locator('[data-adjust-target="start"][data-adjust-delta="-5"]').click()
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("0")  # safe_bounds.min_sec (0) にクランプ
+        self.assertEqual(self.page.evaluate("() => window.__startChangeCount"), 5)
+
+        # 終了確認秒数プルダウン（5/7/10秒前）＋ [終了前を再生]
+        self.page.get_by_test_id("end-preview-offset-select").select_option("10")
+        expect(self.page.get_by_test_id("play-before-end-btn")).to_have_text("終了前を再生")
         self.page.get_by_test_id("play-before-end-btn").click()
+        expect(self.page.get_by_test_id("recording-playback-feedback")).to_contain_text("10 秒前")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 1.8 && v.currentTime <= 4.0; }"
         )
-        # モード切替（「余白込み全体を見る」↔「トリミング後をプレビュー」）と開始/終了範囲クランプの実動作
-        self.page.locator('input[name="playback_mode"][value="full"]').check()
-        self.page.locator('input[name="playback_mode"][value="preview"]').check()
+
+        # モード切替（「余白込み全体」↔「トリミング後」）と開始/終了範囲クランプの実動作
+        self.page.locator('input[name="playback_mode"][value="full"]').check(force=True)
+        self.page.locator('input[name="playback_mode"][value="preview"]').check(force=True)
         # プレビューモードで開始位置(2s -> 4s)変更時と、開始位置より前へのシーク時に 4s 以上へ戻ることを検証
-        self.page.locator('input[name="start_candidate"][value="2"]').check()
+        self.page.locator('[data-testid="start-candidate-chip"][data-candidate-sec="2"]').click()
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 2.5; v.play(); }")
-        self.page.locator('input[name="start_candidate"][value="4"]').check()
+        self.page.locator('[data-testid="start-candidate-chip"][data-candidate-sec="4"]').click()
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 3.9; }"
         )
@@ -281,26 +301,29 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 3.9; }"
         )
-        self.page.locator('input[name="start_candidate"][value="2"]').check()
+        self.page.locator('[data-testid="start-candidate-chip"][data-candidate-sec="2"]').click()
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.7; v.play(); }")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.paused && Math.abs(v.currentTime - 12.0) < 0.5; }"
         )
-        # 区間再生中に終了位置を 12.0s → 13.5s へ延ばすと 12.0s で止まらず 13.5s で停止すること（回帰確認）
-        self.page.locator('input[name="playback_mode"][value="full"]').check()
+        # トラック上の終了候補マーカークリック（13.5s 適用＆確認再生）＋区間再生中の延長動作
+        self.page.locator('input[name="playback_mode"][value="full"]').check(force=True)
         self.page.get_by_test_id("play-before-end-btn").click()
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.5; v.play(); }")
-        self.page.locator('input[name="end_candidate"][value="13.5"]').check()
+        self.page.locator('[data-testid="timeline-cand-end"][data-candidate-sec="13.5"]').click()
+        expect(self.page.locator("#id_end_sec_raw")).to_have_value("13.5")
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.5; v.play(); }")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime > 12.2 && !v.paused; }"
         )
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.paused && Math.abs(v.currentTime - 13.5) < 0.6; }"
         )
-        self.page.locator('input[name="end_candidate"][value="12"]').check()
-        self.page.locator('input[name="playback_mode"][value="preview"]').check()
+        self.page.locator('[data-testid="end-candidate-chip"][data-candidate-sec="12"]').click()
+        self.page.evaluate("() => document.getElementById('recording-proxy-player').pause()")
+        self.page.locator('input[name="playback_mode"][value="preview"]').check(force=True)
         self.page.locator('[data-adjust-target="start"][data-adjust-delta="-5"]').click()
-        expect(self.page.locator("#id_start_sec")).to_have_value("0")
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("0")
         # [ここから再生] で start_sec (0s) 付近へシークされること
         self.page.get_by_test_id("play-from-start-btn").click()
         self.page.wait_for_function(
@@ -308,33 +331,86 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         )
         self.page.evaluate("() => document.getElementById('recording-proxy-player').pause()")
 
+        # タイムラインハンドル（開始・終了）・再生ヘッドの Pointer ドラッグ操作（ツールチップ＆採用時間更新）
+        bar_box = self.page.get_by_test_id("recording-timeline-bar").bounding_box()
+        self.assertIsNotNone(bar_box)
+        start_handle_box = self.page.get_by_test_id("timeline-handle-start").bounding_box()
+        self.assertIsNotNone(start_handle_box)
+        hx = start_handle_box["x"] + start_handle_box["width"] / 2
+        hy = start_handle_box["y"] + start_handle_box["height"] / 2
+        target_x = bar_box["x"] + bar_box["width"] * (3.0 / 15.0)
+        self.page.mouse.move(hx, hy)
+        self.page.mouse.down()
+        self.page.mouse.move(target_x, hy, steps=5)
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_be_visible()
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_contain_text("開始")
+        expect(self.page.locator("#recording-adopted-duration")).to_contain_text("9.0秒")
+        moved_handle_box = self.page.get_by_test_id("timeline-handle-start").bounding_box()
+        self.assertIsNotNone(moved_handle_box)
+        self.assertGreater(moved_handle_box["x"], start_handle_box["x"] + 20)
+        self.page.mouse.up()
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_be_hidden()
+        self.assertAlmostEqual(float(self.page.locator("#id_start_sec_raw").input_value()), 3.0, delta=0.4)
+
+        end_handle_box = self.page.get_by_test_id("timeline-handle-end").bounding_box()
+        self.assertIsNotNone(end_handle_box)
+        ex = end_handle_box["x"] + end_handle_box["width"] / 2
+        ey = end_handle_box["y"] + end_handle_box["height"] / 2
+        end_target_x = bar_box["x"] + bar_box["width"] * (10.0 / 15.0)
+        self.page.mouse.move(ex, ey)
+        self.page.mouse.down()
+        self.page.mouse.move(end_target_x, ey, steps=5)
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_be_visible()
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_contain_text("終了")
+        expect(self.page.locator("#recording-adopted-duration")).to_contain_text("7.0秒")
+        self.page.mouse.up()
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_be_hidden()
+        self.assertAlmostEqual(float(self.page.locator("#id_end_sec_raw").input_value()), 10.0, delta=0.4)
+        self.page.locator('[data-testid="end-candidate-chip"][data-candidate-sec="12"]').click()
+        self.page.evaluate("() => document.getElementById('recording-proxy-player').pause()")
+
         # モード切替表示（「全体表示中」↔「プレビュー中」）と [現在位置を開始にする] / [現在位置を終了にする]
-        self.page.locator('input[name="playback_mode"][value="full"]').check()
+        self.page.locator('input[name="playback_mode"][value="full"]').check(force=True)
         expect(self.page.get_by_test_id("recording-mode-badge")).to_have_text("全体表示中")
         expect(self.page.get_by_test_id("recording-timeline-bar")).to_have_class(re.compile(r"\bis-full-mode\b"))
+        # 再生ヘッドドラッグで位置移動
+        head_box = self.page.locator(".recording-tl-playhead-knob").bounding_box()
+        self.assertIsNotNone(head_box)
+        px = head_box["x"] + head_box["width"] / 2
+        py = head_box["y"] + head_box["height"] / 2
+        self.page.mouse.move(px, py)
+        self.page.mouse.down()
+        self.page.mouse.move(bar_box["x"] + bar_box["width"] * (6.0 / 15.0), py, steps=4)
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_contain_text("現在")
+        self.page.mouse.up()
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && Math.abs(v.currentTime - 6.0) < 0.8; }"
+        )
+
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 3.2; }")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && Math.abs(v.currentTime - 3.2) < 0.2; }"
         )
         self.page.get_by_test_id("set-start-from-player-btn").click()
-        expect(self.page.locator("#id_start_sec")).to_have_value("3.2")
-        expect(self.page.get_by_test_id("recording-start-display")).to_have_text("0:03.2")
+        expect(self.page.locator("#id_start_sec_raw")).to_have_value("3.2")
+        expect(self.page.locator("#id_start_sec")).to_have_value("0:03.2")
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.4; }")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && Math.abs(v.currentTime - 11.4) < 0.2; }"
         )
         self.page.get_by_test_id("set-end-from-player-btn").click()
-        expect(self.page.locator("#id_end_sec")).to_have_value("11.4")
-        expect(self.page.get_by_test_id("recording-end-display")).to_have_text("0:11.4")
+        expect(self.page.locator("#id_end_sec_raw")).to_have_value("11.4")
+        expect(self.page.locator("#id_end_sec")).to_have_value("0:11.4")
         # 余白位置 (1.0s) でプレビューモードに戻すと start_sec (3.2s) へ自動移動すること
         self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 1.0; }")
-        self.page.locator('input[name="playback_mode"][value="preview"]').check()
+        self.page.locator('input[name="playback_mode"][value="preview"]').check(force=True)
         expect(self.page.get_by_test_id("recording-mode-badge")).to_have_text("プレビュー中")
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 3.1; }"
         )
-        self.page.locator('input[name="start_candidate"][value="2"]').check()
-        self.page.locator('input[name="end_candidate"][value="12"]').check()
+        self.page.locator('[data-testid="start-candidate-chip"][data-candidate-sec="2"]').click()
+        self.page.locator('[data-testid="end-candidate-chip"][data-candidate-sec="12"]').click()
+        self.page.evaluate("() => document.getElementById('recording-proxy-player').pause()")
 
         self._assert_no_horizontal_overflow("detail_pc")
         self.page.screenshot(path=str(self.shot_dir / "detail_pc.png"), full_page=True)
@@ -349,7 +425,9 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         self.public_item.edl_revision = 9
         self.public_item.save(update_fields=["edl_revision"])
         self.page.locator("#id_start_sec").fill("3")
+        self.page.locator("#id_start_sec").press("Tab")
         self.page.locator("#id_end_sec").fill("11")
+        self.page.locator("#id_end_sec").press("Tab")
         self.page.get_by_test_id("recording-submit-btn").click()
         expect(self.page.get_by_test_id("recording-conflict-banner")).to_be_visible()
         expect(self.page.get_by_test_id("reload-latest-btn")).to_be_visible()
@@ -365,7 +443,9 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.readyState >= 1; }"
         )
         self.page.locator("#id_start_sec").fill("3")
+        self.page.locator("#id_start_sec").press("Tab")
         self.page.locator("#id_end_sec").fill("11")
+        self.page.locator("#id_end_sec").press("Tab")
         self.page.get_by_test_id("recording-submit-btn").click()
         expect(self.page.locator("#recording-submit-success")).to_be_visible()
         expect(self.page.get_by_test_id("recording-submit-btn")).to_be_disabled()
@@ -379,7 +459,87 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         expect(self.page.get_by_test_id("public-locked-banner")).to_be_visible()
         expect(self.page.locator("#id_start_sec")).to_be_disabled()
         expect(self.page.locator("#id_end_sec")).to_be_disabled()
+        expect(self.page.get_by_test_id("timeline-handle-start")).to_be_disabled()
+        expect(self.page.get_by_test_id("timeline-handle-end")).to_be_disabled()
         expect(self.page.get_by_test_id("recording-submit-btn")).to_be_disabled()
         self._assert_no_horizontal_overflow("detail_locked_pc")
         self.page.screenshot(path=str(self.shot_dir / "detail_locked_pc.png"), full_page=True)
+        self.assertEqual(self.page_errors, [])
+
+    @patch("event.services.recording_ops.storage.boto3.client")
+    def test_long_recording_zoom_fixed_window_drag_and_empty_candidates(self, mock_boto: MagicMock) -> None:
+        mock_s3 = MagicMock()
+        mock_s3.generate_presigned_url.return_value = "https://r2.example.invalid/vrc-ta-hub-private/long.mp4?X-Amz-Signature=e2elong"
+        mock_boto.return_value = mock_s3
+
+        long_detail = make_event_detail(
+            self.event, status="approved", speaker="登壇者Long", theme="90分級録画の拡大タイムライン検証",
+            recording_policy=RecordingPolicy.PUBLIC,
+        )
+        RecordingReviewItem.objects.create(
+            event_detail=long_detail,
+            proxy_r2_key=f"recording-proxy/{long_detail.pk}/{uuid.uuid4().hex}.mp4",
+            proxy_duration_sec=5577.0,
+            proxy_uploaded_at=timezone.now(),
+            proxy_expires_at=timezone.now() + timedelta(days=7),
+            review_status=RecordingReviewItem.ReviewStatus.NEEDS_REVIEW,
+            edl_revision=1,
+            edl_json={
+                "schema_version": 1,
+                "safe_bounds": {"min_sec": 0.0, "max_sec": 5577.0},
+                "trim": {"start_sec": 195.8, "end_sec": 5577.0},
+                "boundary_candidates": {"start": [], "end": []},
+                "cuts": [],
+            },
+        )
+
+        self.login(self.staff.email, self.password)
+        long_url = f"{self.live_server_url}{reverse('event:recording_review_detail', kwargs={'detail_id': long_detail.pk})}"
+        self.page.set_viewport_size({"width": 1280, "height": 900})
+        self.page.goto(long_url)
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.readyState >= 1; }"
+        )
+
+        # 候補ゼロ時は候補チップ行が出ないこと
+        expect(self.page.get_by_test_id("start-candidates-row")).to_have_count(0)
+        expect(self.page.get_by_test_id("end-candidates-row")).to_have_count(0)
+        expect(self.page.locator("#id_start_sec")).to_have_value("3:15.8")
+        expect(self.page.locator("#id_end_sec")).to_have_value("1:32:57.0")
+        expect(self.page.get_by_test_id("timeline-axis-min")).to_have_text("0:00")
+        expect(self.page.get_by_test_id("timeline-axis-max")).to_have_text("1:32:57")
+
+        # [開始付近 ±2分] で表示窓が固定され、ドラッグ中も窓が逃げないこと
+        self.page.get_by_test_id("zoom-btn-start").click()
+        expect(self.page.get_by_test_id("zoom-btn-start")).to_have_attribute("aria-pressed", "true")
+        axis_min_before = self.page.get_by_test_id("timeline-axis-min").inner_text()
+        axis_max_before = self.page.get_by_test_id("timeline-axis-max").inner_text()
+        self.assertEqual(axis_min_before, "1:16")
+        self.assertEqual(axis_max_before, "5:16")
+        expect(self.page.get_by_test_id("timeline-handle-end")).to_be_hidden()
+
+        start_box = self.page.get_by_test_id("timeline-handle-start").bounding_box()
+        bar_box = self.page.get_by_test_id("recording-timeline-bar").bounding_box()
+        self.assertIsNotNone(start_box)
+        self.assertIsNotNone(bar_box)
+        hx = start_box["x"] + start_box["width"] / 2
+        hy = start_box["y"] + start_box["height"] / 2
+        self.page.mouse.move(hx, hy)
+        self.page.mouse.down()
+        self.page.mouse.move(hx + 60, hy, steps=5)
+        expect(self.page.get_by_test_id("timeline-drag-tooltip")).to_be_visible()
+        # ドラッグ中も表示窓は固定されたまま
+        self.assertEqual(self.page.get_by_test_id("timeline-axis-min").inner_text(), axis_min_before)
+        self.assertEqual(self.page.get_by_test_id("timeline-axis-max").inner_text(), axis_max_before)
+        self.page.mouse.up()
+        self.assertEqual(self.page.get_by_test_id("timeline-axis-min").inner_text(), axis_min_before)
+        self.assertGreater(float(self.page.locator("#id_start_sec_raw").input_value()), 200.0)
+
+        # [終了付近 ±2分] で終了ハンドルが見えること
+        self.page.get_by_test_id("zoom-btn-end").click()
+        expect(self.page.get_by_test_id("timeline-handle-end")).to_be_visible()
+        expect(self.page.get_by_test_id("timeline-axis-max")).to_have_text("1:32:57")
+        self.page.get_by_test_id("zoom-btn-all").click()
+        expect(self.page.get_by_test_id("timeline-axis-min")).to_have_text("0:00")
+        self._assert_no_horizontal_overflow("detail_long_pc")
         self.assertEqual(self.page_errors, [])
