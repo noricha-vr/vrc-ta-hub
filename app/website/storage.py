@@ -1,4 +1,4 @@
-"""ガイド画像の長期キャッシュとコンテナ内 JS/CSS 配信を担う静的ファイルストレージ。"""
+"""ガイド画像の長期キャッシュとアプリ JS/CSS のハッシュ付き R2 配信を担う静的ファイルストレージ。"""
 from functools import lru_cache
 import hashlib
 from pathlib import Path
@@ -6,7 +6,29 @@ from pathlib import Path
 from django.conf import settings
 from storages.backends.s3boto3 import S3Boto3Storage
 
-_CONTAINER_STATIC_SUFFIXES = ('.js', '.css', '.mjs', '.map')
+_APP_STATIC_SUFFIXES = ('.js', '.css', '.mjs', '.map')
+_APP_STATIC_PREFIXES = (
+    'announcement/',
+    'analytics/',
+    'api_v1/',
+    'community/',
+    'event/',
+    'event_calendar/',
+    'guide/',
+    'news/',
+    'sitemap/',
+    'ta_hub/',
+    'twitter/',
+    'user_account/',
+    'vket/',
+)
+VERSIONED_ASSET_PREFIX = '_assets'
+
+
+def is_versioned_app_asset(name: str) -> bool:
+    """R2 のコンテンツハッシュ付きキーで配信するアプリ同梱 JS/CSS 資産か判定する。"""
+    normalized = str(name).lstrip('/')
+    return normalized.startswith(_APP_STATIC_PREFIXES) and normalized.endswith(_APP_STATIC_SUFFIXES)
 
 
 @lru_cache(maxsize=512)
@@ -18,8 +40,23 @@ def _static_file_version(path_str: str) -> str:
     return hashlib.sha256(target.read_bytes()).hexdigest()[:10]
 
 
+def versioned_asset_key(name: str, static_root: str | Path | None = None) -> str | None:
+    """collectstatic 済み静的ファイルが存在する場合、ハッシュ付き R2 キーを返す。"""
+    normalized = str(name).lstrip('/')
+    if not is_versioned_app_asset(normalized):
+        return None
+    root = static_root if static_root is not None else getattr(settings, 'STATIC_ROOT', None)
+    if not root:
+        return None
+    candidate = Path(root) / normalized
+    version = _static_file_version(str(candidate))
+    if not version:
+        return None
+    return f'{VERSIONED_ASSET_PREFIX}/{version}/{normalized}'
+
+
 class GuideStaticFilesStorage(S3Boto3Storage):
-    """ガイド画像は R2 長期キャッシュ、JS/CSS はコンテナ内の /static/ から配信する。"""
+    """ガイド画像は従来 R2 長期キャッシュ、アプリ JS/CSS はハッシュ付き R2 キーで配信する。"""
 
     def get_object_parameters(self, name):
         parameters = super().get_object_parameters(name).copy()
@@ -30,12 +67,7 @@ class GuideStaticFilesStorage(S3Boto3Storage):
         return parameters
 
     def url(self, name, parameters=None, expire=None, http_method=None):
-        normalized = str(name).lstrip('/')
-        if normalized.endswith(_CONTAINER_STATIC_SUFFIXES):
-            static_root = getattr(settings, 'STATIC_ROOT', None)
-            if static_root:
-                candidate = Path(static_root) / normalized
-                version = _static_file_version(str(candidate))
-                if version:
-                    return f'/static/{normalized}?v={version}'
+        key = versioned_asset_key(name)
+        if key:
+            return super().url(key, parameters=parameters, expire=expire, http_method=http_method)
         return super().url(name, parameters=parameters, expire=expire, http_method=http_method)

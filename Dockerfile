@@ -46,11 +46,13 @@ COPY ./app /app
 COPY ./docs /docs
 COPY uwsgi.ini /uwsgi.ini
 COPY uwsgi_params /uwsgi_params
+COPY scripts/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 # PYTHON_PATH
 ENV PYTHON_PATH=/app
 
-# JS / CSS 等の静的ファイルをコンテナ内 /app/static へ収集する（nginx /static/ 配信用）
+# JS / CSS 等の静的ファイルをコンテナ内 /app/static へ収集する（起動時 R2 同期の正本）
 RUN SECRET_KEY=build-only \
     DEBUG=True \
     TESTING=1 \
@@ -63,5 +65,5 @@ RUN SECRET_KEY=build-only \
 # ポートの公開
 EXPOSE 8080
 
-# Supervisorの実行
-CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]
+# 起動時 R2 同期 + Supervisor の実行
+CMD ["/docker-entrypoint.sh"]

@@ -2,6 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from django.core.management import call_command
 from django.test import SimpleTestCase, override_settings
 
 from website.storage import GuideStaticFilesStorage, _static_file_version
@@ -38,28 +39,7 @@ class GuideStaticFilesStorageTest(SimpleTestCase):
         self.assertEqual(self.storage.get_object_parameters('css/x.css'), parameters)
         self.assertEqual(parameters['CacheControl'], 'max-age=60')
 
-    def test_js_and_css_resolve_to_container_static_with_hash_when_collected(self):
-        _static_file_version.cache_clear()
-        with TemporaryDirectory() as tmpdir:
-            js_path = Path(tmpdir) / 'event' / 'js' / 'recording-review.js'
-            css_path = Path(tmpdir) / 'event' / 'css' / 'recording-review.css'
-            js_path.parent.mkdir(parents=True, exist_ok=True)
-            css_path.parent.mkdir(parents=True, exist_ok=True)
-            js_path.write_text('console.log("ok");', encoding='utf-8')
-            css_path.write_text('.a{color:red;}', encoding='utf-8')
-
-            with override_settings(STATIC_ROOT=tmpdir):
-                js_url = self.storage.url('event/js/recording-review.js')
-                css_url = self.storage.url('event/css/recording-review.css')
-                img_url = self.storage.url('guide/images/community/create-01.webp')
-
-            self.assertRegex(js_url, r'^/static/event/js/recording-review\.js\?v=[0-9a-f]{10}$')
-            self.assertRegex(css_url, r'^/static/event/css/recording-review\.css\?v=[0-9a-f]{10}$')
-            self.assertEqual(img_url, 'https://data.vrc-ta-hub.com/guide/images/community/create-01.webp')
-
-    def test_collected_app_and_admin_assets_resolve_to_container_static(self):
-        from django.core.management import call_command
-
+    def test_app_js_and_css_resolve_to_versioned_r2_keys_and_admin_stays_unprefixed(self):
         _static_file_version.cache_clear()
         with TemporaryDirectory() as tmpdir:
             with override_settings(
@@ -80,18 +60,25 @@ class GuideStaticFilesStorageTest(SimpleTestCase):
                     'event/css/recording-review.css',
                     'ta_hub/css/admin-ui.css',
                     'ta_hub/js/admin-ui.js',
-                    'admin/css/base.css',
                 ):
                     with self.subTest(asset=asset):
                         resolved = self.storage.url(asset)
-                        self.assertRegex(resolved, rf'^/static/{asset}\?v=[0-9a-f]{{10}}$')
+                        self.assertRegex(
+                            resolved,
+                            rf'^https://data\.vrc-ta-hub\.com/_assets/[0-9a-f]{{10}}/{asset}$',
+                        )
                         self.assertTrue((Path(tmpdir) / asset).is_file())
 
+                # サードパーティ資産（相対 url() を含む admin CSS など）や画像は従来 R2 パスを維持する
                 self.assertEqual(
-                    self.storage.url('guide/images/community/create-01.webp'),
-                    'https://data.vrc-ta-hub.com/guide/images/community/create-01.webp',
+                    self.storage.url('admin/css/base.css'),
+                    'https://data.vrc-ta-hub.com/admin/css/base.css',
                 )
                 self.assertEqual(
                     self.storage.url('admin/img/icon-addlink.svg'),
                     'https://data.vrc-ta-hub.com/admin/img/icon-addlink.svg',
+                )
+                self.assertEqual(
+                    self.storage.url('guide/images/community/create-01.webp'),
+                    'https://data.vrc-ta-hub.com/guide/images/community/create-01.webp',
                 )

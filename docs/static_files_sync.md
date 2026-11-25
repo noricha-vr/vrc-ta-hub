@@ -4,7 +4,7 @@ Djangoアプリケーションで使用する静的ファイル（画像、CSS�
 
 ## 概要
 
-本番環境（`DEBUG=False`）では、画像などの静的ファイル配信に Cloudflare R2（S3 互換ストレージ）を使用しています。一方、アプリコードと一体の JS/CSS（`.js`, `.css`, `.mjs`, `.map`）は Docker ビルド時の `collectstatic` でコンテナ内 `/app/static` へ収集し、`GuideStaticFilesStorage.url()` によりコンテナの `/static/<path>?v=<hash>`（nginx）から配信する構成です。
+本番環境（`DEBUG=False`）では、静的ファイルの配信に Cloudflare R2（S3 互換ストレージ）を使用しています。アプリコードと一体の JS/CSS（`.js`, `.css`, `.mjs`, `.map`）は Docker ビルド時の `collectstatic` でコンテナ内 `/app/static` へ収集し、コンテナ起動時（`scripts/docker-entrypoint.sh` → `python manage.py sync_container_static`）に共有 R2 のハッシュ付きキー `_assets/<hash>/<path>` へ自動で冪等同期されます。そのため JS/CSS の変更時は手動 `collectstatic` は不要です。
 
 ローカル開発環境で新たに追加した**画像など（JS/CSS 以外）**を本番環境に反映させるには、`python manage.py collectstatic` コマンドを使用して、ローカルの静的ファイルを R2 バケットにアップロードする必要があります。
 
