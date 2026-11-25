@@ -1,4 +1,4 @@
-/* スタッフ向け録画確認 UI の途中カット（cuts[]）一覧・採否・手動編集パネル。 */
+/* スタッフ向け録画確認 UI の途中カット一覧・採否・手動編集パネル。 */
 (function () {
     'use strict';
 
@@ -99,7 +99,7 @@
             kWrap.appendChild(createEl('label', 'form-label small mb-1', '種別'));
             const kSelect = createEl('select', 'form-select form-select-sm');
             Object.keys(KIND_LABELS).forEach(function (k) {
-                const o = createEl('option', '', KIND_LABELS[k] + ' (' + k + ')');
+                const o = createEl('option', '', KIND_LABELS[k]);
                 o.value = k;
                 if (cut.kind === k) o.selected = true;
                 kSelect.appendChild(o);
@@ -138,7 +138,7 @@
                 const trimS = ctx.getStartSec();
                 const trimE = ctx.getEndSec();
                 if (!Number.isFinite(ns) || !Number.isFinite(ne) || !(trimS <= ns && ns < ne && ne <= trimE)) {
-                    errEl.textContent = '開始・終了は trim 範囲（' + trimS + '〜' + trimE + '）内で「開始 < 終了」にしてください。';
+                    errEl.textContent = '開始・終了は開始〜終了の範囲（' + trimS + '〜' + trimE + '秒）内で「開始 < 終了」にしてください。';
                     errEl.hidden = false;
                     return;
                 }
@@ -182,7 +182,7 @@
 
             metaRow.appendChild(createEl('span', 'detail-chip', KIND_LABELS[cut.kind] || cut.kind));
 
-            const sourceText = cut.source === 'staff' ? '手動追加' : ('自動検出' + (cut.source ? ' (' + cut.source + ')' : ''));
+            const sourceText = cut.source === 'staff' ? '手動追加' : '自動検出';
             metaRow.appendChild(createEl('span', 'small admin-muted', sourceText));
             if (typeof cut.confidence === 'number') {
                 metaRow.appendChild(createEl('span', 'small admin-muted', '信頼度 ' + Math.round(cut.confidence * 100) + '%'));
@@ -279,7 +279,7 @@
             updatePlayhead(lastPlayerSec);
 
             if (countsEl) {
-                countsEl.textContent = '採用 ' + state.acceptCount + ' / 保留 ' + state.pendingCount + ' / 却下 ' + state.rejectCount;
+                countsEl.textContent = '採用 ' + state.acceptCount + ' / 未判断 ' + state.pendingCount + ' / 却下 ' + state.rejectCount;
             }
             if (listEl) {
                 listEl.replaceChildren();
@@ -300,7 +300,7 @@
             if (acceptBlockedBanner) {
                 if (state.acceptBlocked) {
                     acceptBlockedBanner.textContent =
-                        '現在、途中カットの「採用（accept）」を含む確定は録画ワーカー側の対応準備中のため送信できません（' +
+                        '現在、途中カットの「採用」を含む確定は録画ワーカー側の対応準備中のため送信できません（' +
                         state.acceptCount + ' 件を採用中）。「保留」または「却下」に変更してください。';
                     acceptBlockedBanner.hidden = false;
                 } else {
@@ -333,14 +333,34 @@
                 const rect = timelineBar.getBoundingClientRect();
                 if (rect.width <= 0) return;
                 const ratio = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
-                const target = ctx.roundTrim(ctx.safeMin + ratio * (ctx.safeMax - ctx.safeMin));
-                ctx.seekAndPlay(target, null, { allowBeforeStart: true, allowCutThrough: true });
+                const rawTarget = ctx.roundTrim(ctx.safeMin + ratio * (ctx.safeMax - ctx.safeMin));
+                const mode = typeof ctx.getPlaybackMode === 'function' ? ctx.getPlaybackMode() : 'preview';
+                if (mode === 'full') {
+                    ctx.seekAndPlay(rawTarget, null, { allowBeforeStart: true, allowCutThrough: true });
+                    if (typeof ctx.showFeedback === 'function') {
+                        ctx.showFeedback('全体モード: ' + ctx.formatSec(rawTarget) + ' へ移動しました');
+                    }
+                    return;
+                }
+                const trimS = ctx.getStartSec();
+                const trimE = ctx.getEndSec();
+                const clamped = Math.max(trimS, Math.min(Math.max(trimS, trimE - 0.1), rawTarget));
+                ctx.seekAndPlay(clamped, trimE);
+                if (rawTarget < trimS || rawTarget >= trimE) {
+                    if (typeof ctx.showFeedback === 'function') {
+                        ctx.showFeedback('プレビュー中のため開始〜終了範囲内へ移動しました（余白を見るには「余白込み全体を見る」を選択）');
+                    }
+                }
             });
         }
 
         document.querySelectorAll('[data-action="fill-cut-start-from-player"]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 if (!ctx.video || !addStartInput) return;
+                if (ctx.video.readyState < 1) {
+                    if (typeof ctx.showFeedback === 'function') ctx.showFeedback('動画の読み込み後に実行してください');
+                    return;
+                }
                 const clamped = Math.max(ctx.getStartSec(), Math.min(ctx.getEndSec(), ctx.video.currentTime));
                 addStartInput.value = String(ctx.roundTrim(clamped));
             });
@@ -348,6 +368,10 @@
         document.querySelectorAll('[data-action="fill-cut-end-from-player"]').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 if (!ctx.video || !addEndInput) return;
+                if (ctx.video.readyState < 1) {
+                    if (typeof ctx.showFeedback === 'function') ctx.showFeedback('動画の読み込み後に実行してください');
+                    return;
+                }
                 const clamped = Math.max(ctx.getStartSec(), Math.min(ctx.getEndSec(), ctx.video.currentTime));
                 addEndInput.value = String(ctx.roundTrim(clamped));
             });
@@ -366,7 +390,7 @@
 
                 if (!Number.isFinite(sVal) || !Number.isFinite(eVal) || !(trimS <= sVal && sVal < eVal && eVal <= trimE)) {
                     if (addErrorEl) {
-                        addErrorEl.textContent = '開始・終了は trim 範囲（' + trimS + '秒 〜 ' + trimE + '秒）内で「開始 < 終了」を指定してください。';
+                        addErrorEl.textContent = '開始・終了は開始〜終了の範囲（' + trimS + '秒 〜 ' + trimE + '秒）内で「開始 < 終了」を指定してください。';
                         addErrorEl.hidden = false;
                     }
                     return;
@@ -414,7 +438,7 @@
                 if (state.acceptBlocked) {
                     return {
                         ok: false,
-                        message: '現在、途中カットの「採用（accept）」を含む確定は録画ワーカー準備中のため送信できません。',
+                        message: '現在、途中カットの「採用」を含む確定は録画ワーカー準備中のため送信できません。',
                     };
                 }
                 if (state.globalErrors.length > 0) {
@@ -423,13 +447,16 @@
                 if (state.pendingCount > 0 && confirmPendingCheckbox && !confirmPendingCheckbox.checked) {
                     return {
                         ok: false,
-                        message: '未判断（保留中 / pending）の候補が ' + state.pendingCount + ' 件残っています。確認チェックを入れてから確定してください。',
+                        message: '未判断の候補が ' + state.pendingCount + ' 件残っています。確認チェックを入れてから確定してください。',
                         focusEl: confirmPendingCheckbox,
                     };
                 }
                 return { ok: true, message: '' };
             },
             onTrimChanged: function () {
+                renderAll();
+            },
+            onPlaybackModeChanged: function () {
                 renderAll();
             },
             onPlayerTimeUpdate: function (sec) {

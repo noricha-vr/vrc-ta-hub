@@ -1,8 +1,8 @@
-/* スタッフ向け録画プロキシ再生・開始終了トリミング・途中カット確定 UI。 */
+/* スタッフ向け録画プロキシ再生・開始終了トリミング制御 UI。 */
 (function () {
     'use strict';
 
-    function formatSec(sec) {
+    function fallbackFormatSec(sec) {
         const clamped = Math.max(0, Number(sec) || 0);
         const tenths = Math.round(clamped * 10);
         const whole = Math.floor(tenths / 10);
@@ -21,11 +21,6 @@
         return Math.round(val * 1000) / 1000;
     }
 
-    function formatInputVal(val) {
-        const rounded = roundTrim(val);
-        return Number.isInteger(rounded) ? String(rounded) : String(rounded);
-    }
-
     function init() {
         const configEl = document.getElementById('recording-review-config');
         const form = document.getElementById('recording-trim-form');
@@ -38,6 +33,8 @@
             return;
         }
 
+        const tl = window.VrcRecordingCutsTimeline;
+        const formatSec = tl && typeof tl.formatSec === 'function' ? tl.formatSec : fallbackFormatSec;
         const safeMin = Number(config.safeMin) || 0;
         const safeMax = Number(config.safeMax) || 0;
         const video = document.getElementById('recording-proxy-player');
@@ -45,16 +42,18 @@
         const errorEl = document.getElementById('recording-player-error');
         const currentTimeEl = document.getElementById('recording-current-time');
         const adoptedDurationEl = document.getElementById('recording-adopted-duration');
+        const modeBannerEl = document.getElementById('recording-mode-banner');
+        const modeBadgeEl = document.getElementById('recording-mode-badge');
+        const modeDescEl = document.getElementById('recording-mode-description');
+        const feedbackEl = document.getElementById('recording-playback-feedback');
         const startInput = document.getElementById('id_start_sec');
         const endInput = document.getElementById('id_end_sec');
-        const revInput = document.getElementById('id_expected_revision');
-        const submitBtn = document.getElementById('recording-submit-btn');
-        const conflictBanner = document.getElementById('recording-conflict-banner');
-        const conflictMsg = document.getElementById('recording-conflict-message');
-        const submitErr = document.getElementById('recording-submit-error');
-        const submitSuccess = document.getElementById('recording-submit-success');
+        const startDisplayEl = document.getElementById('recording-start-display');
+        const endDisplayEl = document.getElementById('recording-end-display');
         const playBeforeEndBtn = form.querySelector('[data-action="play-before-end"]');
         const playFromStartBtn = form.querySelector('[data-action="play-from-start"]');
+        const setStartFromPlayerBtn = form.querySelector('[data-action="set-start-from-player"]');
+        const setEndFromPlayerBtn = form.querySelector('[data-action="set-end-from-player"]');
         const playTrimRangeBtn = document.querySelector('[data-action="play-trim-range"]');
 
         let segmentStopAt = null;
@@ -63,6 +62,7 @@
         let allowBeforeStartPreview = false;
         let allowCutThroughPreview = false;
         let programmaticSeekTarget = null;
+        let metadataApplied = false;
         let cutsEditor = null;
 
         function getStartSec() {
@@ -86,6 +86,31 @@
             return Number.isFinite(parsed) && parsed > 0 ? parsed : 7;
         }
 
+        function showFeedback(msg) {
+            if (feedbackEl) feedbackEl.textContent = msg || '';
+        }
+
+        function updateTrimTimeDisplays() {
+            if (startDisplayEl) startDisplayEl.textContent = formatSec(getStartSec());
+            if (endDisplayEl) endDisplayEl.textContent = formatSec(getEndSec());
+        }
+
+        function updateModeUI() {
+            const isPreview = getPlaybackMode() === 'preview';
+            if (modeBannerEl) modeBannerEl.classList.toggle('is-preview', isPreview);
+            if (modeBadgeEl) {
+                modeBadgeEl.textContent = isPreview ? 'プレビュー中' : '全体表示中';
+                modeBadgeEl.className = isPreview
+                    ? 'detail-chip bg-primary-subtle text-primary-emphasis'
+                    : 'detail-chip bg-secondary-subtle text-secondary-emphasis';
+            }
+            if (modeDescEl) {
+                modeDescEl.textContent = isPreview
+                    ? '開始 ' + formatSec(getStartSec()) + ' 〜 終了 ' + formatSec(getEndSec()) + ' のみ再生（余白・採用カットはスキップ）'
+                    : '録画全体（' + formatSec(safeMin) + ' 〜 ' + formatSec(safeMax) + '）を余白込みで自由にシーク・再生可能';
+            }
+        }
+
         function updateAdoptedDuration() {
             if (!adoptedDurationEl) return;
             const dur = cutsEditor ? cutsEditor.getAdoptedDuration() : (getEndSec() - getStartSec());
@@ -98,6 +123,13 @@
             });
         }
 
+        function findCutContaining(sec) {
+            if (!cutsEditor) return null;
+            return cutsEditor.getAcceptSpans().find(function (span) {
+                return sec >= span[0] && sec < span[1] - 0.05;
+            }) || null;
+        }
+
         function enforcePreviewStartBounds() {
             if (!video || video.readyState < 1) return false;
             if (getPlaybackMode() !== 'preview' || allowBeforeStartPreview) return false;
@@ -105,44 +137,57 @@
             if (video.currentTime < start - 0.05) {
                 programmaticSeekTarget = start;
                 video.currentTime = start;
+                showFeedback('プレビュー中のため開始位置（' + formatSec(start) + '）へ移動しました');
                 return true;
             }
             return false;
         }
 
+        function tryPlayVideo() {
+            if (!video) return;
+            const playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(function (err) {
+                    if (err && err.name === 'AbortError') return;
+                    showFeedback('自動再生が制限されました。動画の再生ボタンを押してください。');
+                });
+            }
+        }
+
         function setTrimValue(side, rawVal, options) {
             const emitChange = !options || options.emitChange !== false;
+            const seekPausedStart = Boolean(options && options.seekPausedStart);
             let next = Number(rawVal);
-            if (!Number.isFinite(next)) return;
+            if (!Number.isFinite(next)) return null;
             isSyncingTrim = true;
             try {
                 if (side === 'start') {
                     const maxAllowed = Math.max(safeMin, roundTrim(getEndSec() - 0.1));
                     next = roundTrim(Math.max(safeMin, Math.min(maxAllowed, next)));
-                    startInput.value = formatInputVal(next);
+                    startInput.value = String(next);
                     syncCandidateSelection('start_candidate', next);
                     allowBeforeStartPreview = false;
-                    enforcePreviewStartBounds();
-                    if (emitChange) {
-                        startInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    if (!enforcePreviewStartBounds() && seekPausedStart && video && video.readyState >= 1 && video.paused && getPlaybackMode() === 'preview') {
+                        programmaticSeekTarget = next;
+                        video.currentTime = next;
                     }
+                    if (emitChange) startInput.dispatchEvent(new Event('change', { bubbles: true }));
                 } else {
                     const minAllowed = Math.min(safeMax, roundTrim(getStartSec() + 0.1));
                     next = roundTrim(Math.min(safeMax, Math.max(minAllowed, next)));
-                    endInput.value = formatInputVal(next);
+                    endInput.value = String(next);
                     syncCandidateSelection('end_candidate', next);
-                    if (segmentStopAt !== null) {
-                        segmentStopAt = next;
-                    }
-                    if (emitChange) {
-                        endInput.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
+                    if (segmentStopAt !== null) segmentStopAt = next;
+                    if (emitChange) endInput.dispatchEvent(new Event('change', { bubbles: true }));
                 }
             } finally {
                 isSyncingTrim = false;
             }
             if (cutsEditor) cutsEditor.onTrimChanged();
+            updateTrimTimeDisplays();
+            updateModeUI();
             updateAdoptedDuration();
+            return next;
         }
 
         function seekAndPlay(targetSec, stopAtSec, options) {
@@ -154,27 +199,47 @@
             segmentStopAt = stopAtSec !== null && stopAtSec !== undefined ? Math.max(safeMin, Math.min(safeMax, stopAtSec)) : null;
             if (video.readyState >= 1) {
                 video.currentTime = bounded;
-                const playPromise = video.play();
-                if (playPromise && typeof playPromise.catch === 'function') {
-                    playPromise.catch(function () {});
-                }
+                tryPlayVideo();
             } else {
                 pendingSeek = bounded;
-                const playPromise = video.play();
-                if (playPromise && typeof playPromise.catch === 'function') {
-                    playPromise.catch(function () {});
+                tryPlayVideo();
+            }
+        }
+
+        function onMetadataReady() {
+            if (!video || video.readyState < 1) return;
+            if (pendingSeek !== null) {
+                programmaticSeekTarget = pendingSeek;
+                video.currentTime = pendingSeek;
+                pendingSeek = null;
+                metadataApplied = true;
+                return;
+            }
+            if (!metadataApplied && getPlaybackMode() === 'preview') {
+                const start = getStartSec();
+                if (start > 0 && video.currentTime < start) {
+                    programmaticSeekTarget = start;
+                    video.currentTime = start;
+                    showFeedback('プレビュー中のため開始位置（' + formatSec(start) + '）へ移動しました');
                 }
             }
+            metadataApplied = true;
         }
 
         form.querySelectorAll('input[name="start_candidate"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-                if (radio.checked) setTrimValue('start', Number(radio.value), { emitChange: true });
+                if (radio.checked) {
+                    const val = setTrimValue('start', Number(radio.value), { emitChange: true });
+                    if (val !== null) showFeedback('開始位置を ' + formatSec(val) + ' に設定しました');
+                }
             });
         });
         form.querySelectorAll('input[name="end_candidate"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-                if (radio.checked) setTrimValue('end', Number(radio.value), { emitChange: true });
+                if (radio.checked) {
+                    const val = setTrimValue('end', Number(radio.value), { emitChange: true });
+                    if (val !== null) showFeedback('終了位置を ' + formatSec(val) + ' に設定しました');
+                }
             });
         });
 
@@ -183,24 +248,40 @@
                 const side = btn.dataset.adjustTarget;
                 const delta = Number(btn.dataset.adjustDelta) || 0;
                 const base = side === 'start' ? getStartSec() : getEndSec();
-                setTrimValue(side, base + delta, { emitChange: true });
+                const val = setTrimValue(side, base + delta, { emitChange: true, seekPausedStart: side === 'start' });
+                if (val !== null) {
+                    showFeedback((side === 'start' ? '開始' : '終了') + '位置を ' + formatSec(val) + '（' + val.toFixed(1) + '秒）へ調整しました');
+                }
+            });
+        });
+
+        [
+            { btn: setStartFromPlayerBtn, side: 'start', label: '開始' },
+            { btn: setEndFromPlayerBtn, side: 'end', label: '終了' },
+        ].forEach(function (item) {
+            if (!item.btn) return;
+            item.btn.addEventListener('click', function () {
+                if (!video || video.readyState < 1) {
+                    showFeedback('動画の読み込み後に実行してください');
+                    return;
+                }
+                const val = setTrimValue(item.side, video.currentTime, { emitChange: true });
+                if (val !== null) {
+                    showFeedback(item.label + '位置を現在位置（' + formatSec(val) + '）に設定しました');
+                }
             });
         });
 
         startInput.addEventListener('change', function () {
-            if (isSyncingTrim) return;
-            setTrimValue('start', startInput.value, { emitChange: false });
+            if (!isSyncingTrim) setTrimValue('start', startInput.value, { emitChange: false });
         });
         endInput.addEventListener('change', function () {
-            if (isSyncingTrim) return;
-            setTrimValue('end', endInput.value, { emitChange: false });
+            if (!isSyncingTrim) setTrimValue('end', endInput.value, { emitChange: false });
         });
 
         document.querySelectorAll('input[name="end_preview_offset"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-                if (playBeforeEndBtn) {
-                    playBeforeEndBtn.textContent = getEndOffset() + '秒前から再生';
-                }
+                if (playBeforeEndBtn) playBeforeEndBtn.textContent = getEndOffset() + '秒前から再生';
             });
         });
 
@@ -208,6 +289,7 @@
             playFromStartBtn.addEventListener('click', function () {
                 const start = getStartSec();
                 const stopAt = getPlaybackMode() === 'preview' ? getEndSec() : null;
+                showFeedback('開始位置（' + formatSec(start) + '）から再生します');
                 seekAndPlay(start, stopAt);
             });
         }
@@ -216,13 +298,17 @@
             playBeforeEndBtn.addEventListener('click', function () {
                 const cand = getEndSec();
                 const seekTo = Math.max(safeMin, cand - getEndOffset());
+                showFeedback('終了位置の ' + getEndOffset() + ' 秒前（' + formatSec(seekTo) + '）から再生します');
                 seekAndPlay(seekTo, cand, { allowBeforeStart: seekTo < getStartSec() });
             });
         }
 
         if (playTrimRangeBtn) {
             playTrimRangeBtn.addEventListener('click', function () {
-                seekAndPlay(getStartSec(), getEndSec());
+                const start = getStartSec();
+                const end = getEndSec();
+                showFeedback('トリミング区間（' + formatSec(start) + ' 〜 ' + formatSec(end) + '）を再生します');
+                seekAndPlay(start, end);
             });
         }
 
@@ -240,9 +326,24 @@
                             programmaticSeekTarget = start;
                             video.currentTime = start;
                         }
+                        showFeedback('開始位置（' + formatSec(start) + '）へ移動しました');
+                    } else {
+                        const cutSpan = findCutContaining(video.currentTime);
+                        if (cutSpan && video.readyState >= 1) {
+                            programmaticSeekTarget = cutSpan[1];
+                            video.currentTime = cutSpan[1];
+                            showFeedback('採用カット区間をスキップしました（' + formatSec(cutSpan[1]) + '）');
+                        } else {
+                            showFeedback('トリミング後プレビューに切り替えました');
+                        }
                     }
                 } else {
                     segmentStopAt = null;
+                    showFeedback('余白込み全体モードに切り替えました（先頭や余白も自由に再生できます）');
+                }
+                updateModeUI();
+                if (cutsEditor && typeof cutsEditor.onPlaybackModeChanged === 'function') {
+                    cutsEditor.onPlaybackModeChanged();
                 }
             });
         });
@@ -255,19 +356,7 @@
             video.addEventListener('waiting', function () {
                 if (loadingEl) loadingEl.hidden = false;
             });
-            video.addEventListener('loadedmetadata', function () {
-                if (pendingSeek !== null) {
-                    programmaticSeekTarget = pendingSeek;
-                    video.currentTime = pendingSeek;
-                    pendingSeek = null;
-                } else if (getPlaybackMode() === 'preview') {
-                    const start = getStartSec();
-                    if (start > 0 && video.currentTime < start) {
-                        programmaticSeekTarget = start;
-                        video.currentTime = start;
-                    }
-                }
-            });
+            video.addEventListener('loadedmetadata', onMetadataReady);
             video.addEventListener('canplay', function () {
                 if (loadingEl) loadingEl.hidden = true;
             });
@@ -280,8 +369,6 @@
                 if (!isProgrammatic) {
                     allowBeforeStartPreview = false;
                     allowCutThroughPreview = false;
-                }
-                if (!isProgrammatic) {
                     enforcePreviewStartBounds();
                 }
             });
@@ -292,6 +379,8 @@
                     allowBeforeStartPreview = false;
                     allowCutThroughPreview = false;
                 }
+                if (currentTimeEl) currentTimeEl.textContent = formatSec(video.currentTime);
+                if (cutsEditor) cutsEditor.onPlayerTimeUpdate(video.currentTime);
                 enforcePreviewStartBounds();
             });
             video.addEventListener('play', function () {
@@ -306,23 +395,21 @@
                 if (allowBeforeStartPreview && video.currentTime >= getStartSec() - 0.05) {
                     allowBeforeStartPreview = false;
                 }
-                if (enforcePreviewStartBounds()) {
-                    return;
-                }
+                if (enforcePreviewStartBounds()) return;
                 if (segmentStopAt !== null && video.currentTime >= segmentStopAt) {
                     video.pause();
                     video.currentTime = segmentStopAt;
+                    showFeedback('終了位置（' + formatSec(segmentStopAt) + '）で停止しました');
                     segmentStopAt = null;
                     allowBeforeStartPreview = false;
                     allowCutThroughPreview = false;
                 } else if (getPlaybackMode() === 'preview' && !video.paused) {
-                    if (!allowCutThroughPreview && cutsEditor) {
-                        const skipSpan = cutsEditor.getAcceptSpans().find(function (span) {
-                            return video.currentTime >= span[0] && video.currentTime < span[1] - 0.05;
-                        });
+                    if (!allowCutThroughPreview) {
+                        const skipSpan = findCutContaining(video.currentTime);
                         if (skipSpan) {
                             programmaticSeekTarget = skipSpan[1];
                             video.currentTime = skipSpan[1];
+                            showFeedback('採用カットをスキップしました（' + formatSec(skipSpan[0]) + ' → ' + formatSec(skipSpan[1]) + '）');
                             return;
                         }
                     }
@@ -330,146 +417,23 @@
                     if (video.currentTime >= end) {
                         video.pause();
                         video.currentTime = end;
+                        showFeedback('終了位置（' + formatSec(end) + '）で停止しました');
                     }
                 }
             });
         }
 
-        function showError(msg) {
-            if (!submitErr) return;
-            submitErr.textContent = msg;
-            submitErr.hidden = false;
-            if (submitSuccess) submitSuccess.hidden = true;
+        if (window.VrcRecordingReviewSubmit && typeof window.VrcRecordingReviewSubmit.bindSubmit === 'function') {
+            window.VrcRecordingReviewSubmit.bindSubmit({
+                form: form,
+                config: config,
+                safeMin: safeMin,
+                safeMax: safeMax,
+                getStartSec: getStartSec,
+                getEndSec: getEndSec,
+                getCutsEditor: function () { return cutsEditor; },
+            });
         }
-
-        function clearBanners() {
-            if (submitErr) submitErr.hidden = true;
-            if (submitSuccess) submitSuccess.hidden = true;
-            if (conflictBanner) conflictBanner.hidden = true;
-        }
-
-        function syncSecondaryActionControls(disableAll, clearRevision) {
-            if (clearRevision) {
-                document.querySelectorAll('[data-recording-revision-input]').forEach(function (el) { el.value = ''; });
-            }
-            if (!disableAll) return;
-            const sel = '[data-testid="emergency-stop-trigger"], [data-testid="retry-failed-order-btn"], [data-testid="cancel-failed-order-trigger"], [data-testid="cancel-active-order-trigger"]';
-            document.querySelectorAll(sel).forEach(function (btn) { btn.disabled = true; });
-            document.querySelectorAll('#recording-stop-publish-panel, #cancel-failed-order, #cancel-active-order').forEach(function (p) { p.hidden = true; });
-        }
-
-        form.addEventListener('submit', async function (event) {
-            event.preventDefault();
-            clearBanners();
-
-            if (!config.canSubmit || !submitBtn || submitBtn.disabled) {
-                return;
-            }
-
-            const startSec = getStartSec();
-            const endSec = getEndSec();
-            if (!Number.isFinite(startSec) || !Number.isFinite(endSec) || startSec < safeMin || endSec > safeMax || startSec >= endSec) {
-                showError('開始・終了時刻は許容範囲（' + safeMin.toFixed(1) + '秒 〜 ' + safeMax.toFixed(1) + '秒）内で「開始 < 終了」となるように指定してください。');
-                return;
-            }
-            if (cutsEditor) {
-                const cutCheck = cutsEditor.validateForSubmit();
-                if (!cutCheck.ok) {
-                    showError(cutCheck.message);
-                    if (cutCheck.focusEl && typeof cutCheck.focusEl.focus === 'function') {
-                        cutCheck.focusEl.focus();
-                    }
-                    return;
-                }
-            }
-
-            const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
-            const expectedRevision = Number(revInput ? revInput.value : 1);
-            const originalText = submitBtn.textContent;
-            function setTrimInputsDisabled(disabled) {
-                form.querySelectorAll('input[name="start_sec"], input[name="end_sec"], input[name="start_candidate"], input[name="end_candidate"], [data-adjust-target]').forEach(function (el) {
-                    el.disabled = disabled;
-                });
-            }
-            submitBtn.disabled = true;
-            submitBtn.textContent = '送信中…';
-            setTrimInputsDisabled(true);
-            if (cutsEditor) cutsEditor.setDisabled(true);
-
-            function restoreAfterFailure() {
-                setTrimInputsDisabled(false);
-                if (cutsEditor) cutsEditor.setDisabled(false);
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
-            }
-
-            try {
-                const payload = {
-                    expected_revision: expectedRevision,
-                    start_sec: startSec,
-                    end_sec: endSec,
-                };
-                if (cutsEditor) {
-                    payload.cuts = cutsEditor.getCuts();
-                }
-                const resp = await fetch(form.action, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': csrfInput ? csrfInput.value : '',
-                    },
-                    body: JSON.stringify(payload),
-                });
-                const data = await resp.json().catch(function () { return {}; });
-
-                if (resp.ok) {
-                    if (revInput && data.edl_revision) revInput.value = String(data.edl_revision);
-                    config.canSubmit = false;
-                    if (cutsEditor) cutsEditor.setDisabled(true);
-                    form.dispatchEvent(new Event('admin:saved'));
-                    if (submitSuccess) {
-                        submitSuccess.textContent = data.message || 'トリミングを確定し、書き出しキューへ登録しました。';
-                        submitSuccess.hidden = false;
-                    }
-                    const chipWrap = document.getElementById('recording-order-status-chip');
-                    if (chipWrap) {
-                        const chip = document.createElement('span');
-                        chip.className = 'detail-chip bg-warning-subtle text-warning-emphasis';
-                        chip.textContent = 'キュー: 待機中 (queued)';
-                        chipWrap.replaceChildren(chip);
-                    }
-                    submitBtn.textContent = '確定指示を処理中…';
-                    submitBtn.disabled = true;
-                    syncSecondaryActionControls(true, false);
-                    return;
-                }
-
-                if (resp.status === 409) {
-                    config.canSubmit = false;
-                    if (cutsEditor) cutsEditor.setDisabled(true);
-                    if (revInput) revInput.value = '';
-                    setTrimInputsDisabled(true);
-                    syncSecondaryActionControls(true, true);
-                    if (conflictBanner && conflictMsg) {
-                        conflictMsg.textContent = data.detail || '他のスタッフまたは処理によって更新されました。最新の状態を再読み込みしてください。';
-                        conflictBanner.hidden = false;
-                        conflictBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                    submitBtn.textContent = '最新状態の再読み込みが必要';
-                    submitBtn.disabled = true;
-                    return;
-                }
-
-                restoreAfterFailure();
-                showError(data.detail || '確定指示の登録に失敗しました。入力内容を確認してください。');
-            } catch (_) {
-                restoreAfterFailure();
-                showError('通信エラーが発生しました。時間を置いてもう一度お試しください。');
-            }
-        });
 
         if (window.VrcRecordingCuts && typeof window.VrcRecordingCuts.createEditor === 'function') {
             cutsEditor = window.VrcRecordingCuts.createEditor({
@@ -480,13 +444,18 @@
                 safeMax: safeMax,
                 getStartSec: getStartSec,
                 getEndSec: getEndSec,
+                getPlaybackMode: getPlaybackMode,
                 seekAndPlay: seekAndPlay,
+                showFeedback: showFeedback,
                 formatSec: formatSec,
                 roundTrim: roundTrim,
                 onCutsUpdated: updateAdoptedDuration,
             });
         }
+        updateTrimTimeDisplays();
+        updateModeUI();
         updateAdoptedDuration();
+        onMetadataReady();
     }
 
     if (document.readyState === 'loading') {

@@ -220,13 +220,23 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
         self._assert_no_horizontal_overflow("list_empty_pc")
         self.page.screenshot(path=str(self.shot_dir / "list_empty_pc.png"), full_page=True)
 
-        # 3. 詳細・トリミング画面（PC 1280px）
+        # 詳細・トリミング画面（PC 1280px）
         detail_url = f"{self.live_server_url}{reverse('event:recording_review_detail', kwargs={'detail_id': self.public_detail.pk})}"
         self.page.goto(detail_url)
         self.page.wait_for_function(
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.readyState >= 1; }"
         )
         expect(self.page.locator("#recording-proxy-player")).to_be_visible()
+        # 初期状態（preview モード、start_sec=2.0）でタイムライン・時刻表示・モードバナーが初期化されていること
+        expect(self.page.get_by_test_id("recording-mode-badge")).to_have_text("プレビュー中")
+        expect(self.page.get_by_test_id("recording-start-display")).to_have_text("0:02.0")
+        expect(self.page.get_by_test_id("recording-end-display")).to_have_text("0:12.0")
+        expect(self.page.locator("#recording-timeline-bar .recording-tl-keep")).to_have_count(1)
+        expect(self.page.locator("#recording-timeline-bar .recording-tl-margin")).to_have_count(2)
+        expect(self.page.locator("#recording-timeline-bar .recording-tl-bound")).to_have_count(2)
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 1.9; }"
+        )
 
         # 候補ラジオ・数値直編集・±5秒微調整が無限再帰しないこと（1操作で change 発火は最大1回）
         self.page.evaluate(
@@ -297,6 +307,34 @@ class RecordingReviewE2ETests(PlaywrightLiveServerTestCase):
             "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime < 1.5; }"
         )
         self.page.evaluate("() => document.getElementById('recording-proxy-player').pause()")
+
+        # モード切替表示（「全体表示中」↔「プレビュー中」）と [現在位置を開始にする] / [現在位置を終了にする]
+        self.page.locator('input[name="playback_mode"][value="full"]').check()
+        expect(self.page.get_by_test_id("recording-mode-badge")).to_have_text("全体表示中")
+        expect(self.page.get_by_test_id("recording-timeline-bar")).to_have_class(re.compile(r"\bis-full-mode\b"))
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 3.2; }")
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && Math.abs(v.currentTime - 3.2) < 0.2; }"
+        )
+        self.page.get_by_test_id("set-start-from-player-btn").click()
+        expect(self.page.locator("#id_start_sec")).to_have_value("3.2")
+        expect(self.page.get_by_test_id("recording-start-display")).to_have_text("0:03.2")
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 11.4; }")
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && Math.abs(v.currentTime - 11.4) < 0.2; }"
+        )
+        self.page.get_by_test_id("set-end-from-player-btn").click()
+        expect(self.page.locator("#id_end_sec")).to_have_value("11.4")
+        expect(self.page.get_by_test_id("recording-end-display")).to_have_text("0:11.4")
+        # 余白位置 (1.0s) でプレビューモードに戻すと start_sec (3.2s) へ自動移動すること
+        self.page.evaluate("() => { const v = document.getElementById('recording-proxy-player'); v.currentTime = 1.0; }")
+        self.page.locator('input[name="playback_mode"][value="preview"]').check()
+        expect(self.page.get_by_test_id("recording-mode-badge")).to_have_text("プレビュー中")
+        self.page.wait_for_function(
+            "() => { const v = document.getElementById('recording-proxy-player'); return v && v.currentTime >= 3.1; }"
+        )
+        self.page.locator('input[name="start_candidate"][value="2"]').check()
+        self.page.locator('input[name="end_candidate"][value="12"]').check()
 
         self._assert_no_horizontal_overflow("detail_pc")
         self.page.screenshot(path=str(self.shot_dir / "detail_pc.png"), full_page=True)

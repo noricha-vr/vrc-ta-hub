@@ -50,6 +50,16 @@ COPY uwsgi_params /uwsgi_params
 # PYTHON_PATH
 ENV PYTHON_PATH=/app
 
+# JS / CSS 等の静的ファイルをコンテナ内 /app/static へ収集する（nginx /static/ 配信用）
+RUN SECRET_KEY=build-only \
+    DEBUG=True \
+    TESTING=1 \
+    GOOGLE_API_KEY=build-only \
+    GOOGLE_CALENDAR_ID=build-only@group.calendar.google.com \
+    GEMINI_API_KEY=build-only \
+    REQUEST_TOKEN=build-only \
+    python3 manage.py collectstatic --noinput
+
 # ポートの公開
 EXPOSE 8080
 
