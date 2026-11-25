@@ -252,7 +252,8 @@ def complete_edit_order(
         if order.status != RecordingEditOrder.Status.RUNNING:
             if (
                 order.order_type == RecordingEditOrder.OrderType.APPLY_EDL
-                and order.status == RecordingEditOrder.Status.FAILED
+                and order.status
+                in (RecordingEditOrder.Status.FAILED, RecordingEditOrder.Status.CANCELED)
                 and order.target_revision == target_revision
                 and (
                     bool(result_video_id)

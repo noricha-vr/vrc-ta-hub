@@ -106,21 +106,77 @@
 
     {% if ctx.is_public_locked %}
         <section class="action-required" role="status" data-testid="public-locked-banner">
-            <h2 class="h6 fw-bold mb-1">公開済みロック中（再差し替え不可）</h2>
-            <p class="small mb-0">この発表はすでに YouTube で一般公開（public）されているため、URL・再生数・記事参照を保持する目的でトリミング編集および再差し替え確定をロックしています。</p>
-        </section>
-    {% elif ctx.active_order %}
-        <section class="action-required" role="status" data-testid="active-order-banner">
-            <h2 class="h6 fw-bold mb-1">書き出し指示を処理中です（{{ ctx.active_order.get_status_display }}）</h2>
-            <p class="small mb-2">現在この発表に対する確定指示がキューで進行中のため、完了または失敗になるまで新しい確定はできません。</p>
-            <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">最新状態を再読み込み</a>
+            {% if ctx.is_private_fixed %}
+                <h2 class="h6 fw-bold mb-1">緊急停止により非公開確定済み（再差し替え・再公開不可）</h2>
+                <p class="small mb-0">この発表は緊急停止により YouTube 動画を非公開化し、再差し替え・再公開をロックしています。</p>
+            {% else %}
+                <h2 class="h6 fw-bold mb-1">公開済みロック中（再差し替え不可）</h2>
+                <p class="small mb-0">この発表はすでに YouTube で一般公開（public）されているため、URL・再生数・記事参照を保持する目的でトリミング編集および再差し替え確定をロックしています。</p>
+            {% endif %}
         </section>
     {% endif %}
 
-    {% if ctx.latest_order and ctx.latest_order.status == 'failed' and not ctx.active_order %}
+    {% if ctx.active_order %}
+        <section class="action-required" role="status" data-testid="active-order-banner">
+            <h2 class="h6 fw-bold mb-1">
+                {{ ctx.active_order.get_order_type_display }}指示を処理中です（{{ ctx.active_order.get_status_display }}）
+                {% if ctx.stalled_active_order %}
+                    <span class="badge text-bg-danger ms-1" data-testid="stalled-order-badge">滞留アラート（約{{ ctx.stalled_minutes }}分経過）</span>
+                {% endif %}
+            </h2>
+            <p class="small mb-2">
+                現在この発表に対する指示（#{{ ctx.active_order.pk }}）がキューで進行中のため、完了または失敗になるまで新しい確定・緊急停止はできません。
+                {% if ctx.active_order.status == 'running' %}ワーカー処理中（running）のため取り消しもできません。{% endif %}
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">最新状態を再読み込み</a>
+                {% if ctx.can_cancel_latest_order and ctx.cancelable_order and not has_conflict %}
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            data-confirm-panel="cancel-active-order"
+                            aria-controls="cancel-active-order"
+                            aria-expanded="false"
+                            data-testid="cancel-active-order-trigger">待機中の指示を取り消す…</button>
+                {% endif %}
+            </div>
+            {% if ctx.can_cancel_latest_order and ctx.cancelable_order and not has_conflict %}
+                {% url 'event:recording_order_cancel' ctx.detail.pk ctx.cancelable_order.pk as cancel_active_url %}
+                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='cancel-active-order' label='待機中オーダーの取り消し確認' message='この待機中（queued）オーダーを取り消しますか？ワーカーがすでに実行開始していた場合は 409 Conflict で拒否されます。' action_url=cancel_active_url submit_label='この待機中オーダーを取り消す' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=expected_revision_value csrf_token=csrf_token only %}
+            {% endif %}
+        </section>
+    {% endif %}
+
+    {% if ctx.failed_latest_order %}
         <section class="action-required" role="alert" data-testid="last-order-failed-banner">
-            <h2 class="h6 fw-bold mb-1">前回の書き出し指示（r{{ ctx.latest_order.base_revision }}→r{{ ctx.latest_order.target_revision }}）が失敗しました</h2>
-            <p class="small mb-0">{{ ctx.latest_order.error_message|default:"詳細なエラーメッセージは記録されていません。" }}</p>
+            <h2 class="h6 fw-bold mb-1">
+                前回の{{ ctx.failed_latest_order.get_order_type_display }}指示（#{{ ctx.failed_latest_order.pk }} / r{{ ctx.failed_latest_order.base_revision }}→r{{ ctx.failed_latest_order.target_revision }}）が失敗しました
+            </h2>
+            <p class="small mb-2">{{ ctx.failed_latest_order.error_message|default:"詳細なエラーメッセージは記録されていません。" }}</p>
+            {% if not has_conflict %}
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    {% if ctx.can_retry_failed_order %}
+                        <form method="post" action="{% url 'event:recording_order_retry' ctx.detail.pk ctx.failed_latest_order.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="expected_revision" value="{{ expected_revision_value }}" data-recording-revision-input>
+                            <button type="submit" class="btn btn-sm btn-primary" data-testid="retry-failed-order-btn">同じ設定で再試行</button>
+                        </form>
+                    {% elif ctx.is_expired and ctx.failed_latest_order.order_type == 'apply_edl' %}
+                        <span class="small text-danger" data-testid="retry-blocked-expired-note">プロキシ期限切れ・削除済みのため再描画の再試行はできません。</span>
+                    {% endif %}
+                    {% if ctx.can_cancel_latest_order and ctx.cancelable_order %}
+                        <button type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                data-confirm-panel="cancel-failed-order"
+                                aria-controls="cancel-failed-order"
+                                aria-expanded="false"
+                                data-testid="cancel-failed-order-trigger">失敗を取り消す…</button>
+                    {% endif %}
+                </div>
+                {% if ctx.can_cancel_latest_order and ctx.cancelable_order %}
+                    {% url 'event:recording_order_cancel' ctx.detail.pk ctx.cancelable_order.pk as cancel_failed_url %}
+                    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='cancel-failed-order' label='失敗オーダーの取り消し確認' message='この失敗オーダーを取り消し、キュー状態を「未確定」に戻しますか？' action_url=cancel_failed_url submit_label='失敗オーダーを取り消す' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=expected_revision_value csrf_token=csrf_token only %}
+                {% endif %}
+            {% endif %}
         </section>
     {% endif %}
 
@@ -200,10 +256,14 @@
             <div class="alert {% if ctx.proxy_state == 'missing' %}alert-secondary{% else %}alert-warning{% endif %} mb-0" role="status" data-testid="proxy-state-card" data-proxy-state="{{ ctx.proxy_state }}">
                 <p class="fw-bold mb-1">
                     {% if ctx.proxy_state == 'missing' %}プロキシ動画が未登録です
-                    {% elif ctx.proxy_state == 'expired' %}プロキシ動画の有効期限が切れています
+                    {% elif ctx.is_proxy_expiring_soon %}プロキシ動画の視聴期限が間近のため視聴できません
+                    {% elif ctx.proxy_state == 'expired' %}視聴期限（公開後 30 日）経過のためプロキシ動画は削除されました
                     {% else %}プロキシ動画を取得できませんでした{% endif %}
                 </p>
                 <p class="small mb-2">{{ ctx.proxy_error_message }}</p>
+                {% if ctx.proxy_state == 'expired' and ctx.has_unstopped_video %}
+                    <p class="small mb-2">公開済みまたは限定公開中の YouTube 動画を停止する場合は、画面下部の「公開停止（緊急停止）」から操作できます。</p>
+                {% endif %}
                 <a href="{% url 'event:recording_review_detail' ctx.detail.pk %}" class="btn btn-sm btn-outline-secondary">最新状態を再読み込み</a>
             </div>
         {% endif %}
@@ -339,6 +399,7 @@
                     {% if has_conflict %}最新状態の再読み込みが必要
                     {% elif ctx.is_public_locked %}公開済みロック中（確定不可）
                     {% elif ctx.active_order %}確定指示を処理中…
+                    {% elif ctx.is_expired %}プロキシ期限切れのため確定不可
                     {% elif ctx.proxy_state != 'ready' %}プロキシ未準備のため確定不可
                     {% else %}トリミングを確定して書き出しキューへ送る{% endif %}
                 </button>
@@ -376,6 +437,41 @@
         {% endif %}
         {% endtimezone %}
     </section>
+
+    {% if ctx.has_unstopped_video or ctx.is_private_fixed %}
+        <section class="admin-card" aria-labelledby="emergency-stop-heading" data-testid="emergency-stop-section">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='公開停止（緊急停止）' heading_id='emergency-stop-heading' only %}
+            {% if ctx.is_private_fixed and not ctx.has_unstopped_video %}
+                <p class="small admin-muted mb-0" data-testid="emergency-stop-completed-note">この発表は非公開確定済み（private_fixed）です。停止対象の公開動画はありません。</p>
+            {% else %}
+                <p class="small admin-muted mb-2">
+                    公開済み（public）または限定公開中の YouTube 動画に問題が見つかった場合、非公開（private）へ戻し公開ページ上の動画 URL を解除する緊急停止指示（<code>stop_publish</code>）をキューへ登録します。
+                    {% if ctx.is_public_locked %}公開ロック中でも緊急停止のみ実行できます（再編集・再差し替えのロックは解除されません）。{% endif %}
+                </p>
+                {% if ctx.review_item and ctx.review_item.youtube_draft_video_id %}
+                    <p class="small mb-3">対象動画 ID: <code>{{ ctx.review_item.youtube_draft_video_id }}</code></p>
+                {% endif %}
+                {% if ctx.can_stop_publish and not has_conflict %}
+                    <button type="button"
+                            class="btn btn-outline-danger"
+                            data-confirm-panel="recording-stop-publish-panel"
+                            aria-controls="recording-stop-publish-panel"
+                            aria-expanded="false"
+                            data-testid="emergency-stop-trigger">緊急停止（非公開化）…</button>
+                    {% url 'event:recording_stop_publish' ctx.detail.pk as stop_publish_url %}
+                    {% if ctx.is_public_locked %}
+                        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='recording-stop-publish-panel' label='緊急停止（非公開化）の確認' message='この発表の YouTube 動画を非公開（private）へ戻し、公開ページの動画リンクを解除する緊急停止指示をキューへ登録します。公開済みロック中のため、実行後は非公開確定状態になり再公開はできません。続行しますか？' action_url=stop_publish_url submit_label='緊急停止を登録する' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=expected_revision_value csrf_token=csrf_token only %}
+                    {% else %}
+                        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='recording-stop-publish-panel' label='緊急停止（非公開化）の確認' message='この発表の YouTube 動画を非公開（private）へ戻し、公開ページの動画リンクを解除する緊急停止指示をキューへ登録します。続行しますか？' action_url=stop_publish_url submit_label='緊急停止を登録する' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=expected_revision_value csrf_token=csrf_token only %}
+                    {% endif %}
+                {% elif ctx.active_order %}
+                    <p class="small text-warning-emphasis mb-0" data-testid="emergency-stop-blocked-note">別の指示（{{ ctx.active_order.get_order_type_display }} / {{ ctx.active_order.get_status_display }}）が進行中のため、完了後に操作してください。</p>
+                {% elif has_conflict %}
+                    <p class="small text-danger mb-0" data-testid="emergency-stop-conflict-note">競合が発生したため、最新状態を再読み込みしてから操作してください。</p>
+                {% endif %}
+            {% endif %}
+        </section>
+    {% endif %}
 
     {{ form_cuts|json_script:"recording-cuts-initial" }}
     <script id="recording-review-config" type="application/json">

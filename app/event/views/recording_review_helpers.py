@@ -177,6 +177,28 @@ def extract_trim_and_cuts_submission(
     return (rev, start_sec, end_sec, cuts)
 
 
+def extract_expected_revision(request: HttpRequest) -> tuple[int, str]:
+    """JSON / Form POST から expected_revision と安全な next_view（'list'|'detail'）を取り出す。"""
+    if request.content_type == "application/json":
+        if len(request.body) > _MAX_JSON_PAYLOAD_BYTES:
+            raise RecordingValidationError("リクエスト JSON のサイズが大きすぎます。")
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+            raise RecordingValidationError("リクエスト JSON の形式が不正です。") from exc
+        if not isinstance(payload, dict):
+            raise RecordingValidationError("JSON オブジェクトを指定してください。")
+        rev = parse_int_revision(payload.get("expected_revision"), strict_json=True)
+        raw_next = payload.get("next_view")
+        next_view = raw_next if raw_next in ("list", "detail") else "detail"
+        return (rev, next_view)
+
+    rev = parse_int_revision(request.POST.get("expected_revision"), strict_json=False)
+    raw_next = request.POST.get("next_view")
+    next_view = raw_next if raw_next in ("list", "detail") else "detail"
+    return (rev, next_view)
+
+
 def build_next_edl_from_registered(
     item: RecordingReviewItem | None,
     *,

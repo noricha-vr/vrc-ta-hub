@@ -46,11 +46,17 @@ LIST_PAGINATE_BY = 20
 
 _CONFLICT_MESSAGES: dict[str, str] = {
     "revision_conflict": "他のスタッフまたは処理によってデータが先に更新されました。最新の状態を再読み込みしてからもう一度確認してください。",
-    "active_order_exists": "現在この発表の確定指示がキューで処理中（待機中/実行中）のため、完了するまで新しい確定操作はできません。",
+    "active_order_exists": "現在この発表の確定指示がキューで処理中（待機中/実行中）のため、完了するまで新しい操作はできません。",
     "public_locked": "すでに YouTube で公開済み（public）のため、URL・再生数・記事参照を保持する目的で再差し替えがロックされています。",
-    "proxy_expired": "プロキシ動画の保持期限が切れているか残存時間が不足しているため確定できません。",
+    "proxy_expired": "プロキシ動画の保持期限が切れているか削除済みのため確定できません。",
     "proxy_not_ready": "プロキシ動画がまだ登録されていないため確定できません。",
     "revision_limit_exceeded": "EDL リビジョンの上限に達しているため確定できません。",
+    "order_running": "処理中（running）のオーダーは再試行・取り消しできません。",
+    "order_not_retryable": "失敗（failed）状態のオーダーのみ再試行できます。",
+    "order_not_cancelable": "待機中（queued）または失敗（failed）のオーダーのみ取り消しできます。",
+    "stale_order": "より新しい確定指示が存在するため、このオーダーは操作できません。最新状態を再読み込みしてください。",
+    "nothing_to_stop": "すでに非公開確定済み、または停止対象の公開動画が存在しません。",
+    "stop_publish_required": "撮影許可が無効または補償停止が必要な状態のため、公開停止指示は取り消せません。",
 }
 
 
@@ -156,6 +162,55 @@ class RecordingReviewListView(RecordingReviewSecurityMixin, View):
         return render(request, self.template_name, context)
 
 
+def render_recording_detail_response(
+    request: HttpRequest,
+    detail_id: int,
+    *,
+    status_code: int = 200,
+    conflict_message: str = "",
+    conflict_code: str = "",
+    error_message: str = "",
+    submitted_start_sec: float | None = None,
+    submitted_end_sec: float | None = None,
+    submitted_cuts: list[dict[str, Any]] | None = None,
+) -> HttpResponse:
+    """スタッフ詳細・トリミング編集画面を状態メッセージ付きでレンダリングする。"""
+    try:
+        detail_ctx = build_recording_detail_context(detail_id, issue_presigned_url=True)
+    except RecordingNotFoundError as exc:
+        raise Http404(str(exc)) from exc
+    except RecordingConsentError:
+        return HttpResponseForbidden("撮影公開の同意がない発表の録画確認画面は表示できません。")
+
+    has_conflict = bool(conflict_message)
+    can_submit = detail_ctx.can_submit and not has_conflict
+    expected_revision_value = "" if has_conflict else str(detail_ctx.edl_revision)
+    start_value = submitted_start_sec if submitted_start_sec is not None else detail_ctx.trim_start_sec
+    end_value = submitted_end_sec if submitted_end_sec is not None else detail_ctx.trim_end_sec
+    cuts_value = submitted_cuts if submitted_cuts is not None else detail_ctx.cuts
+    return render(
+        request,
+        "event/recording_review_detail.html",
+        {
+            "admin_nav_items": _build_operator_nav_items(request, current="recordings"),
+            "ctx": detail_ctx,
+            "remaining_minutes": estimate_remaining_minutes(detail_ctx.proxy_expires_at),
+            "conflict_message": conflict_message,
+            "conflict_code": conflict_code,
+            "has_conflict": has_conflict,
+            "can_submit": can_submit,
+            "expected_revision_value": expected_revision_value,
+            "error_message": error_message,
+            "form_start_sec": start_value,
+            "form_end_sec": end_value,
+            "form_cuts": cuts_value,
+            "form_cuts_json": json.dumps(cuts_value, ensure_ascii=False),
+            "max_revision": MAX_REVISION,
+        },
+        status=status_code,
+    )
+
+
 class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
     """スタッフ用の撮影動画プロキシ視聴・開始終了トリミング確定画面。"""
 
@@ -165,49 +220,9 @@ class RecordingReviewDetailView(RecordingReviewSecurityMixin, View):
         self,
         request: HttpRequest,
         detail_id: int,
-        *,
-        status_code: int = 200,
-        conflict_message: str = "",
-        conflict_code: str = "",
-        error_message: str = "",
-        submitted_start_sec: float | None = None,
-        submitted_end_sec: float | None = None,
-        submitted_cuts: list[dict[str, Any]] | None = None,
+        **kwargs: Any,
     ) -> HttpResponse:
-        try:
-            detail_ctx = build_recording_detail_context(detail_id, issue_presigned_url=True)
-        except RecordingNotFoundError as exc:
-            raise Http404(str(exc)) from exc
-        except RecordingConsentError:
-            return HttpResponseForbidden("撮影公開の同意がない発表の録画確認画面は表示できません。")
-
-        has_conflict = bool(conflict_message)
-        can_submit = detail_ctx.can_submit and not has_conflict
-        expected_revision_value = "" if has_conflict else str(detail_ctx.edl_revision)
-        start_value = submitted_start_sec if submitted_start_sec is not None else detail_ctx.trim_start_sec
-        end_value = submitted_end_sec if submitted_end_sec is not None else detail_ctx.trim_end_sec
-        cuts_value = submitted_cuts if submitted_cuts is not None else detail_ctx.cuts
-        return render(
-            request,
-            self.template_name,
-            {
-                "admin_nav_items": _build_operator_nav_items(request, current="recordings"),
-                "ctx": detail_ctx,
-                "remaining_minutes": estimate_remaining_minutes(detail_ctx.proxy_expires_at),
-                "conflict_message": conflict_message,
-                "conflict_code": conflict_code,
-                "has_conflict": has_conflict,
-                "can_submit": can_submit,
-                "expected_revision_value": expected_revision_value,
-                "error_message": error_message,
-                "form_start_sec": start_value,
-                "form_end_sec": end_value,
-                "form_cuts": cuts_value,
-                "form_cuts_json": json.dumps(cuts_value, ensure_ascii=False),
-                "max_revision": MAX_REVISION,
-            },
-            status=status_code,
-        )
+        return render_recording_detail_response(request, detail_id, **kwargs)
 
     def get(self, request: HttpRequest, detail_id: int) -> HttpResponse:
         return self._render_detail(request, detail_id)

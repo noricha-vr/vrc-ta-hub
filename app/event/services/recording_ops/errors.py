@@ -12,6 +12,8 @@ from event.youtube_urls import youtube_video_id
 
 DEFAULT_PROXY_RETENTION = timedelta(days=30)
 ORDER_LEASE_TIMEOUT = timedelta(minutes=30)
+STALLED_QUEUED_ORDER_THRESHOLD = timedelta(minutes=30)
+STALLED_RUNNING_ORDER_THRESHOLD = ORDER_LEASE_TIMEOUT
 MAX_REVISION = 2_147_483_647
 _VIDEO_ID_PATTERN = re.compile(r"\A[0-9A-Za-z_-]{11}\Z")
 
