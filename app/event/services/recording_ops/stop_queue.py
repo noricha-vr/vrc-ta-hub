@@ -283,12 +283,21 @@ def apply_stop_publish_completion(
         item.save(update_fields=list(dict.fromkeys(item_fields)))
         return True
 
+    if item.compensating_stop_pending:
+        # 実行中の stop_publish の間に新たな公開報告が割り込んだため、追加の補償停止を積む。
+        item.compensating_stop_pending = False
+        item_fields.append("compensating_stop_pending")
+        if stopped_vid and add_pending_stop_video_id(item, stopped_vid):
+            item_fields.append("pending_stop_video_ids")
+        item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
+        item.youtube_draft_privacy = ""
+        item_fields.append("youtube_draft_privacy")
+        item.save(update_fields=list(dict.fromkeys(item_fields)))
+        return True
+
     item.review_status = RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
     item.youtube_draft_privacy = effective_privacy
     item_fields.append("youtube_draft_privacy")
-    if item.compensating_stop_pending:
-        item.compensating_stop_pending = False
-        item_fields.append("compensating_stop_pending")
     item.save(update_fields=list(dict.fromkeys(item_fields)))
     return False
 

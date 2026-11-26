@@ -205,6 +205,50 @@ class RecordingOpsMarkPublishedAPITest(TestCase):
             ).exists()
         )
 
+    def test_running_stop_publish_race_enqueues_followup_compensating_stop(self):
+        from event.services.recording_ops.completion import complete_edit_order
+
+        detail = self._make_detail(recording_policy=EventDetail.RecordingPolicy.FORBIDDEN)
+        item = self._make_item(detail, youtube_draft_video_id="race1234567")
+        running_stop = RecordingEditOrder.objects.create(
+            review_item=item,
+            event_detail=detail,
+            order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+            target_video_id="race1234567",
+            base_revision=1,
+            target_revision=2,
+            status=RecordingEditOrder.Status.RUNNING,
+            active_lock_key=f"item:{item.pk}",
+            started_at=timezone.now(),
+        )
+        # 実行中 stop_publish の間に同動画が再公開されて mark-published が到達
+        resp = self._client(self.super_write_key).post(
+            self._url(detail.pk), {"video_id": "race1234567"}, format="json"
+        )
+        self.assertEqual(resp.status_code, 409)
+        item.refresh_from_db()
+        self.assertTrue(item.compensating_stop_pending)
+
+        # 古い stop_publish が完了しても private_fixed に落ちず、追従の補償 stop_publish が積まれること
+        complete_edit_order(
+            running_stop.pk,
+            target_revision=2,
+            status=RecordingEditOrder.Status.SUCCEEDED,
+            result_video_id="race1234567",
+            youtube_draft_privacy=RecordingReviewItem.YouTubePrivacy.PRIVATE,
+            review_status=RecordingReviewItem.ReviewStatus.PRIVATE_FIXED,
+        )
+        item.refresh_from_db()
+        self.assertNotEqual(item.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertTrue(
+            RecordingEditOrder.objects.filter(
+                review_item=item,
+                order_type=RecordingEditOrder.OrderType.STOP_PUBLISH,
+                status=RecordingEditOrder.Status.QUEUED,
+                target_video_id="race1234567",
+            ).exists()
+        )
+
     def test_openapi_schema_includes_mark_published(self):
         resp = APIClient().get(reverse("schema"), HTTP_ACCEPT="application/vnd.oai.openapi+json")
         self.assertEqual(resp.status_code, 200)
