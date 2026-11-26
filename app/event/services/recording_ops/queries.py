@@ -167,6 +167,9 @@ class RecordingDetailContext:
     can_retry_failed_order: bool = False
     cancelable_order: RecordingEditOrder | None = None
     can_cancel_latest_order: bool = False
+    reopen_feature_enabled: bool = False
+    can_reopen_review: bool = False
+    reopen_reason: str = ""
 
 
 def needs_review_q() -> Q:
@@ -482,6 +485,13 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
     _, failed_latest, can_retry_failed, cancelable_order, can_cancel = compute_order_action_flags(
         item, latest_order, active_order, can_access=True, is_expired=is_expired, is_public_locked=is_public_locked,
     )
+    from .reopen import evaluate_reopen_eligibility, is_reopen_feature_enabled
+    reopen_enabled = is_reopen_feature_enabled()
+    can_reopen, _, reopen_reason = (
+        evaluate_reopen_eligibility(detail, item, now=current_time)
+        if reopen_enabled and is_private_fixed and not is_public_locked
+        else (False, "", "")
+    )
 
     return RecordingDetailContext(
         detail=detail, review_item=item, title=detail.title or "(無題の発表)", edl_revision=item.edl_revision if item is not None else 1,
@@ -500,6 +510,7 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
         stalled_active_order=(stalled_minutes is not None), stalled_minutes=stalled_minutes,
         failed_latest_order=failed_latest, can_retry_failed_order=can_retry_failed,
         cancelable_order=cancelable_order, can_cancel_latest_order=can_cancel,
+        reopen_feature_enabled=reopen_enabled, can_reopen_review=can_reopen, reopen_reason=reopen_reason,
     )
 
 

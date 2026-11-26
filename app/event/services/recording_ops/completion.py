@@ -96,6 +96,34 @@ def _apply_succeeded_order(
             review_status=review_status,
         )
 
+    if order.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
+        if order.target_video_id and result_video_id and result_video_id != order.target_video_id:
+            raise RecordingValidationError("reopen_review の完了報告の動画 ID が指示対象（target_video_id）と一致しません。")
+        if item.review_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED or item.is_public_locked:
+            raise RecordingValidationError("reopen_review の完了時点で項目が非公開確定（未ロック）ではありません。")
+        effective_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
+        derive_review_status_on_success(
+            order_type=order.order_type,
+            privacy=effective_privacy,
+            requested_review_status=review_status,
+        )
+        order.result_video_id = result_video_id or order.target_video_id
+        order.error_message = ""
+        # 同意無効・削除済み・補償停止保留がある場合は private_fixed のまま安全に閉じる（不要な停止オーダーを積まない）。
+        if not consent_valid or item.compensating_stop_pending:
+            clear_detail_youtube_url(detail)
+            item_fields = ["updated_at"]
+            if item.compensating_stop_pending:
+                item.compensating_stop_pending = False
+                item_fields.append("compensating_stop_pending")
+            item.save(update_fields=item_fields)
+            return False
+        item.review_status = RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
+        item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PRIVATE
+        item.worker_synced_revision = order.target_revision
+        item.save(update_fields=["review_status", "youtube_draft_privacy", "worker_synced_revision", "updated_at"])
+        return False
+
     item_fields = ["review_status", "worker_synced_revision", "updated_at"]
     item.worker_synced_revision = order.target_revision
     is_new_video = bool(result_video_id) and result_video_id != item.youtube_draft_video_id

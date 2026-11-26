@@ -244,6 +244,7 @@ class RecordingProxyDownloadUrlAPIView(APIView):
         latest_non_canceled = (
             RecordingEditOrder.objects.filter(review_item=item)
             .exclude(status=RecordingEditOrder.Status.CANCELED)
+            .exclude(order_type=RecordingEditOrder.OrderType.REOPEN_REVIEW)
             .order_by('-pk')
             .values_list('status', flat=True)
             .first()

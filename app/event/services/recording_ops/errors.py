@@ -118,6 +118,16 @@ def derive_review_status_on_success(
                 "stop_publish の完了報告では review_status='private_fixed' のみ指定できます。"
             )
         return RecordingReviewItem.ReviewStatus.PRIVATE_FIXED
+    if order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
+        if privacy not in ("", RecordingReviewItem.YouTubePrivacy.PRIVATE):
+            raise RecordingValidationError(
+                "reopen_review の完了報告では youtube_draft_privacy='private' のみ指定できます。"
+            )
+        if requested_review_status not in ("", RecordingReviewItem.ReviewStatus.NEEDS_REVIEW):
+            raise RecordingValidationError(
+                "reopen_review の完了報告では review_status='needs_review' のみ指定できます。"
+            )
+        return RecordingReviewItem.ReviewStatus.NEEDS_REVIEW
     if (
         requested_review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
         and privacy != RecordingReviewItem.YouTubePrivacy.PUBLIC

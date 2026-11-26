@@ -33,6 +33,7 @@ from .views import (
     SpeakerLinkUnlinkView,
     sync_calendar_events,
 )
+from .views.recording_ops_actions import RecordingReopenReviewView
 from .views.slide_source import slide_fetch_retry
 from .views.article_generation import run_article_generation
 from .views.material_upload_reminder import send_material_upload_reminders_view
@@ -53,6 +54,7 @@ urlpatterns = [
     path('manage/recordings/<int:detail_id>/orders/<int:order_id>/retry/', RecordingOrderRetryView.as_view(), name='recording_order_retry'),
     path('manage/recordings/<int:detail_id>/orders/<int:order_id>/cancel/', RecordingOrderCancelView.as_view(), name='recording_order_cancel'),
     path('manage/recordings/<int:detail_id>/stop-publish/', RecordingStopPublishView.as_view(), name='recording_stop_publish'),
+    path('manage/recordings/<int:detail_id>/reopen-review/', RecordingReopenReviewView.as_view(), name='recording_reopen_review'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),
     path('calendar/create/', GoogleCalendarEventCreateView.as_view(), name='calendar_create'),
     # detail
