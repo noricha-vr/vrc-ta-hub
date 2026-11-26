@@ -51,6 +51,9 @@ def mark_recording_item_published(detail_id: int, *, video_id: str) -> dict[str,
         raise RecordingValidationError("video_id は必須です。")
     normalized_video_id = validate_video_id(video_id.strip(), "video_id")
 
+    conflict_exc: RecordingConflictError | None = None
+    result_payload: dict[str, Any] | None = None
+
     with transaction.atomic():
         # ロック順序は既存サービスと揃えて EventDetail -> RecordingReviewItem とする。
         detail = lock_event_detail(detail_id, include_deleted=True)
@@ -82,6 +85,7 @@ def mark_recording_item_published(detail_id: int, *, video_id: str) -> dict[str,
         )
 
         # 1. 同意撤回・論理削除レース: YouTube 公開済みの事実を取りこぼさず補償停止を積む。
+        # atomic() 内で例外を送出するとロールバックされるため、確定保存後にブロック外で送出する。
         if not consent_valid:
             item_fields = ["updated_at"]
             if item.youtube_draft_video_id and item.youtube_draft_video_id != normalized_video_id:
@@ -121,90 +125,95 @@ def mark_recording_item_published(detail_id: int, *, video_id: str) -> dict[str,
                     "result": "consent_revoked_stop_enqueued",
                 },
             )
-            raise RecordingConflictError(
+            conflict_exc = RecordingConflictError(
                 "撮影同意が無効または発表が削除済みのため、補償公開停止を登録しました。",
                 code="consent_revoked_stop_enqueued",
                 current_state=serialize_item_state(item),
             )
-
-        # 2. 冪等成功: すでに同一動画で published / public 済み。
-        if (
-            item.review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-            and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
-            and item.youtube_draft_video_id == normalized_video_id
-        ):
-            if item.public_locked_at is None:
-                item.save(update_fields=["public_locked_at", "updated_at"])
-            logger.info(
-                "recording_ops_mark_published",
-                extra={
-                    "event_type": "recording_ops_mark_published",
+        else:
+            # 2. 冪等成功: すでに同一動画で published / public 済み。
+            if (
+                item.review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
+                and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
+                and item.youtube_draft_video_id == normalized_video_id
+            ):
+                if item.public_locked_at is None:
+                    item.save(update_fields=["public_locked_at", "updated_at"])
+                logger.info(
+                    "recording_ops_mark_published",
+                    extra={
+                        "event_type": "recording_ops_mark_published",
+                        "event_detail_id": detail.pk,
+                        "result": "already_published",
+                    },
+                )
+                result_payload = {
                     "event_detail_id": detail.pk,
-                    "result": "already_published",
-                },
-            )
-            return {
-                "event_detail_id": detail.pk,
-                "synced": True,
-                "already_published": True,
-                "compensating_stop_enqueued": False,
-                "reason": "already_published",
-                "review_status": item.review_status,
-                "is_public_locked": item.is_public_locked,
-            }
+                    "synced": True,
+                    "already_published": True,
+                    "compensating_stop_enqueued": False,
+                    "reason": "already_published",
+                    "review_status": item.review_status,
+                    "is_public_locked": item.is_public_locked,
+                }
+            else:
+                # 3. 許可リスト検証（fail-closed）
+                if active_order is not None:
+                    raise RecordingConflictError(
+                        "進行中の編集・停止オーダーがあるため公開同期できません。",
+                        code="active_order_in_progress",
+                        current_state=serialize_item_state(item),
+                    )
+                if item.review_status not in _ALLOWED_MARK_PUBLISHED_STATUSES:
+                    raise RecordingConflictError(
+                        f"現在のレビュー状態（{item.review_status}）からは公開済みへ同期できません。",
+                        code="invalid_review_status",
+                        current_state=serialize_item_state(item),
+                    )
+                if item.youtube_draft_privacy not in _ALLOWED_MARK_PUBLISHED_PRIVACIES:
+                    raise RecordingConflictError(
+                        f"現在の下書き公開範囲（{item.youtube_draft_privacy}）からは公開済みへ同期できません。",
+                        code="invalid_draft_privacy",
+                        current_state=serialize_item_state(item),
+                    )
+                pending_videos = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
+                if item.compensating_stop_pending or pending_videos:
+                    raise RecordingConflictError(
+                        "未処理の停止待ち動画または補償停止保留があるため公開同期できません。",
+                        code="pending_stop_exists",
+                        current_state=serialize_item_state(item),
+                    )
+                if not item.youtube_draft_video_id or item.youtube_draft_video_id != normalized_video_id:
+                    raise RecordingConflictError(
+                        "登録済みの下書き動画 ID と公開動画 ID が一致しません。",
+                        code="video_id_mismatch",
+                        current_state=serialize_item_state(item),
+                    )
 
-        # 3. 許可リスト検証（fail-closed）
-        if active_order is not None:
-            raise RecordingConflictError(
-                "進行中の編集・停止オーダーがあるため公開同期できません。",
-                code="active_order_in_progress",
-                current_state=serialize_item_state(item),
-            )
-        if item.review_status not in _ALLOWED_MARK_PUBLISHED_STATUSES:
-            raise RecordingConflictError(
-                f"現在のレビュー状態（{item.review_status}）からは公開済みへ同期できません。",
-                code="invalid_review_status",
-                current_state=serialize_item_state(item),
-            )
-        if item.youtube_draft_privacy not in _ALLOWED_MARK_PUBLISHED_PRIVACIES:
-            raise RecordingConflictError(
-                f"現在の下書き公開範囲（{item.youtube_draft_privacy}）からは公開済みへ同期できません。",
-                code="invalid_draft_privacy",
-                current_state=serialize_item_state(item),
-            )
-        pending_videos = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
-        if item.compensating_stop_pending or pending_videos:
-            raise RecordingConflictError(
-                "未処理の停止待ち動画または補償停止保留があるため公開同期できません。",
-                code="pending_stop_exists",
-                current_state=serialize_item_state(item),
-            )
-        if not item.youtube_draft_video_id or item.youtube_draft_video_id != normalized_video_id:
-            raise RecordingConflictError(
-                "登録済みの下書き動画 ID と公開動画 ID が一致しません。",
-                code="video_id_mismatch",
-                current_state=serialize_item_state(item),
-            )
+                # 4. 公開状態へ原子遷移（public_locked_at は RecordingReviewItem.save() が自動設定）
+                item.review_status = RecordingReviewItem.ReviewStatus.PUBLISHED
+                item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PUBLIC
+                item.save(update_fields=["review_status", "youtube_draft_privacy", "updated_at"])
 
-        # 4. 公開状態へ原子遷移（public_locked_at は RecordingReviewItem.save() が自動設定）
-        item.review_status = RecordingReviewItem.ReviewStatus.PUBLISHED
-        item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PUBLIC
-        item.save(update_fields=["review_status", "youtube_draft_privacy", "updated_at"])
+                logger.info(
+                    "recording_ops_mark_published",
+                    extra={
+                        "event_type": "recording_ops_mark_published",
+                        "event_detail_id": detail.pk,
+                        "result": "published",
+                    },
+                )
+                result_payload = {
+                    "event_detail_id": detail.pk,
+                    "synced": True,
+                    "already_published": False,
+                    "compensating_stop_enqueued": False,
+                    "reason": "published",
+                    "review_status": item.review_status,
+                    "is_public_locked": item.is_public_locked,
+                }
 
-        logger.info(
-            "recording_ops_mark_published",
-            extra={
-                "event_type": "recording_ops_mark_published",
-                "event_detail_id": detail.pk,
-                "result": "published",
-            },
-        )
-        return {
-            "event_detail_id": detail.pk,
-            "synced": True,
-            "already_published": False,
-            "compensating_stop_enqueued": False,
-            "reason": "published",
-            "review_status": item.review_status,
-            "is_public_locked": item.is_public_locked,
-        }
+    if conflict_exc is not None:
+        raise conflict_exc
+    assert result_payload is not None
+    return result_payload
