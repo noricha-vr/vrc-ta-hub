@@ -267,6 +267,20 @@ def apply_stop_publish_completion(
     if remove_pending_stop_video_id(item, stopped_vid):
         item_fields.append("pending_stop_video_ids")
 
+    if (
+        item.compensating_stop_pending
+        and item.review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
+        and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
+    ):
+        # 実行中の stop_publish の間に新たな公開報告が割り込んだため、別動画残存の有無に関わらず再停止予約を保全する。
+        item.compensating_stop_pending = False
+        item_fields.append("compensating_stop_pending")
+        if stopped_vid and add_pending_stop_video_id(item, stopped_vid):
+            item_fields.append("pending_stop_video_ids")
+        item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
+        item.youtube_draft_privacy = ""
+        item_fields.append("youtube_draft_privacy")
+
     remaining_pending = [v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v]
     untracked_current = bool(item.youtube_draft_video_id) and item.youtube_draft_video_id != stopped_vid
     if remaining_pending or untracked_current:
@@ -280,22 +294,6 @@ def apply_stop_publish_completion(
         if item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PRIVATE:
             item.youtube_draft_privacy = ""
             item_fields.append("youtube_draft_privacy")
-        item.save(update_fields=list(dict.fromkeys(item_fields)))
-        return True
-
-    if (
-        item.compensating_stop_pending
-        and item.review_status == RecordingReviewItem.ReviewStatus.PUBLISHED
-        and item.youtube_draft_privacy == RecordingReviewItem.YouTubePrivacy.PUBLIC
-    ):
-        # 実行中の stop_publish の間に新たな公開報告が割り込んだため、追加の補償停止を積む。
-        item.compensating_stop_pending = False
-        item_fields.append("compensating_stop_pending")
-        if stopped_vid and add_pending_stop_video_id(item, stopped_vid):
-            item_fields.append("pending_stop_video_ids")
-        item.review_status = RecordingReviewItem.ReviewStatus.UNLISTED_SCHEDULED
-        item.youtube_draft_privacy = ""
-        item_fields.append("youtube_draft_privacy")
         item.save(update_fields=list(dict.fromkeys(item_fields)))
         return True
 
