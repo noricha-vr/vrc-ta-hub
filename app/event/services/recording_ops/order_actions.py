@@ -108,6 +108,15 @@ def retry_edit_order(
                 item,
             )
 
+        if order.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
+            _raise_order_conflict(
+                detail.pk,
+                order.order_type,
+                "reopen_not_retryable",
+                "確認待ち復帰オーダーは再試行できません。必要に応じて画面から再度実行してください。",
+                item,
+            )
+
         if (
             order.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH
             and not item_has_unstopped_video(item)

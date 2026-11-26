@@ -169,13 +169,16 @@ def cancel_queued_apply_edl_and_compensate(
     requested_by = fallback_requested_by
     for active in active_orders:
         if (
-            active.order_type == RecordingEditOrder.OrderType.APPLY_EDL
+            active.order_type in (
+                RecordingEditOrder.OrderType.APPLY_EDL,
+                RecordingEditOrder.OrderType.REOPEN_REVIEW,
+            )
             and active.status == RecordingEditOrder.Status.QUEUED
         ):
             active.status = RecordingEditOrder.Status.CANCELED
             active.active_lock_key = None
             active.completed_at = now
-            active.error_message = "同意撤回または削除により待機中の apply_edl を自動キャンセルしました。"
+            active.error_message = f"同意撤回または削除により待機中の {active.order_type} を自動キャンセルしました。"
             active.save(
                 update_fields=["status", "active_lock_key", "completed_at", "error_message", "updated_at"]
             )
@@ -193,14 +196,23 @@ def cancel_queued_apply_edl_and_compensate(
             source_order_id=source_order_id,
         )
         return True
-    has_running_apply = any(
-        a.order_type == RecordingEditOrder.OrderType.APPLY_EDL and a.status == RecordingEditOrder.Status.RUNNING
+    has_running_non_stop = any(
+        a.order_type in (
+            RecordingEditOrder.OrderType.APPLY_EDL,
+            RecordingEditOrder.OrderType.REOPEN_REVIEW,
+        )
+        and a.status == RecordingEditOrder.Status.RUNNING
+        for a in active_orders
+    )
+    has_running_reopen = any(
+        a.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW
+        and a.status == RecordingEditOrder.Status.RUNNING
         for a in active_orders
     )
     if (
         has_remaining_active
-        and has_running_apply
-        and (force_stop_if_idle or item_has_unstopped_video(item))
+        and has_running_non_stop
+        and (force_stop_if_idle or has_running_reopen or item_has_unstopped_video(item))
         and not item.compensating_stop_pending
     ):
         item.compensating_stop_pending = True

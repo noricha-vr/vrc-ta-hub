@@ -32,7 +32,10 @@ def _claim_invalidation_reason(
     now: datetime,
 ) -> str | None:
     """claim 時点でオーダーが無効化されている場合はキャンセル理由を返す。"""
-    if order.order_type != RecordingEditOrder.OrderType.APPLY_EDL:
+    if order.order_type not in (
+        RecordingEditOrder.OrderType.APPLY_EDL,
+        RecordingEditOrder.OrderType.REOPEN_REVIEW,
+    ):
         return None
     if detail is None:
         return "detail_not_found"
@@ -48,6 +51,11 @@ def _claim_invalidation_reason(
         return "proxy_expired"
     if item.compensating_stop_pending:
         return "compensating_stop_pending"
+    if order.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
+        if item.review_status != RecordingReviewItem.ReviewStatus.PRIVATE_FIXED:
+            return "not_private_fixed"
+        if order.target_video_id and item.youtube_draft_video_id != order.target_video_id:
+            return "video_id_mismatch"
     return None
 
 
@@ -71,7 +79,10 @@ def _handle_expired_order_compensation(
     order: RecordingEditOrder,
 ) -> None:
     if (
-        order.order_type != RecordingEditOrder.OrderType.APPLY_EDL
+        order.order_type not in (
+            RecordingEditOrder.OrderType.APPLY_EDL,
+            RecordingEditOrder.OrderType.REOPEN_REVIEW,
+        )
         or item is None
         or (detail is not None and is_recording_consent_valid(detail) and not item.compensating_stop_pending)
     ):

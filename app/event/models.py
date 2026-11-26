@@ -1177,6 +1177,7 @@ class RecordingEditOrder(models.Model):
     class OrderType(models.TextChoices):
         APPLY_EDL = "apply_edl", "EDL 適用"
         STOP_PUBLISH = "stop_publish", "公開停止"
+        REOPEN_REVIEW = "reopen_review", "確認待ちへ復帰"
 
     class Status(models.TextChoices):
         QUEUED = "queued", "待機中"

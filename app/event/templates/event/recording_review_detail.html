@@ -477,6 +477,29 @@
         {% endtimezone %}
     </section>
 
+    {% if ctx.reopen_feature_enabled and ctx.is_private_fixed and not ctx.is_public_locked %}
+        <section class="admin-card" aria-labelledby="reopen-review-heading" data-testid="reopen-review-section">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='非公開のまま確定しています（緊急停止ではありません）' heading_id='reopen-review-heading' only %}
+            {% if not request.user.is_superuser %}
+                <p class="small admin-muted mb-0" data-testid="reopen-owner-only-note">非公開確定の解除はオーナー（スーパーユーザー）のみ実行できます。解除が必要な場合はオーナーへ依頼してください。</p>
+            {% elif ctx.can_reopen_review and not has_conflict %}
+                <p class="small admin-muted mb-3">
+                    トリミング編集を確定してから解除してください（解除後にトリミングし直すと再び非公開確定になります）。
+                </p>
+                <button type="button"
+                        class="btn btn-outline-primary"
+                        data-confirm-panel="recording-reopen-review-panel"
+                        aria-controls="recording-reopen-review-panel"
+                        aria-expanded="false"
+                        data-testid="reopen-review-trigger">確認待ちに戻す…</button>
+                {% url 'event:recording_reopen_review' ctx.detail.pk as reopen_review_url %}
+                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='recording-reopen-review-panel' label='確認待ちへの復帰の確認' message='この発表を非公開確定から確認待ち（needs_review）へ戻す指示をキューへ登録します。YouTube 動画は非公開のまま変更されず、公開はオーナーが別途実行します。続行しますか？' action_url=reopen_review_url submit_label='確認待ちに戻す' fields_template='event/includes/recording_order_revision_fields.html' expected_revision_value=expected_revision_value csrf_token=csrf_token only %}
+            {% else %}
+                <p class="small admin-muted mb-0" data-testid="reopen-ineligible-note">{{ ctx.reopen_reason|default:'現在の状態では確認待ちへ戻せません。' }}</p>
+            {% endif %}
+        </section>
+    {% endif %}
+
     {% if ctx.has_unstopped_video or ctx.is_private_fixed %}
         <section class="admin-card" aria-labelledby="emergency-stop-heading" data-testid="emergency-stop-section">
             {% include 'ta_hub/admin/includes/section_heading.html' with title='公開停止（緊急停止）' heading_id='emergency-stop-heading' only %}

@@ -20,6 +20,7 @@ from event.services.recording_ops.order_actions import (
     enqueue_manual_stop_publish,
     retry_edit_order,
 )
+from event.services.recording_ops.reopen import enqueue_reopen_review
 from event.services.recording_ops.storage import RecordingConsentError
 from event.views.recording_review import (
     RecordingReviewSecurityMixin,
@@ -187,4 +188,22 @@ class RecordingStopPublishView(RecordingReviewSecurityMixin, View):
             ),
             success_status=201,
             success_message_fn=lambda o: f"緊急停止指示 #{o.pk} をキューへ登録しました。ワーカーが順次非公開化を実行します。",
+        )
+
+
+class RecordingReopenReviewView(RecordingReviewSecurityMixin, View):
+    """スーパーユーザー限定で、期限切れ非公開確定（private_fixed）を確認待ち（needs_review）へ戻す指示を登録する。"""
+
+    def post(self, request: HttpRequest, detail_id: int) -> HttpResponse:
+        return _execute_order_action(
+            request,
+            detail_id,
+            action_name="reopen_review",
+            action_fn=lambda rev: enqueue_reopen_review(
+                detail_id,
+                expected_revision=rev,
+                requested_by=request.user,
+            ),
+            success_status=201,
+            success_message_fn=lambda o: f"確認待ち復帰指示 #{o.pk} をキューへ登録しました。ワーカーの確認完了後に確認待ちへ戻ります。",
         )
