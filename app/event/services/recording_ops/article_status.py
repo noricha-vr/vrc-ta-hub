@@ -112,20 +112,16 @@ def resolve_machine_article_status(detail: EventDetail) -> dict[str, Any]:
     elif art_state == EventDetail.ArticleState.AUTO:
         if current_video_id and source_video_id == current_video_id:
             state = "generated_current_video"
-        elif requested_at is not None:
+        elif requested_at is not None or detail.slide_generate_waiting:
             state = "queued"
         elif last_error:
             state = "failed"
         else:
             state = "generated_pdf_only"
     else:
-        if (
-            detail.is_article_ng
-            or detail.article_consent != EventDetail.ArticleConsent.OK
-            or detail.status == "rejected"
-        ):
+        if not detail.can_generate_in_queue:
             state = "not_applicable"
-        elif requested_at is not None:
+        elif requested_at is not None or detail.slide_generate_waiting:
             state = "queued"
         elif last_error:
             state = "failed"

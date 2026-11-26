@@ -1,6 +1,8 @@
 """録画運用クライアント向け 記事生成ステータス一括取得 API ビュー。"""
 from __future__ import annotations
 
+import re
+
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import serializers, status
 from rest_framework.exceptions import ValidationError
@@ -16,6 +18,7 @@ from .recording_ops_serializers import RecordingOpsErrorSerializer
 from .views import IsSuperuser
 
 MAX_ARTICLE_STATUS_IDS = 100
+_ASCII_POSITIVE_INT_RE = re.compile(r"^[0-9]{1,12}$")
 
 
 class RecordingOpsArticleStatusItemSerializer(serializers.Serializer):
@@ -55,9 +58,12 @@ def _parse_detail_ids(raw: str | None) -> list[int]:
     ids: list[int] = []
     seen: set[int] = set()
     for part in parts:
-        if not part.isdigit():
-            raise ValidationError({"ids": f"不正な detail_id です: {part}"})
-        val = int(part)
+        if not _ASCII_POSITIVE_INT_RE.fullmatch(part):
+            raise ValidationError({"ids": f"不正な detail_id です: {part[:32]}"})
+        try:
+            val = int(part)
+        except ValueError:
+            raise ValidationError({"ids": f"不正な detail_id です: {part[:32]}"}) from None
         if val <= 0:
             raise ValidationError({"ids": f"detail_id は正の整数を指定してください: {part}"})
         if val not in seen:
@@ -104,8 +110,16 @@ class RecordingOpsArticleStatusAPIView(APIView):
             deleted_at__isnull=True,
         ).only(
             "id",
+            "detail_type",
             "status",
+            "deleted_at",
             "youtube_url",
+            "slide_file",
+            "slide_source_file",
+            "slide_url",
+            "slide_fetch_url",
+            "slide_fetch_status",
+            "slide_generate_article_hash",
             "h1",
             "contents",
             "meta_description",

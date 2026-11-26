@@ -3,38 +3,33 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from community.models import Community
-from event.models import Event, EventDetail
+from event.models import EventDetail
+from tests.factories import make_community, make_event, make_event_detail, make_user
 from user_account.models import APIKey
-
-User = get_user_model()
 
 
 class RecordingOpsArticleStatusAPITest(TestCase):
     def setUp(self):
-        self.superuser = User.objects.create_superuser(
-            user_name="super_ops", email="super_ops@example.com", password="pw"
+        self.superuser = make_user(
+            user_name="super_ops", email="super_ops@example.com", is_staff=True, is_superuser=True
         )
-        self.staff = User.objects.create_user(
-            user_name="staff_ops", email="staff_ops@example.com", password="pw", is_staff=True
+        self.staff = make_user(
+            user_name="staff_ops", email="staff_ops@example.com", is_staff=True, is_superuser=False
         )
-        self.normal = User.objects.create_user(
-            user_name="normal_ops", email="normal_ops@example.com", password="pw"
+        self.normal = make_user(
+            user_name="normal_ops", email="normal_ops@example.com", is_staff=False, is_superuser=False
         )
         _, self.super_key = APIKey.create_with_raw_key(user=self.superuser, name="super")
         _, self.staff_key = APIKey.create_with_raw_key(user=self.staff, name="staff")
         _, self.normal_key = APIKey.create_with_raw_key(user=self.normal, name="normal")
 
-        self.community = Community.objects.create(name="テスト集会", status="approved")
-        self.event = Event.objects.create(
-            community=self.community, date=date(2026, 11, 26), start_time="22:00:00"
-        )
+        self.community = make_community(name="テスト集会", status="approved")
+        self.event = make_event(self.community, event_date=date(2026, 11, 26))
         self.url = reverse("recording-ops-article-status")
 
     def _client(self, raw_key: str | None = None) -> APIClient:
@@ -45,7 +40,6 @@ class RecordingOpsArticleStatusAPITest(TestCase):
 
     def _make_detail(self, **kwargs) -> EventDetail:
         defaults = dict(
-            event=self.event,
             detail_type="LT",
             status="approved",
             speaker="登壇者",
@@ -53,7 +47,7 @@ class RecordingOpsArticleStatusAPITest(TestCase):
             article_consent=EventDetail.ArticleConsent.OK,
         )
         defaults.update(kwargs)
-        return EventDetail.objects.create(**defaults)
+        return make_event_detail(self.event, **defaults)
 
     def test_permissions(self):
         detail = self._make_detail()
@@ -143,11 +137,45 @@ class RecordingOpsArticleStatusAPITest(TestCase):
         self.assertEqual(items[str(d_ng.pk)]["state"], "not_applicable")
         self.assertNotIn(str(d_del.pk), items)
 
+    def test_explicit_request_with_unanswered_consent_tracks_queue_and_failure(self):
+        d_wait = self._make_detail(
+            youtube_url="https://youtu.be/wai12345678",
+            article_consent=EventDetail.ArticleConsent.UNANSWERED,
+        )
+        EventDetail.objects.filter(pk=d_wait.pk).update(
+            slide_generate_article_hash=d_wait.current_article_hash(),
+            slide_fetch_status=EventDetail.SlideFetchStatus.PENDING,
+            article_generation_requested_at=None,
+        )
+        d_fail = self._make_detail(
+            youtube_url="https://youtu.be/ufl12345678",
+            article_consent=EventDetail.ArticleConsent.UNANSWERED,
+        )
+        EventDetail.objects.filter(pk=d_fail.pk).update(
+            slide_generate_article_hash=d_fail.current_article_hash(),
+            slide_fetch_status=EventDetail.SlideFetchStatus.SUCCESS,
+            article_generation_requested_at=None,
+            article_generation_last_error="llm_error",
+        )
+        resp = self._client(self.super_key).get(f"{self.url}?ids={d_wait.pk},{d_fail.pk}")
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()["items"]
+        self.assertEqual(items[str(d_wait.pk)]["state"], "queued")
+        self.assertEqual(items[str(d_fail.pk)]["state"], "failed")
+
     def test_validation_errors(self):
         client = self._client(self.super_key)
-        for query in ("", "?ids=", "?ids=abc", "?ids=0", f"?ids={','.join(str(i) for i in range(1, 102))}"):
+        for query in (
+            "",
+            "?ids=",
+            "?ids=abc",
+            "?ids=0",
+            "?ids=²",
+            f"?ids={'1' * 4301}",
+            f"?ids={','.join(str(i) for i in range(1, 102))}",
+        ):
             resp = client.get(f"{self.url}{query}")
-            self.assertEqual(resp.status_code, 400, msg=query)
+            self.assertEqual(resp.status_code, 400, msg=query[:40])
 
     def test_read_scope_superuser_key_allowed(self):
         detail = self._make_detail()
