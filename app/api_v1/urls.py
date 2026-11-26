@@ -8,6 +8,7 @@ from .views import (
 )
 from .recurrence_preview import RecurrencePreviewAPIView
 from .recording_ops_article_views import RecordingOpsArticleStatusAPIView
+from .recording_ops_publish_views import RecordingOpsMarkPublishedAPIView
 from .recording_ops_snapshot_views import RecordingOpsSnapshotCreateAPIView
 from .recording_ops_views import (
     RecordingEditOrderClaimAPIView,
@@ -46,6 +47,11 @@ urlpatterns = [
         'recording-ops/items/<int:detail_id>/proxy-url/',
         RecordingProxyDownloadUrlAPIView.as_view(),
         name='recording-ops-proxy-url',
+    ),
+    path(
+        'recording-ops/items/<int:detail_id>/mark-published/',
+        RecordingOpsMarkPublishedAPIView.as_view(),
+        name='recording-ops-mark-published',
     ),
     path(
         'recording-ops/items/<int:detail_id>/orders/',
