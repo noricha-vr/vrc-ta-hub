@@ -97,3 +97,53 @@ def resolve_article_status(
         detail_url=detail_url,
         edit_url=edit_url,
     )
+
+
+def resolve_machine_article_status(detail: EventDetail) -> dict[str, Any]:
+    """外部監視クライアント向けの機械判定用記事ステータスを組み立てる。"""
+    current_video_id = detail.video_id or ""
+    source_video_id = detail.article_source_video_id or ""
+    art_state = detail.article_state()
+    requested_at = detail.article_generation_requested_at
+    last_error = (detail.article_generation_last_error or "").strip()
+
+    if art_state == EventDetail.ArticleState.MANUAL:
+        state = "manual"
+    elif art_state == EventDetail.ArticleState.AUTO:
+        if current_video_id and source_video_id == current_video_id:
+            state = "generated_current_video"
+        elif requested_at is not None:
+            state = "queued"
+        elif last_error:
+            state = "failed"
+        else:
+            state = "generated_pdf_only"
+    else:
+        if (
+            detail.is_article_ng
+            or detail.article_consent != EventDetail.ArticleConsent.OK
+            or detail.status == "rejected"
+        ):
+            state = "not_applicable"
+        elif requested_at is not None:
+            state = "queued"
+        elif last_error:
+            state = "failed"
+        else:
+            state = "not_queued"
+
+    return {
+        "detail_id": int(detail.pk),
+        "consent": detail.article_consent,
+        "state": state,
+        "has_video": bool(current_video_id),
+        "video_id": current_video_id,
+        "article_source_video_id": source_video_id,
+        "attempts": int(detail.article_generation_attempts or 0),
+        "deferrals": int(detail.article_generation_deferrals or 0),
+        "next_attempt_at": requested_at.isoformat() if requested_at is not None else None,
+        "article_generated_at": (
+            detail.article_generated_at.isoformat() if detail.article_generated_at is not None else None
+        ),
+        "last_error_code": last_error[:64],
+    }
