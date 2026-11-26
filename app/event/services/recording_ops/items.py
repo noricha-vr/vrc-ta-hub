@@ -363,9 +363,13 @@ def upsert_recording_item(
 
         _assert_item_updatable(detail_id=detail.pk, item=item, expected_revision=expected_revision)
 
-        update_fields = ["edl_revision", "worker_synced_revision", "updated_at"]
+        prev_revision = item.edl_revision
+        update_fields = ["edl_revision", "updated_at"]
         item.edl_revision += 1
-        item.worker_synced_revision = item.edl_revision
+        is_full_reregister = proxy_r2_key is not None and validated_edl is not None
+        if item.worker_synced_revision == prev_revision or is_full_reregister:
+            item.worker_synced_revision = item.edl_revision
+            update_fields.append("worker_synced_revision")
 
         _apply_item_proxy_and_edl_fields(
             item,
