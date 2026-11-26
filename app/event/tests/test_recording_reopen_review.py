@@ -191,3 +191,31 @@ class RecordingReopenReviewTest(TestCase):
         self.item.refresh_from_db()
         self.assertEqual(self.item.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
         self.assertFalse(self.item.compensating_stop_pending)
+
+    def test_running_reopen_failed_clears_compensating_stop_pending(self):
+        with mock.patch.dict(os.environ, {"RECORDING_OPS_REOPEN_ENABLED": "true"}):
+            order = enqueue_reopen_review(self.detail.pk, expected_revision=2, requested_by=self.superuser)
+        claimed = claim_next_edit_order(order_types=[RecordingEditOrder.OrderType.REOPEN_REVIEW])
+        self.assertEqual(claimed.pk, order.pk)
+        self.detail.recording_policy = EventDetail.RecordingPolicy.FORBIDDEN
+        self.detail.save(update_fields=["recording_policy"])
+        cancel_queued_apply_edl_and_compensate(detail=self.detail, item=self.item, now=timezone.now())
+        self.item.refresh_from_db()
+        self.assertTrue(self.item.compensating_stop_pending)
+
+        complete_edit_order(
+            order.pk,
+            target_revision=3,
+            status=RecordingEditOrder.Status.FAILED,
+            error_message="hub_consent_invalid",
+        )
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.review_status, RecordingReviewItem.ReviewStatus.PRIVATE_FIXED)
+        self.assertFalse(self.item.compensating_stop_pending)
+
+        # 同意を再取得すれば再起票可能に戻る
+        self.detail.recording_policy = EventDetail.RecordingPolicy.PUBLIC
+        self.detail.save(update_fields=["recording_policy"])
+        allowed, code, _ = evaluate_reopen_eligibility(self.detail, self.item)
+        self.assertTrue(allowed)
+        self.assertEqual(code, "ok")

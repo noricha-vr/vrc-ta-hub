@@ -392,6 +392,19 @@ def record_partial_or_late_apply_edl_output(
     now: datetime,
 ) -> None:
     """失効・部分失敗・遅延再報告の apply_edl から結果動画 ID・公開履歴を保全し、必要なら停止予約する。"""
+    if order.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
+        if item.compensating_stop_pending:
+            clear_detail_youtube_url(detail)
+            cancel_queued_apply_edl_and_compensate(
+                detail=detail,
+                item=item,
+                now=now,
+                target_detail_for_order=detail,
+                fallback_requested_by=order.requested_by,
+                source_order_id=order.pk,
+                force_stop_if_idle=False,
+            )
+        return
     if order.order_type != RecordingEditOrder.OrderType.APPLY_EDL:
         return
 
