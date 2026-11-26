@@ -485,8 +485,6 @@ def build_recording_detail_context(detail_id: int, *, issue_presigned_url: bool 
     _, failed_latest, can_retry_failed, cancelable_order, can_cancel = compute_order_action_flags(
         item, latest_order, active_order, can_access=True, is_expired=is_expired, is_public_locked=is_public_locked,
     )
-    if failed_latest is not None and failed_latest.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
-        can_retry_failed = False
     from .reopen import evaluate_reopen_eligibility, is_reopen_feature_enabled
     reopen_enabled = is_reopen_feature_enabled()
     can_reopen, _, reopen_reason = (

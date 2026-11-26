@@ -178,6 +178,8 @@ def compute_order_action_flags(
     if failed_latest is not None and item is not None:
         if failed_latest.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH:
             can_retry = item_has_unstopped_video(item)
+        elif failed_latest.order_type == RecordingEditOrder.OrderType.REOPEN_REVIEW:
+            can_retry = False
         else:
             can_retry = can_access and not is_expired and not is_public_locked and bool(item.proxy_r2_key)
 
