@@ -84,9 +84,13 @@ def mark_recording_item_published(detail_id: int, *, video_id: str) -> dict[str,
             .first()
         )
 
-        # 1. 同意撤回・論理削除レース: YouTube 公開済みの事実を取りこぼさず補償停止を積む。
-        # atomic() 内で例外を送出するとロールバックされるため、確定保存後にブロック外で送出する。
-        if not consent_valid:
+        # 1. 同意撤回・論理削除レース、または実行中 stop_publish との競合:
+        # YouTube 公開済みの事実を取りこぼさず補償停止を積む（atomic 外で 409 送出）。
+        active_is_stop = (
+            active_order is not None
+            and active_order.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH
+        )
+        if not consent_valid or active_is_stop:
             item_fields = ["updated_at"]
             if item.youtube_draft_video_id and item.youtube_draft_video_id != normalized_video_id:
                 if add_pending_stop_video_id(item, item.youtube_draft_video_id):
@@ -117,17 +121,23 @@ def mark_recording_item_published(detail_id: int, *, video_id: str) -> dict[str,
                     item_fields.append("compensating_stop_pending")
                 item.save(update_fields=list(dict.fromkeys(item_fields)))
 
+            err_code = "consent_revoked_stop_enqueued" if not consent_valid else "active_stop_publish_in_progress"
+            err_msg = (
+                "撮影同意が無効または発表が削除済みのため、補償公開停止を登録しました。"
+                if not consent_valid
+                else "公開停止指示が進行中のため、追従の補償公開停止を予約しました。"
+            )
             logger.warning(
                 "recording_ops_mark_published",
                 extra={
                     "event_type": "recording_ops_mark_published",
                     "event_detail_id": detail.pk,
-                    "result": "consent_revoked_stop_enqueued",
+                    "result": err_code,
                 },
             )
             conflict_exc = RecordingConflictError(
-                "撮影同意が無効または発表が削除済みのため、補償公開停止を登録しました。",
-                code="consent_revoked_stop_enqueued",
+                err_msg,
+                code=err_code,
                 current_state=serialize_item_state(item),
             )
         else:
