@@ -138,8 +138,9 @@ class RecordingOpsArticleStatusAPITest(TestCase):
         self.assertNotIn(str(d_del.pk), items)
 
     def test_explicit_request_with_unanswered_consent_tracks_queue_and_failure(self):
+        # 動画・保存済み PDF なしでもスライド取り込み待ちなら queued になること
         d_wait = self._make_detail(
-            youtube_url="https://youtu.be/wai12345678",
+            youtube_url="",
             article_consent=EventDetail.ArticleConsent.UNANSWERED,
         )
         EventDetail.objects.filter(pk=d_wait.pk).update(

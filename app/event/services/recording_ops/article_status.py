@@ -119,9 +119,17 @@ def resolve_machine_article_status(detail: EventDetail) -> dict[str, Any]:
         else:
             state = "generated_pdf_only"
     else:
-        if not detail.can_generate_in_queue:
+        if (
+            detail.slide_generate_waiting
+            and detail.detail_type == "LT"
+            and not detail.is_article_ng
+            and detail.status != "rejected"
+            and detail.deleted_at is None
+        ):
+            state = "queued"
+        elif not detail.can_generate_in_queue:
             state = "not_applicable"
-        elif requested_at is not None or detail.slide_generate_waiting:
+        elif requested_at is not None:
             state = "queued"
         elif last_error:
             state = "failed"
