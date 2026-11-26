@@ -128,6 +128,7 @@ def _create_recording_item_locked(
         transcript_r2_key=transcript_r2_key or "",
         proxy_duration_sec=normalized_duration,
         proxy_uploaded_at=uploaded_at,
+        worker_synced_revision=1,
         proxy_expires_at=expires_at,
         review_status=initial_status,
         edl_revision=1,
@@ -362,8 +363,9 @@ def upsert_recording_item(
 
         _assert_item_updatable(detail_id=detail.pk, item=item, expected_revision=expected_revision)
 
-        update_fields = ["edl_revision", "updated_at"]
+        update_fields = ["edl_revision", "worker_synced_revision", "updated_at"]
         item.edl_revision += 1
+        item.worker_synced_revision = item.edl_revision
 
         _apply_item_proxy_and_edl_fields(
             item,

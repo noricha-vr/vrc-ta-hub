@@ -14,7 +14,7 @@ from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from event.models import EventDetail
+from event.models import EventDetail, RecordingEditOrder
 from event.services.recording_ops.completion import complete_edit_order
 from event.services.recording_ops.errors import (
     RecordingConflictError,
@@ -241,6 +241,16 @@ class RecordingProxyDownloadUrlAPIView(APIView):
             return _error_response(exc)
 
         item = result.review_item
+        latest_non_canceled = (
+            RecordingEditOrder.objects.filter(review_item=item)
+            .exclude(status=RecordingEditOrder.Status.CANCELED)
+            .order_by('-pk')
+            .values_list('status', flat=True)
+            .first()
+        )
+        pending_stop_videos = [
+            v for v in (item.pending_stop_video_ids or []) if isinstance(v, str) and v
+        ]
         payload = ProxyDownloadUrlResponseSerializer({
             'event_detail_id': detail.pk,
             'proxy_url': result.proxy_url,
@@ -250,10 +260,14 @@ class RecordingProxyDownloadUrlAPIView(APIView):
             'proxy_expires_at': item.proxy_expires_at,
             'review_status': item.review_status,
             'edl_revision': item.edl_revision,
+            'worker_synced_revision': item.worker_synced_revision,
             'edl_json': item.edl_json,
             'youtube_draft_video_id': item.youtube_draft_video_id,
             'youtube_draft_privacy': item.youtube_draft_privacy,
             'is_public_locked': item.is_public_locked,
+            'has_latest_order_failed': latest_non_canceled == RecordingEditOrder.Status.FAILED,
+            'has_pending_stop_videos': bool(pending_stop_videos),
+            'compensating_stop_pending': bool(item.compensating_stop_pending),
         }).data
         return Response(payload, status=status.HTTP_200_OK)
 

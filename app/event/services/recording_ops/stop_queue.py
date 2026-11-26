@@ -252,7 +252,8 @@ def apply_stop_publish_completion(
     review_status: str,
 ) -> bool:
     """stop_publish 完了を適用し、未停止動画が残っていれば追加 stop_publish の要否を返す。"""
-    item_fields = ["review_status", "updated_at"]
+    item_fields = ["review_status", "worker_synced_revision", "updated_at"]
+    item.worker_synced_revision = max(item.worker_synced_revision or 0, order.target_revision)
     effective_privacy = youtube_draft_privacy or RecordingReviewItem.YouTubePrivacy.PRIVATE
     derive_review_status_on_success(
         order_type=order.order_type, privacy=effective_privacy, requested_review_status=review_status
