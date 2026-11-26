@@ -1121,6 +1121,12 @@ class RecordingReviewItem(models.Model):
         db_index=True,
     )
     edl_revision = models.PositiveIntegerField("EDL リビジョン", default=1)
+    worker_synced_revision = models.PositiveIntegerField(
+        "ワーカー同期済み EDL リビジョン",
+        null=True,
+        blank=True,
+        default=None,
+    )
     edl_json = models.JSONField("EDL v1 JSON", default=dict, blank=True)
     youtube_draft_video_id = models.CharField("YouTube 下書き動画 ID", max_length=32, blank=True, default="")
     pending_stop_video_ids = models.JSONField("停止待ち動画 ID 一覧", default=list, blank=True)

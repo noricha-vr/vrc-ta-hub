@@ -122,6 +122,7 @@ class RecordingReviewItemSerializer(serializers.ModelSerializer):
             'proxy_expires_at',
             'review_status',
             'edl_revision',
+            'worker_synced_revision',
             'edl_json',
             'youtube_draft_video_id',
             'youtube_draft_privacy',
@@ -141,10 +142,14 @@ class ProxyDownloadUrlResponseSerializer(serializers.Serializer):
     proxy_expires_at = serializers.DateTimeField(allow_null=True)
     review_status = serializers.ChoiceField(choices=RecordingReviewItem.ReviewStatus.choices)
     edl_revision = serializers.IntegerField()
+    worker_synced_revision = serializers.IntegerField(allow_null=True)
     edl_json = serializers.JSONField()
     youtube_draft_video_id = serializers.CharField()
     youtube_draft_privacy = serializers.CharField()
     is_public_locked = serializers.BooleanField()
+    has_latest_order_failed = serializers.BooleanField()
+    has_pending_stop_videos = serializers.BooleanField()
+    compensating_stop_pending = serializers.BooleanField()
 
 
 class RecordingEditOrderCreateRequestSerializer(serializers.Serializer):

@@ -96,7 +96,8 @@ def _apply_succeeded_order(
             review_status=review_status,
         )
 
-    item_fields = ["review_status", "updated_at"]
+    item_fields = ["review_status", "worker_synced_revision", "updated_at"]
+    item.worker_synced_revision = order.target_revision
     is_new_video = bool(result_video_id) and result_video_id != item.youtube_draft_video_id
     effective_privacy = (
         youtube_draft_privacy
