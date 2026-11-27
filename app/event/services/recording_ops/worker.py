@@ -78,12 +78,14 @@ def _handle_expired_order_compensation(
     item: RecordingReviewItem | None,
     order: RecordingEditOrder,
 ) -> None:
-    if (
+    if item is None:
+        return
+    is_stop_order = order.order_type == RecordingEditOrder.OrderType.STOP_PUBLISH
+    if not is_stop_order and (
         order.order_type not in (
             RecordingEditOrder.OrderType.APPLY_EDL,
             RecordingEditOrder.OrderType.REOPEN_REVIEW,
         )
-        or item is None
         or (detail is not None and is_recording_consent_valid(detail) and not item.compensating_stop_pending)
     ):
         return

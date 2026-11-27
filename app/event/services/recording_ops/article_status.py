@@ -128,7 +128,18 @@ def resolve_machine_article_status(detail: EventDetail) -> dict[str, Any]:
         ):
             state = "queued"
         elif not detail.can_generate_in_queue:
-            state = "not_applicable"
+            from event.models import RecordingReviewItem
+
+            if (
+                not current_video_id
+                and RecordingReviewItem.objects.filter(
+                    event_detail_id=detail.pk,
+                    review_status=RecordingReviewItem.ReviewStatus.PUBLISHED,
+                ).exists()
+            ):
+                state = "url_missing"
+            else:
+                state = "not_applicable"
         elif requested_at is not None:
             state = "queued"
         elif last_error:

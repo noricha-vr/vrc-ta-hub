@@ -281,20 +281,22 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
     )
     article_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
 
-    sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
-    if sent and is_published:
-        # メールは送れている。Discord 用の再確認・送信が例外になっても、メール失敗と同じ扱いにしない
-        # （呼び出し元が通知日時を戻し、次の生成で同じメールを送り直すのを防ぐ）。
+    has_email = bool(recipient and getattr(recipient, 'email', None))
+    sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published) if has_email else False
+    discord_sent = False
+    if (sent or not has_email) and is_published:
+        # メールは送れている（または宛先メール未登録）。Discord 用の再確認・送信が例外になっても、
+        # メール失敗と同じ扱いにしない（送り直し時の重複を防ぐ）。
         try:
             published_detail = get_published_article_for_notification(event_detail.pk)
             if published_detail is not None and not article_discord_replaced_by_video_notice(published_detail):
-                send_discord_notification_for_article(published_detail, edit_url, article_url)
+                discord_sent = bool(send_discord_notification_for_article(published_detail, edit_url, article_url))
         except Exception:
             logger.exception(
                 'article_published_discord_failed',
                 extra={'event_type': 'article_published_discord_failed', 'event_detail_id': event_detail.pk},
             )
-    return sent
+    return sent or (not has_email and discord_sent)
 
 
 def _send_article_published_email(
@@ -500,15 +502,20 @@ def announce_video_article_if_ready(pk: int) -> None:
 
 
 def _send_video_article_notice(detail: EventDetail) -> bool:
-    """告知を送る。画像の URL を作る時などの例外も失敗として扱う（例外の本文は記録しない）。"""
-    try:
-        return notify_video_article_published(detail)
-    except Exception:
-        logger.exception(
-            'video_article_notice_failed',
-            extra={'event_type': 'video_article_notice_failed', 'event_detail_id': detail.pk},
-        )
-        return False
+    """告知を送る。例外（ネットワーク一時障害等）に対して最大 3 回リトライする（例外の本文は記録しない）。"""
+    import time
+
+    for attempt in range(3):
+        try:
+            return notify_video_article_published(detail)
+        except Exception:
+            logger.exception(
+                'video_article_notice_failed',
+                extra={'event_type': 'video_article_notice_failed', 'event_detail_id': detail.pk, 'attempt': attempt + 1},
+            )
+            if attempt < 2:
+                time.sleep(0.5 * (attempt + 1))
+    return False
 
 
 def _send_discord_notification_for_new_application(

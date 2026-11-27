@@ -246,7 +246,7 @@ def _extract_pdf_text(temp_file_path: str, *, max_chars: int = MAX_SOURCE_TEXT_C
         return ""
 
 
-def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
+def _get_transcript_with_cache(event_detail: EventDetail, *, raise_on_error: bool = False) -> Optional[str]:
     """YouTube字幕をキャッシュ優先で取得する.
 
     同一動画のキャッシュがあれば YouTube API を呼ばずに再利用し、
@@ -266,7 +266,16 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
         return event_detail.cached_transcript
 
     started_transcript = (event_detail.cached_transcript, event_detail.cached_transcript_video_id)
-    transcript = get_transcript(video_id, "ja")
+    if raise_on_error:
+        from event.services.youtube_service import _RAISE_ON_TRANSCRIPT_ERROR
+
+        token = _RAISE_ON_TRANSCRIPT_ERROR.set(True)
+        try:
+            transcript = get_transcript(video_id, "ja")
+        finally:
+            _RAISE_ON_TRANSCRIPT_ERROR.reset(token)
+    else:
+        transcript = get_transcript(video_id, "ja")
     if transcript:
         logger.info(f"Retrieved transcript for video {video_id}: {len(transcript)} chars")
         # save() だと post_save シグナル（twitter の daily_reminder 再同期等）が発火し、
@@ -313,7 +322,7 @@ def fetch_transcript(event_detail: EventDetail) -> Optional[str]:
     """
     if not event_detail.video_id:
         return ''
-    return _get_transcript_with_cache(event_detail)
+    return _get_transcript_with_cache(event_detail, raise_on_error=True)
 
 
 def _read_slide_text(event_detail: EventDetail, max_chars: int, *, with_page_numbers: bool = False) -> str:
