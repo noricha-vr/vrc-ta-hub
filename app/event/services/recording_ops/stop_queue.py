@@ -340,8 +340,8 @@ def _sync_late_reported_video_state(
             order.save(update_fields=["result_video_id", "updated_at"])
         item_fields = ["youtube_draft_video_id", "updated_at"]
         prior_vid = item.youtube_draft_video_id
-        # 停止が必要な場合または PRIVATE_FIXED からの想定外 unlisted 報告時のみ pending_stop_video_ids に積む
-        if needs_stop_for_reported:
+        # 停止が必要な場合・公開動画衝突時・PRIVATE_FIXED からの想定外 unlisted 報告時のみ pending_stop_video_ids に積む
+        if needs_stop_for_reported or is_public_report:
             if preserve_unstopped_video_id(item, prior_vid, reported_video_id):
                 item_fields.append("pending_stop_video_ids")
             if (

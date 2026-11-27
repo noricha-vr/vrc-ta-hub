@@ -1,32 +1,24 @@
 """Wave 4-B tests (#985): C-03 (STOP_PUBLISH lease expiry), C-04 (late apply_edl pending_stop), H-12 (cancel revision sync)."""
 from datetime import timedelta
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from community.models import Community
-from event.models import Event, EventDetail, RecordingEditOrder, RecordingReviewItem
+from event.models import RecordingEditOrder, RecordingReviewItem
 from event.services.recording_ops.order_actions import cancel_edit_order
 from event.services.recording_ops.publish_sync import mark_recording_item_published
 from event.services.recording_ops.stop_queue import record_partial_or_late_apply_edl_output
 from event.services.recording_ops.worker import _expire_stale_running_orders
-
-User = get_user_model()
+from tests.factories import make_community, make_event, make_event_detail, make_user
 
 
 class RecordingOpsWave4Tests(TestCase):
     def setUp(self):
-        self.staff = User.objects.create_user(user_name="staff_w4", email="s@example.com", password="pw", is_staff=True)
-        self.community = Community.objects.create(
-            name="Wave4集会", start_time="21:00", duration=60, weekdays=["Sat"],
-            frequency="毎週", organizers="org", recording_allowed=True,
-        )
-        self.event = Event.objects.create(
-            community=self.community, date=timezone.localdate(), start_time="21:00", duration=60, weekday="Sat",
-        )
-        self.detail = EventDetail.objects.create(
-            event=self.event, detail_type="LT", speaker="Spk", theme="Wave4",
-            start_time="21:00", duration=20, status="approved", recording_policy="public",
+        self.staff = make_user(user_name="staff_w4", email="s@example.com", is_staff=True)
+        self.community = make_community(name="Wave4集会", recording_allowed=True)
+        self.event = make_event(self.community)
+        self.detail = make_event_detail(
+            self.event, detail_type="LT", speaker="Spk", theme="Wave4",
+            status="approved", recording_policy="public",
         )
         self.item = RecordingReviewItem.objects.create(
             event_detail=self.detail,

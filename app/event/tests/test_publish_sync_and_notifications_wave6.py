@@ -4,26 +4,21 @@ from unittest import mock
 from django.test import TestCase
 from django.utils import timezone
 
-from community.models import Community
-from event.models import Event, EventDetail, RecordingReviewItem
+from event.models import RecordingReviewItem
 from event.notifications import _send_video_article_notice, notify_applicant_of_article_published
 from event.services.article_generation import _notify_first_time
 from event.services.recording_ops.article_status import resolve_machine_article_status
 from event.services.recording_ops.publish_sync import mark_recording_item_published
+from tests.factories import make_community, make_event, make_event_detail
 
 
 class PublishSyncAndNotificationsWave6Tests(TestCase):
     def setUp(self):
-        self.community = Community.objects.create(
-            name="Wave6A2集会", start_time="21:00", duration=60, weekdays=["Sat"],
-            frequency="毎週", organizers="org", recording_allowed=True,
-        )
-        self.event = Event.objects.create(
-            community=self.community, date=timezone.localdate(), start_time="21:00", duration=60, weekday="Sat",
-        )
-        self.detail = EventDetail.objects.create(
-            event=self.event, detail_type="LT", speaker="Spk", theme="Wave6A2",
-            start_time="21:00", duration=20, status="approved", recording_policy="public",
+        self.community = make_community(name="Wave6A2集会", recording_allowed=True)
+        self.event = make_event(self.community)
+        self.detail = make_event_detail(
+            self.event, detail_type="LT", speaker="Spk", theme="Wave6A2",
+            status="approved", recording_policy="public",
         )
         self.item = RecordingReviewItem.objects.create(
             event_detail=self.detail,

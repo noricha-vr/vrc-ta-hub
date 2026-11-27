@@ -5,24 +5,17 @@ from unittest import mock
 from django.test import TestCase
 from django.utils import timezone
 
-from community.models import Community
-from event.models import Event, EventDetail
 from event.services import article_generation, youtube_service
+from tests.factories import make_community, make_event, make_event_detail
 
 
 class ArticleGenerationWave6Tests(TestCase):
     def setUp(self):
-        self.community = Community.objects.create(
-            name="Wave6集会", start_time="21:00", duration=60, weekdays=["Sat"],
-            frequency="毎週", organizers="org", recording_allowed=True,
-        )
-        self.event = Event.objects.create(
-            community=self.community, date=timezone.localdate(), start_time="21:00", duration=60, weekday="Sat",
-        )
-        self.detail = EventDetail.objects.create(
-            event=self.event, detail_type="LT", speaker="Spk", theme="Wave6",
-            start_time="21:00", duration=20, status="approved",
-            youtube_url="https://www.youtube.com/watch?v=VidWave6001",
+        self.community = make_community(name="Wave6集会", recording_allowed=True)
+        self.event = make_event(self.community)
+        self.detail = make_event_detail(
+            self.event, detail_type="LT", speaker="Spk", theme="Wave6",
+            status="approved", youtube_url="https://www.youtube.com/watch?v=VidWave6001",
         )
 
     def test_c11_max_deferrals_and_retry_cap_span_24h(self):

@@ -991,20 +991,32 @@ class RecordingOpsAPITest(TestCase):
         RecordingEditOrder.objects.filter(pk=stop_resp.data["id"]).update(
             started_at=timezone.now() - timedelta(minutes=31)
         )
-        empty_claim = super_client.post(self.order_claim_url, {}, format="json")
-        self.assertIsNone(empty_claim.data["order"])
+        # C-03: STOP_PUBLISH がリース失効したら即座に補償 STOP_PUBLISH が再投入・claim される
+        requeued_claim = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNotNone(requeued_claim.data["order"])
+        self.assertEqual(requeued_claim.data["order"]["order_type"], RecordingEditOrder.OrderType.STOP_PUBLISH)
         stop_order = RecordingEditOrder.objects.get(pk=stop_resp.data["id"])
         self.assertEqual(stop_order.status, RecordingEditOrder.Status.FAILED)
         self.assertIsNone(stop_order.active_lock_key)
+        # 補償 STOP_PUBLISH を失敗完了してロック解放後、次フェーズ（APPLY_EDL リース失効テスト）へ進む
+        super_client.post(
+            reverse("recording-ops-order-complete", kwargs={"order_id": requeued_claim.data["order"]["id"]}),
+            {"target_revision": requeued_claim.data["order"]["target_revision"], "status": "failed", "error_message": "done"},
+            format="json",
+        )
 
-        failed_order = staff_client.post(self.order_create_url, {"expected_revision": 3}, format="json")
+        failed_order = staff_client.post(
+            self.order_create_url,
+            {"expected_revision": requeued_claim.data["order"]["target_revision"]},
+            format="json",
+        )
         super_client.post(self.order_claim_url, {}, format="json")
         RecordingEditOrder.objects.filter(pk=failed_order.data["id"]).update(
             started_at=timezone.now() - timedelta(minutes=31)
         )
         direct_late_fail = super_client.post(
             reverse("recording-ops-order-complete", kwargs={"order_id": failed_order.data["id"]}),
-            {"target_revision": 4, "status": "failed", "error_message": "timed out"},
+            {"target_revision": failed_order.data["target_revision"], "status": "failed", "error_message": "timed out"},
             format="json",
         )
         self.assertEqual(direct_late_fail.status_code, status.HTTP_409_CONFLICT)
@@ -1925,20 +1937,16 @@ class RecordingOpsAPITest(TestCase):
         self.assertIsNone(r1.data["event_detail_id"])
         self.assertEqual(r1.data["target_video_id"], "physdel1234")
 
-        # 経路 2: 物理削除後の stop_publish が running のままリース失効→ claim スイープ後に再試行可能
+        # 経路 2: 物理削除後の stop_publish が running のままリース失効→ C-03 により自動で補償 stop_publish が再投入・claim される
         c2 = super_client.post(self.order_claim_url, {}, format="json")
         RecordingEditOrder.objects.filter(pk=c2.data["order"]["id"]).update(
             started_at=timezone.now() - timedelta(minutes=31)
         )
         sweep = super_client.post(self.order_claim_url, {}, format="json")
-        self.assertIsNone(sweep.data["order"])
-        item_phys.refresh_from_db()
-        r2 = staff_client.post(retry_url, {"expected_revision": item_phys.edl_revision}, format="json")
-        self.assertEqual(r2.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(r2.data["target_video_id"], "physdel1234")
-
-        # 経路 3: 物理削除後の stop_publish がリース超過後に遅延 complete（409 order_lease_expired）を受け取っても再試行し収束可能
-        c3 = super_client.post(self.order_claim_url, {}, format="json")
+        self.assertIsNotNone(sweep.data["order"])
+        self.assertEqual(sweep.data["order"]["order_type"], RecordingEditOrder.OrderType.STOP_PUBLISH)
+        self.assertEqual(sweep.data["order"]["target_video_id"], "physdel1234")
+        c3 = sweep
         RecordingEditOrder.objects.filter(pk=c3.data["order"]["id"]).update(
             started_at=timezone.now() - timedelta(minutes=31)
         )
