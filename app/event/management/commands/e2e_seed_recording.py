@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import time, timedelta
+from datetime import time
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
