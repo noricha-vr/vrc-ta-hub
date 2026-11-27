@@ -356,13 +356,12 @@ def _notify_first_time(pk: int) -> None:
         if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
             return
         recipient = get_material_reminder_recipient(detail)
-        if recipient is None or not recipient.email:
+        has_email = bool(recipient and recipient.email)
+        if not has_email and detail.status != 'approved':
             logger.warning(
                 'article_published_notification_skipped',
                 extra={'event_type': 'article_published_notification_skipped', 'event_detail_id': pk},
             )
-            if detail.status == 'approved':
-                _send_published_notification(detail, None)
             return
         notified_at = timezone.now()
         with transaction.atomic():

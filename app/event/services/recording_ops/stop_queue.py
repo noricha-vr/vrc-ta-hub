@@ -340,19 +340,16 @@ def _sync_late_reported_video_state(
             order.save(update_fields=["result_video_id", "updated_at"])
         item_fields = ["youtube_draft_video_id", "updated_at"]
         prior_vid = item.youtube_draft_video_id
-        # 停止が必要な場合・公開動画衝突時・PRIVATE_FIXED からの想定外 unlisted 報告時のみ pending_stop_video_ids に積む
-        if needs_stop_for_reported or is_public_report:
-            if preserve_unstopped_video_id(item, prior_vid, reported_video_id):
-                item_fields.append("pending_stop_video_ids")
-            if (
-                youtube_draft_privacy != privacy_choices.PRIVATE
-                and add_pending_stop_video_id(item, reported_video_id)
-            ):
-                item_fields.append("pending_stop_video_ids")
-        elif (
-            item.review_status == status_choices.PRIVATE_FIXED
-            and prior_vid
-            and prior_vid != reported_video_id
+        # 置換前の未停止旧動画 ID は同意状態にかかわらず保全する
+        if preserve_unstopped_video_id(item, prior_vid, reported_video_id):
+            item_fields.append("pending_stop_video_ids")
+        # 新たに報告された動画 ID は停止必要時・公開動画衝突時・PRIVATE_FIXED からの想定外 unlisted 報告時のみ積む
+        if (
+            (
+                needs_stop_for_reported
+                or is_public_report
+                or (item.review_status == status_choices.PRIVATE_FIXED and prior_vid and prior_vid != reported_video_id)
+            )
             and youtube_draft_privacy != privacy_choices.PRIVATE
             and add_pending_stop_video_id(item, reported_video_id)
         ):

@@ -55,6 +55,8 @@ class RecordingOpsWave4Tests(TestCase):
         self.assertEqual(new_stops.count(), 1)
 
     def test_c04_late_apply_edl_with_valid_consent_does_not_pollute_pending_stop(self):
+        # 1) 旧動画 ID が未停止の状態で遅延 apply_edl が新 unlisted 動画を報告した場合、
+        #    旧動画 ID は保全しつつ新動画 ID で pending_stop_video_ids を汚染しない
         order = RecordingEditOrder.objects.create(
             review_item=self.item,
             event_detail=self.detail,
@@ -76,8 +78,11 @@ class RecordingOpsWave4Tests(TestCase):
         )
         self.item.refresh_from_db()
         self.assertEqual(self.item.youtube_draft_video_id, "NewVid12345")
-        self.assertEqual(self.item.pending_stop_video_ids, [])
-        # Publish sync must NOT fail with 409 pending_stop_exists
+        self.assertIn("OldVid12345", self.item.pending_stop_video_ids)
+        self.assertNotIn("NewVid12345", self.item.pending_stop_video_ids)
+        # 2) 旧動画が停止済み（pending_stop_video_ids が空）なら公開同期は 409 にならず成功する
+        self.item.pending_stop_video_ids = []
+        self.item.save(update_fields=["pending_stop_video_ids", "updated_at"])
         res = mark_recording_item_published(self.detail.pk, video_id="NewVid12345")
         self.assertTrue(res["synced"])
 

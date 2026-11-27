@@ -290,8 +290,7 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
         try:
             published_detail = get_published_article_for_notification(event_detail.pk)
             if published_detail is not None and not article_discord_replaced_by_video_notice(published_detail):
-                send_discord_notification_for_article(published_detail, edit_url, article_url)
-                discord_sent = True
+                discord_sent = bool(send_discord_notification_for_article(published_detail, edit_url, article_url))
         except Exception:
             logger.exception(
                 'article_published_discord_failed',
