@@ -12,8 +12,21 @@ cat > "$TMP_DIR/gcloud" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$@" >> "$MOCK_DIR/calls"
 case "$*" in
+  'run services describe '*'--format=value(status.latestReadyRevisionName)')
+    printf '%s\n' "${MOCK_LATEST_READY-test-service-00002}"
+    ;;
+  'run services describe '*'--format=value(status.latestCreatedRevisionName)')
+    printf '%s\n' "${MOCK_LATEST_CREATED-test-service-00002}"
+    ;;
+  'run revisions describe '*'--format=value(status.imageDigest)')
+    [[ "${MOCK_DIGEST_FAIL:-0}" != 1 ]] || exit 1
+    printf '%s\n' "${MOCK_IMAGE_DIGEST-example.invalid/test/service@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+    ;;
+  'run revisions describe '*'--format=value(spec.containers[0].image)')
+    printf '%s\n' "${MOCK_REV_IMAGE-example.invalid/test/service:current}"
+    ;;
   'run services describe '*'--format=value(spec.template.spec.containers[0].image)')
-    printf 'example.invalid/test/service:current\n'
+    printf '%s\n' "${MOCK_SPEC_IMAGE-example.invalid/test/service:current}"
     ;;
   'run services describe '*'--format=value(spec.template.spec.serviceAccountName)')
     printf 'test-service-account@example.invalid\n'
@@ -113,14 +126,18 @@ logs = (root / "stdout").read_text() + (root / "stderr").read_text()
 service = json.loads((root / "service.json").read_text())["spec"]["template"]["spec"]["containers"][0]["env"]
 job = json.loads((root / "job.json").read_text())["spec"]["template"]["spec"]["template"]["spec"]["containers"][0]["env"]
 
+expected_image = os.environ.get(
+    "EXPECTED_IMAGE",
+    "example.invalid/test/service@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+)
 assert args[:4] == ["run", "jobs", "create" if case == "create" else "update", "test-migrate"]
 for expected in (
     "--project=test-project", "--region=test-region",
-    "--image=example.invalid/test/service:current",
+    f"--image={expected_image}",
     "--service-account=test-service-account@example.invalid",
     "--command=python", "--args=^|^manage.py|migrate|--noinput",
 ):
-    assert expected in args, "Missing inherited setting or migration argument"
+    assert expected in args, f"Missing inherited setting or migration argument: {expected}"
 assert "--format=json(spec.template.spec.template.spec.containers[0].env)" in calls
 
 expected_plain = {"APP_LABEL": 'service-label: "test"\nsecond line'}
@@ -205,4 +222,44 @@ KEEP_JOB_ENV="" run_case disabled
 run_case asymmetric
 run_case nosecret
 KEEP_JOB_ENV="DB_USER APP_LABEL" run_case custom
+# ケース 5: status.imageDigest が bare sha256:... でもリビジョンの image から repo@sha256:... を組み立てる。
+MOCK_IMAGE_DIGEST="sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210" \
+  EXPECTED_IMAGE="example.invalid/test/service@sha256:fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210" \
+  run_case update
+# ケース 6: IMAGE 明示指定時はリビジョン検索をスキップし、指定値をそのまま使う。
+IMAGE="example.invalid/test/explicit@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  EXPECTED_IMAGE="example.invalid/test/explicit@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" \
+  run_case update
+if grep -Fq "latestReadyRevisionName" "$TMP_DIR/calls"; then
+  printf 'FAIL: explicit IMAGE should not query latestReadyRevisionName\n' >&2
+  exit 1
+fi
+# ケース 7: latestCreatedRevisionName と latestReadyRevisionName が不一致なら異常終了し、Job を更新しない。
+run_fail_case() {
+  local label="$1"
+  shift
+  : > "$TMP_DIR/calls"
+  rm -f "$TMP_DIR/args"
+  if env "$@" bash "$REPO_ROOT/scripts/create_migrate_job.sh" > "$TMP_DIR/stdout" 2> "$TMP_DIR/stderr"; then
+    printf 'FAIL: expected failure for %s\n' "$label" >&2
+    exit 1
+  fi
+  if [[ -e "$TMP_DIR/args" ]]; then
+    printf 'FAIL: job should not be updated on %s\n' "$label" >&2
+    exit 1
+  fi
+  printf 'PASS: create_migrate_job fail-closed (%s)\n' "$label"
+}
+run_fail_case revision_mismatch MOCK_LATEST_CREATED=test-service-00003 MOCK_LATEST_READY=test-service-00002
+run_fail_case mutable_tag_fallback MOCK_IMAGE_DIGEST="" MOCK_REV_IMAGE="example.invalid/test/service:mutable" MOCK_SPEC_IMAGE="example.invalid/test/service@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+run_fail_case invalid_nonempty_digest MOCK_IMAGE_DIGEST="example.invalid/test/service@sha256:bad" MOCK_REV_IMAGE="example.invalid/test/service@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+run_fail_case explicit_mutable_image IMAGE="example.invalid/test/service:latest"
+run_fail_case explicit_invalid_digest IMAGE="example.invalid/test/service@sha256:bad"
+run_fail_case digest_api_error MOCK_DIGEST_FAIL=1
+# ケース 8: status.imageDigest が空でも対象リビジョンの spec.containers[0].image 自体が immutable なら採用する。
+MOCK_IMAGE_DIGEST="" \
+  MOCK_REV_IMAGE="example.invalid/test/service@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" \
+  MOCK_SPEC_IMAGE="example.invalid/test/service@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" \
+  EXPECTED_IMAGE="example.invalid/test/service@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" \
+  run_case update
 printf 'PASS: no plaintext values in gcloud arguments or logs (all cases)\n'

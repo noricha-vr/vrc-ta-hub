@@ -49,6 +49,24 @@ die() {
 
 command -v gcloud >/dev/null 2>&1 || die "gcloud CLI not found."
 
+is_immutable_image() {
+  local img="$1"
+  [[ "$img" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || return 1
+  local before_at="${img%@*}"
+  local after_slash="${before_at##*/}"
+  [[ "$after_slash" != *:* ]]
+}
+
+strip_image_tag_or_digest() {
+  local img="${1%@*}"
+  local after_slash="${img##*/}"
+  if [[ "$after_slash" == *:* ]]; then
+    printf '%s\n' "${img%:*}"
+  else
+    printf '%s\n' "$img"
+  fi
+}
+
 describe_service() {
   gcloud run services describe "$SERVICE_NAME" \
     --project="$PROJECT_ID" \
@@ -56,11 +74,60 @@ describe_service() {
     --format="$1"
 }
 
+resolve_immutable_image() {
+  local latest_ready latest_created raw_digest rev_image repo
+  latest_ready="$(describe_service 'value(status.latestReadyRevisionName)')" \
+    || die "Could not read latestReadyRevisionName from Cloud Run service $SERVICE_NAME."
+  latest_created="$(describe_service 'value(status.latestCreatedRevisionName)')" \
+    || die "Could not read latestCreatedRevisionName from Cloud Run service $SERVICE_NAME."
+  if [[ -z "$latest_ready" || -z "$latest_created" || "$latest_created" != "$latest_ready" ]]; then
+    die "Latest created revision (${latest_created:-<none>}) does not match latest ready revision (${latest_ready:-<none>}) on $SERVICE_NAME. Wait for the new revision to become ready or pass IMAGE=<repo>@sha256:<digest> explicitly."
+  fi
+
+  raw_digest="$(
+    gcloud run revisions describe "$latest_ready" \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --format='value(status.imageDigest)'
+  )" || die "Could not read imageDigest from Cloud Run revision $latest_ready."
+
+  if [[ -n "$raw_digest" ]]; then
+    if [[ "$raw_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+      rev_image="$(
+        gcloud run revisions describe "$latest_ready" \
+          --project="$PROJECT_ID" \
+          --region="$REGION" \
+          --format='value(spec.containers[0].image)'
+      )" || die "Could not read container image from Cloud Run revision $latest_ready."
+      repo="$(strip_image_tag_or_digest "$rev_image")"
+      raw_digest="${repo}@${raw_digest}"
+    fi
+    if is_immutable_image "$raw_digest"; then
+      printf '%s\n' "$raw_digest"
+      return 0
+    fi
+    die "Revision $latest_ready returned invalid imageDigest: $raw_digest"
+  fi
+
+  rev_image="$(
+    gcloud run revisions describe "$latest_ready" \
+      --project="$PROJECT_ID" \
+      --region="$REGION" \
+      --format='value(spec.containers[0].image)'
+  )" || die "Could not read container image from Cloud Run revision $latest_ready."
+  if is_immutable_image "$rev_image"; then
+    printf '%s\n' "$rev_image"
+    return 0
+  fi
+
+  die "Could not resolve an immutable @sha256 image digest for $SERVICE_NAME (revision: $latest_ready). Pass IMAGE=<repo>@sha256:<digest> explicitly."
+}
+
 if [[ -z "${IMAGE:-}" ]]; then
-  IMAGE="$(describe_service 'value(spec.template.spec.containers[0].image)')" \
-    || die "Could not read image from Cloud Run service $SERVICE_NAME."
+  IMAGE="$(resolve_immutable_image)"
 fi
-[[ -n "$IMAGE" ]] || die "Cloud Run service $SERVICE_NAME has no container image."
+is_immutable_image "$IMAGE" \
+  || die "IMAGE must be an immutable @sha256:<64hex> reference, got: ${IMAGE:-<empty>}"
 
 SERVICE_ACCOUNT="$(describe_service 'value(spec.template.spec.serviceAccountName)')"
 
