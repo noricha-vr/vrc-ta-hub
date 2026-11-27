@@ -14,6 +14,7 @@ from youtube_transcript_api._errors import (
     VideoUnavailable,
 )
 
+from django.conf import settings
 from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,9 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
     """
     if not video_id:
         return ''
+    if getattr(settings, 'DEBUG', False) and getattr(settings, 'E2E_DISABLE_EXTERNAL_YOUTUBE', False):
+        logger.info("E2E_DISABLE_EXTERNAL_YOUTUBE is enabled; skipping external YouTube transcript fetch")
+        return None
 
     try:
         # APIキーを設定

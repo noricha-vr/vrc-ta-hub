@@ -1,0 +1,136 @@
+name: vrc-ta-hub-e2e
+
+services:
+  vrc-ta-hub:
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub-e2e}-app'
+    image: vrc-ta-hub-vrc-ta-hub:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./app:/app
+      - ./docs:/docs
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=e2e-isolated-secret-key-not-for-prod
+      - ALLOWED_HOSTS=localhost,127.0.0.1,vrc-ta-hub,host.docker.internal
+      - CSRF_TRUSTED_ORIGIN=http://127.0.0.1:${APP_PORT:-18015}
+      - HTTP_HOST=127.0.0.1:${APP_PORT:-18015}
+      - SITE_URL=http://127.0.0.1:${APP_PORT:-18015}
+      - ACCOUNT_DEFAULT_HTTP_PROTOCOL=http
+      - PYTHONPATH=/app
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=vrc_ta_hub_e2e
+      - DB_USER=e2e_user
+      - DB_PASSWORD=e2e_password
+      - E2E_LOOPBACK_STORAGE=1
+      - E2E_DISABLE_EXTERNAL_YOUTUBE=1
+      - E2E_HUB_GIT_SHA=${E2E_HUB_GIT_SHA:-}
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_STORAGE_BUCKET_NAME=vrc-ta-hub-e2e-public
+      - AWS_PRIVATE_STORAGE_BUCKET_NAME=vrc-ta-hub-e2e-private
+      - AWS_S3_ENDPOINT_URL=http://storage:9000
+      - AWS_S3_PRESIGN_ENDPOINT_URL=http://127.0.0.1:${STORAGE_PORT:-19000}
+      - AWS_S3_CUSTOM_DOMAIN=127.0.0.1:${STORAGE_PORT:-19000}/vrc-ta-hub-e2e-public
+      - 'AWS_S3_URL_PROTOCOL=http:'
+      - AWS_QUERYSTRING_AUTH=False
+      - GOOGLE_API_KEY=e2e-dummy-g
+      - GOOGLE_CALENDAR_ID=e2e-dummy-cal
+      - GOOGLE_CALENDAR_CREDENTIALS=/tmp/e2e-missing-calendar-creds.json
+      - GEMINI_API_KEY=e2e-dummy-gem
+      - OPENAI_API_KEY=e2e-dummy-oa
+      - OPENROUTER_API_KEY=${E2E_OPENROUTER_API_KEY:-e2e-dummy-or}
+      - X_API_KEY=e2e-dummy-x
+      - X_API_SECRET=e2e-dummy-xs
+      - X_ACCESS_TOKEN=e2e-dummy-xt
+      - X_ACCESS_TOKEN_SECRET=e2e-dummy-xts
+      - REQUEST_TOKEN=e2e-req
+      - RECORDING_OPS_API_TOKEN=e2e-ops
+      - RECORDING_OPS_REOPEN_ENABLED=true
+      - DISCORD_BOT_TOKEN=e2e-dummy-bot
+      - DISCORD_WEBHOOK_URL=http://host.docker.internal:${E2E_DISCORD_SINK_PORT:-18089}/webhook/default
+      - DISCORD_REPORT_WEBHOOK_URL=http://host.docker.internal:${E2E_DISCORD_SINK_PORT:-18089}/webhook/report
+      - DISCORD_ANNOUNCE_WEBHOOK_URL=http://host.docker.internal:${E2E_DISCORD_SINK_PORT:-18089}/webhook/announce
+    ports:
+      - '127.0.0.1:${APP_PORT:-18015}:8080'
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    networks:
+      - e2e_network
+    depends_on:
+      db:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    command: >
+      /bin/sh -c "
+      python manage.py e2e_check_isolation &&
+      python manage.py wait_for_db --timeout 90 &&
+      python manage.py migrate --noinput &&
+      python manage.py runserver 0.0.0.0:8080
+      "
+
+  db:
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub-e2e}-db'
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: vrc_ta_hub_e2e
+      MYSQL_USER: e2e_user
+      MYSQL_PASSWORD: e2e_password
+      MYSQL_ROOT_PASSWORD: e2e_root_password
+    ports:
+      - '127.0.0.1:${DB_PORT:-13306}:3306'
+    volumes:
+      - e2e_db_data:/var/lib/mysql
+    networks:
+      - e2e_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  storage:
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub-e2e}-storage'
+    image: rustfs/rustfs
+    environment:
+      RUSTFS_ROOT_USER: minioadmin
+      RUSTFS_ROOT_PASSWORD: minioadmin
+    ports:
+      - '127.0.0.1:${STORAGE_PORT:-19000}:9000'
+      - '127.0.0.1:${STORAGE_CONSOLE_PORT:-19001}:9001'
+    volumes:
+      - e2e_storage_data:/data
+    networks:
+      - e2e_network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/ || test $$? -eq 22"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  storage-init:
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub-e2e}-storage-init'
+    image: minio/mc
+    depends_on:
+      storage:
+        condition: service_healthy
+    networks:
+      - e2e_network
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://storage:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/vrc-ta-hub-e2e-public &&
+      mc mb --ignore-existing local/vrc-ta-hub-e2e-private &&
+      mc anonymous set download local/vrc-ta-hub-e2e-public
+      "
+
+volumes:
+  e2e_db_data:
+  e2e_storage_data:
+
+networks:
+  e2e_network:
