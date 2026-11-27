@@ -38,6 +38,7 @@ class StaffAccessTests(TestCase):
         self.post_urls = [
             reverse('announcement:discord_cancel', kwargs={'pk': self.message.pk}),
             reverse('announcement:discord_resend', kwargs={'pk': self.message.pk}),
+            reverse('announcement:discord_mark_sent', kwargs={'pk': self.message.pk}),
         ]
 
     def test_anonymous_is_sent_to_login(self):
@@ -369,6 +370,41 @@ class CancelAndResendViewTests(StaffTestCase):
                 message.refresh_from_db()
                 self.assertEqual(message.status, status)
                 self.assertEqual(message.attempt_count, 0)
+
+    def test_failed_message_can_be_marked_sent(self):
+        message = make_message(
+            status=Status.FAILED, attempt_count=1, last_error='Discord の応答を確認できませんでした（ReadTimeout）。',
+        )
+        detail = self.client.get(self.detail_url(message))
+        self.assertContains(detail, '送信済みにする')
+
+        response = self.client.post(reverse('announcement:discord_mark_sent', kwargs={'pk': message.pk}))
+
+        self.assertRedirects(response, self.detail_url(message))
+        message.refresh_from_db()
+        self.assertEqual(message.status, Status.SENT)
+        self.assertIsNone(message.sent_at)
+        self.assertEqual(message.last_error, '')
+        self.assertEqual(message.lease_token, '')
+        self.assertIsNone(message.lease_expires_at)
+
+    def test_only_failed_message_can_be_marked_sent(self):
+        cases = (
+            {'status': Status.SCHEDULED},
+            {'status': Status.SCHEDULED, 'lease_token': 'running', 'lease_expires_at': timezone.now() + timedelta(minutes=5)},
+            {'status': Status.SENT, 'sent_at': timezone.now()},
+            {'status': Status.CANCELED},
+        )
+        for fields in cases:
+            with self.subTest(fields=fields):
+                message = make_message(**fields)
+                self.client.post(reverse('announcement:discord_mark_sent', kwargs={'pk': message.pk}))
+                message.refresh_from_db()
+                self.assertEqual(message.status, fields['status'])
+
+    def test_mark_sent_missing_message_returns_404(self):
+        response = self.client.post(reverse('announcement:discord_mark_sent', kwargs={'pk': 999999}))
+        self.assertEqual(response.status_code, 404)
 
 
 class ListViewTests(StaffTestCase):

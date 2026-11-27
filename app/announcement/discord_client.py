@@ -24,7 +24,7 @@ from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
 from website.discord_webhook import is_discord_webhook_url
 
 CONNECT_TIMEOUT_SECONDS = 5
-READ_TIMEOUT_SECONDS = 10
+READ_TIMEOUT_SECONDS = 15
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR_MIN = 500
 # Discord のエラー応答から画面に残す説明の最大長

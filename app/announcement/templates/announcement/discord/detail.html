@@ -45,10 +45,16 @@
     {% if message.can_resend %}
         <section class="action-required" role="alert" data-testid="announce-failed" aria-labelledby="announce-failed-heading">
             <h2 class="h6 fw-bold" id="announce-failed-heading">送信に失敗しました</h2>
-            <p class="small">{{ message.last_error|default:"エラーの内容は記録されていません。" }}</p>
-            <button type="button" class="btn btn-outline-primary btn-sm" data-confirm-panel="resend-announcement" aria-controls="resend-announcement" aria-expanded="false">再送する</button>
+            <p class="small mb-2">{{ message.last_error|default:"エラーの内容は記録されていません。" }}</p>
+            <p class="small text-muted mb-2">チャンネルに届いていた場合は、再送せず「送信済みにする」を使ってください。</p>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-outline-primary btn-sm" data-confirm-panel="resend-announcement" aria-controls="resend-announcement" aria-expanded="false">再送する</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-confirm-panel="mark-sent-announcement" aria-controls="mark-sent-announcement" aria-expanded="false">送信済みにする</button>
+            </div>
             {% url 'announcement:discord_resend' message.pk as resend_url %}
             {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='resend-announcement' label='告知の再送確認' message='次の告知がチャンネルに届いていないことを確かめてください。' action_url=resend_url submit_label='この告知を再送する' fields_template='announcement/discord/_resend_warning.html' reservation=message tone='primary' %}
+            {% url 'announcement:discord_mark_sent' message.pk as mark_sent_url %}
+            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='mark-sent-announcement' label='送信済みへの変更確認' message='次の告知がチャンネルに届いていることを確かめてください。' action_url=mark_sent_url submit_label='この告知を送信済みにする' fields_template='announcement/discord/_mark_sent_warning.html' reservation=message tone='primary' %}
         </section>
     {% elif message.is_sending %}
         <div class="action-required" role="status">送信処理中です。終わるまで編集と取り消しはできません。</div>
@@ -97,7 +103,7 @@
                 <span class="text-muted">メンション</span>
                 {% include 'announcement/discord/_mention_badge.html' with show_none=True %}
                 {% if message.mention != 'none' %}
-                    <span class="text-muted">{% if message.sent_at %}本文の先頭行に付けて送りました{% else %}送信時に本文の先頭行へ付きます{% endif %}</span>
+                    <span class="text-muted">{% if message.status == 'sent' or message.sent_at %}本文の先頭行に付けて送りました{% else %}送信時に本文の先頭行へ付きます{% endif %}</span>
                 {% endif %}
             </div>
             <div class="card-body">

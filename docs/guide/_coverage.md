@@ -117,6 +117,7 @@
 | 告知・X | Discord 告知の詳細・予約編集 | `/announcement/discord/<id>/` | `is_staff` または `is_superuser` | 運営用の予約一覧 | — | 対象外（運営専用） |
 | 告知・X | Discord 告知の予約取り消し | `/announcement/discord/<id>/cancel/` | `is_staff` または `is_superuser` | 運営用の予約詳細 | — | 対象外（運営専用） |
 | 告知・X | Discord 告知の再送 | `/announcement/discord/<id>/resend/` | `is_staff` または `is_superuser` | 運営用の予約詳細 | — | 対象外（運営専用） |
+| 告知・X | Discord 告知の送信済み確定 | `/announcement/discord/<id>/mark-sent/` | `is_staff` または `is_superuser` | 運営用の予約詳細 | — | 対象外（運営専用） |
 | アクセス解析 | アクセス解析ダッシュボード | `/analytics/dashboard/` | ログインユーザー。データは所属集会分、`is_superuser` は全集会 | イベント管理「アクセス」／アカウント設定「プロフィールと認証」→「アクセス解析を見る」 | [アクセス解析を見る](analytics/dashboard.md) | 記載あり |
 | アクセス解析 | 集計の CSV 出力 | `/analytics/dashboard/?format=csv` | ダッシュボードと同じ | ダッシュボード「CSV」 | [アクセス解析を見る](analytics/dashboard.md) | 記載あり |
 | アクセス解析 | 検索キーワード一覧 | `/analytics/dashboard/search-queries/` | ログインユーザー。対象は閲覧可能な集会 | ダッシュボード「すべての検索キーワード（…語）→」 | [アクセス解析を見る](analytics/dashboard.md) | 記載あり |
