@@ -28,6 +28,9 @@ DUMMY_REQUIRED_KEYS = (
 
 
 def _git_sha() -> str:
+    env_sha = str(os.environ.get("E2E_HUB_GIT_SHA", "") or "").strip()
+    if env_sha:
+        return env_sha
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],

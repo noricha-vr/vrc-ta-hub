@@ -1,3 +1,5 @@
+name: vrc-ta-hub-e2e
+
 services:
   vrc-ta-hub:
     container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub-e2e}-app'
@@ -24,6 +26,7 @@ services:
       - DB_PASSWORD=e2e_password
       - E2E_LOOPBACK_STORAGE=1
       - E2E_DISABLE_EXTERNAL_YOUTUBE=1
+      - E2E_HUB_GIT_SHA=${E2E_HUB_GIT_SHA:-}
       - AWS_ACCESS_KEY_ID=minioadmin
       - AWS_SECRET_ACCESS_KEY=minioadmin
       - AWS_STORAGE_BUCKET_NAME=vrc-ta-hub-e2e-public
