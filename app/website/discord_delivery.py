@@ -39,6 +39,8 @@ def select_community_discord_delivery(community) -> DiscordDelivery:
 @retry_webhook_post(excluded_status_codes=(403, 404))
 def post_discord_bot(channel_id: str, payload: dict) -> requests.Response:
     """Webhook と同じ再試行を使う。403/404 は呼び出し元で退避する。"""
+    if getattr(settings, 'DEBUG', False) and getattr(settings, 'E2E_LOOPBACK_STORAGE', False):
+        raise ValueError('E2E mode refuses external Discord Bot API delivery')
     if not _valid_channel_id(channel_id):
         raise ValueError('Invalid Discord Bot notification channel')
     if not settings.DISCORD_BOT_TOKEN:
@@ -63,6 +65,8 @@ def post_discord_bot(channel_id: str, payload: dict) -> requests.Response:
 
 def post_discord_dm(recipient_id: str, payload: dict) -> requests.Response:
     """DM チャンネルを開いて一度だけ送る。作成・送信とも再試行しない。"""
+    if getattr(settings, 'DEBUG', False) and getattr(settings, 'E2E_LOOPBACK_STORAGE', False):
+        raise ValueError('E2E mode refuses external Discord DM delivery')
     if not _valid_channel_id(recipient_id):
         raise ValueError('Invalid Discord DM recipient')
     if not settings.DISCORD_BOT_TOKEN:

@@ -183,21 +183,56 @@ def resolve_private_r2_bucket() -> str:
     return private_bucket
 
 
-def _build_r2_s3_client() -> Any:
+_E2E_ALLOWED_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "storage"})
+
+
+def _is_allowed_e2e_loopback_endpoint(url: str) -> bool:
+    if not getattr(settings, "DEBUG", False) or not getattr(settings, "E2E_LOOPBACK_STORAGE", False):
+        return False
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    return (
+        parsed.scheme == "http"
+        and parsed.hostname in _E2E_ALLOWED_LOOPBACK_HOSTS
+        and parsed.username is None
+        and parsed.password is None
+        and parsed.path in ("", "/")
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+def _build_r2_s3_client(*, for_presign: bool = False) -> Any:
     endpoint_url = str(getattr(settings, "AWS_S3_ENDPOINT_URL", "") or "").strip()
+    presign_endpoint_url = str(getattr(settings, "AWS_S3_PRESIGN_ENDPOINT_URL", "") or "").strip()
     access_key = str(getattr(settings, "AWS_ACCESS_KEY_ID", "") or "").strip()
     secret_key = str(getattr(settings, "AWS_SECRET_ACCESS_KEY", "") or "").strip()
     if not endpoint_url or not access_key or not secret_key:
         raise RecordingStorageConfigError("R2 署名クライアントの認証設定が構成されていません。")
-    if not endpoint_url.startswith("https://"):
+
+    use_e2e_loopback = _is_allowed_e2e_loopback_endpoint(endpoint_url)
+    target_endpoint = endpoint_url
+    if for_presign and presign_endpoint_url:
+        if not _is_allowed_e2e_loopback_endpoint(presign_endpoint_url):
+            raise RecordingStorageConfigError("署名用エンドポイントは E2E ループバック許可リスト外のため使用できません。")
+        target_endpoint = presign_endpoint_url
+        use_e2e_loopback = True
+
+    if not target_endpoint.startswith("https://") and not use_e2e_loopback:
         raise RecordingStorageConfigError("R2 エンドポイントは https:// である必要があります。")
+
+    client_config = Config(
+        signature_version="s3v4",
+        s3={"addressing_style": "path"} if use_e2e_loopback else None,
+    )
     return boto3.client(
         "s3",
-        endpoint_url=endpoint_url,
+        endpoint_url=target_endpoint,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        region_name="auto",
-        config=Config(signature_version="s3v4"),
+        region_name="us-east-1" if use_e2e_loopback else "auto",
+        config=client_config,
     )
 
 
@@ -231,7 +266,7 @@ def create_presigned_proxy_upload_url(
     ttl = clamp_presigned_expires_in(expires_in)
     object_key = validate_proxy_object_key(detail.pk, generate_proxy_object_key(detail.pk))
 
-    client = _build_r2_s3_client()
+    client = _build_r2_s3_client(for_presign=True)
     upload_url = _presign_url(
         client,
         "put_object",
@@ -351,7 +386,7 @@ def create_presigned_proxy_download_url(
     if remaining_sec is not None:
         ttl = min(ttl, remaining_sec)
 
-    client = _build_r2_s3_client()
+    client = _build_r2_s3_client(for_presign=True)
     proxy_url = _presign_url(
         client,
         "get_object",

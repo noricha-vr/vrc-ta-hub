@@ -5,11 +5,24 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import requests
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
 from website.retry import get_webhook_error_context, retry_webhook_post
+
+_E2E_DISCORD_SINK_HOSTS = frozenset({"127.0.0.1", "localhost", "host.docker.internal"})
+
+
+def _ensure_e2e_discord_allowed(webhook_url: str) -> None:
+    if not (getattr(settings, "DEBUG", False) and getattr(settings, "E2E_LOOPBACK_STORAGE", False)):
+        return
+    parsed = urlparse(webhook_url or "")
+    if parsed.scheme != "http" or parsed.hostname not in _E2E_DISCORD_SINK_HOSTS:
+        raise ValueError("E2E mode refuses external Discord webhook delivery")
 
 __all__ = [
     "DISCORD_WEBHOOK_URL_MESSAGE",
@@ -49,6 +62,7 @@ def post_discord_webhook(webhook_url: str, payload: dict) -> requests.Response:
     2xx 以外の HTTP 応答を例外化し、リトライ対象とする。
     最終的に失敗した場合は requests.RequestException 系を再送出する。
     """
+    _ensure_e2e_discord_allowed(webhook_url)
     response = requests.post(
         webhook_url, json=payload, timeout=DISCORD_TIMEOUT_SECONDS
     )
