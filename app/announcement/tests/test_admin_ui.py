@@ -96,6 +96,23 @@ class AnnouncementAdminUITests(TestCase):
         self.assertIn('1 分ほどで告知チャンネルへ送ります', warning.get_text())
         self.assertIsNone(panel.find_parent('form'))
 
+    def test_mark_sent_warning_is_immediately_before_final_buttons(self):
+        message = make_message(status=Status.FAILED, body='確認済みの告知', last_error='ReadTimeout')
+        response = self.client.get(self.detail_url(message))
+        soup = BeautifulSoup(response.content, 'html.parser')
+        panel = soup.select_one('#mark-sent-announcement.confirm-panel')
+        self.assertIn('btn-outline-secondary', soup.select_one('[data-confirm-panel=mark-sent-announcement]')['class'])
+        self.assertTrue(panel.has_attr('hidden'))
+        self.assertIn('confirm-panel--primary', panel['class'])
+        self.assertIn('btn-primary', panel.select_one('button[type=submit]')['class'])
+        self.assertIn(f'#{message.pk}', panel.get_text())
+        self.assertIn('確認済みの告知', panel.get_text())
+        self.assertEqual(panel.form['action'], reverse('announcement:discord_mark_sent', args=[message.pk]))
+        buttons = panel.select_one('button[type="submit"]').parent
+        warning = buttons.find_previous_sibling('p')
+        self.assertIn('再送は行いません', warning.get_text())
+        self.assertIsNone(panel.find_parent('form'))
+
     def test_read_only_and_retry_states_keep_available_actions(self):
         cases = (
             ({'status': Status.SENT}, '送信済み', False, False),
@@ -113,6 +130,16 @@ class AnnouncementAdminUITests(TestCase):
                 self.assertEqual(soup.select_one('#announce-edit-form') is not None, editable)
                 self.assertEqual(soup.select_one('#cancel-announcement') is not None, editable)
                 self.assertEqual(soup.select_one('#resend-announcement') is not None, resendable)
+                self.assertEqual(soup.select_one('#mark-sent-announcement') is not None, resendable)
+
+    def test_mention_caption_reflects_sent_status_even_without_sent_at(self):
+        sent_without_sent_at = make_message(status=Status.SENT, mention=DiscordScheduledMessage.Mention.EVERYONE)
+        sent_resp = self.client.get(self.detail_url(sent_without_sent_at))
+        self.assertContains(sent_resp, '本文の先頭行に付けて送りました')
+
+        scheduled = make_message(status=Status.SCHEDULED, mention=DiscordScheduledMessage.Mention.EVERYONE)
+        sched_resp = self.client.get(self.detail_url(scheduled))
+        self.assertContains(sched_resp, '送信時に本文の先頭行へ付きます')
 
     def test_invalid_edit_stays_open_and_preserves_saved_target(self):
         response = self.client.post(self.detail_url(), {'body': '', 'scheduled_at': '', 'mention': 'none'})
@@ -138,7 +165,8 @@ class AnnouncementAdminUITests(TestCase):
                     self.assertEqual(self.client.get(url).status_code, 403)
             for url in (reverse('announcement:discord_create'), self.detail_url(),
                         reverse('announcement:discord_cancel', args=[self.message.pk]),
-                        reverse('announcement:discord_resend', args=[self.message.pk])):
+                        reverse('announcement:discord_resend', args=[self.message.pk]),
+                        reverse('announcement:discord_mark_sent', args=[self.message.pk])):
                 with self.subTest(user=user.pk, post=url):
                     self.assertEqual(self.client.post(url, {}).status_code, 403)
         self.message.refresh_from_db()

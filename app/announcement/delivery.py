@@ -38,7 +38,7 @@ Status = DiscordScheduledMessage.Status
 MAX_SEND_ATTEMPTS = 3
 # n 回目の送信に失敗した後、次に試すまでの待ち時間
 RETRY_DELAYS = (timedelta(minutes=2), timedelta(minutes=5))
-# 1 件の送信処理が終わるまでのリース。1 回の送信は接続 5 秒 + 応答 10 秒で打ち切る
+# 1 件の送信処理が終わるまでのリース。1 回の送信は接続 5 秒 + 応答 15 秒で打ち切る
 LEASE_DURATION = timedelta(minutes=5)
 # 1 回の呼び出しで送る件数の上限（前段の nginx / uWSGI の 120 秒以内に収める）
 MAX_MESSAGES_PER_RUN = 5

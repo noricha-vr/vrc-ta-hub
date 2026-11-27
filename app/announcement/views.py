@@ -29,8 +29,10 @@ CREATED_MESSAGE = '予約しました。送信日時になると告知チャン�
 UPDATED_MESSAGE = '予約を更新しました。'
 CANCELED_MESSAGE = '予約を取り消しました。'
 RESENT_MESSAGE = '予約中に戻しました。1 分ほどで告知チャンネルへ送ります。'
+MARKED_SENT_MESSAGE = '送信済みにしました。'
 NOT_EDITABLE_ERROR = 'この予約は編集・取り消しできません。送信済み・取り消し済みか、送信処理中です。'
 NOT_RESENDABLE_ERROR = '再送できるのは、送信に失敗した予約だけです。'
+NOT_MARK_SENTABLE_ERROR = '送信済みにできるのは、送信に失敗した予約だけです。'
 
 
 def _detail_redirect(pk: int):
@@ -181,6 +183,28 @@ class ScheduledMessageResendView(StaffRequiredMixin, View):
             messages.success(request, RESENT_MESSAGE)
         else:
             messages.error(request, NOT_RESENDABLE_ERROR)
+        return _detail_redirect(pk)
+
+
+class ScheduledMessageMarkSentView(StaffRequiredMixin, View):
+    """送信に失敗した予約を、チャンネルで届いていた確認済みとして送信済みにする。"""
+
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        get_object_or_404(DiscordScheduledMessage, pk=pk)
+        marked = DiscordScheduledMessage.objects.filter(pk=pk, status=Status.FAILED).update(
+            status=Status.SENT,
+            next_attempt_at=None,
+            last_error='',
+            lease_token='',
+            lease_expires_at=None,
+            updated_at=timezone.now(),
+        )
+        if marked:
+            messages.success(request, MARKED_SENT_MESSAGE)
+        else:
+            messages.error(request, NOT_MARK_SENTABLE_ERROR)
         return _detail_redirect(pk)
 
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-27
+
+### Added
+
+- 運営スタッフ向けの Discord 告知予約詳細画面（`/announcement/discord/<id>/`）で、送信失敗（`ReadTimeout` 等）後にチャンネル側で投稿成功を確認できた場合、再送せずに状態を「送信済み」へ変更できる操作（`/announcement/discord/<id>/mark-sent/`）を追加しました。
+
+### Changed
+
+- Discord 告知の Webhook 送信の応答タイムアウト（`READ_TIMEOUT_SECONDS`）を 10 秒から 15 秒へ延長しました。
+
 ## 2026-11-25
 
 ### Fixed
