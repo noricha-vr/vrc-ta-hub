@@ -44,13 +44,14 @@ MAX_BATCH_SIZE = 2
 BATCH_TIME_BUDGET_SECONDS = 30
 # 生成に失敗した時に試す回数の上限（これを超えたら諦める）
 MAX_ATTEMPTS = 5
-# 字幕が付くのを待って見送る回数の上限。失敗とは別に数え、超えたら取れた入力だけで作る
-MAX_DEFERRALS = 4
-# 失敗・字幕待ちの再試行は 10・20・40・80 分後（それぞれの回数で決める）。字幕が付くまで待てるよう間隔を空ける
+# 字幕が付くのを待って見送る回数の上限（約 24 時間分）。失敗とは別に数え、超えたら取れた入力だけで作る
+MAX_DEFERRALS = 8
+# 失敗・字幕待ちの再試行は 10・20・40・80・160・240... 分後（上限 4 時間）
 RETRY_BASE_DELAY = timedelta(minutes=10)
+MAX_RETRY_DELAY = timedelta(hours=4)
 # 処理中の締切。過ぎても終わっていなければ（プロセスが落ちた等）次の呼び出しで拾い直す
 CLAIM_LEASE = timedelta(minutes=15)
-CLAIM_SCAN_LIMIT = 10
+CLAIM_SCAN_LIMIT = 50
 LAST_ERROR_MAX_LENGTH = 255
 
 GENERATED = 'generated'
@@ -209,7 +210,12 @@ def _generate(detail: EventDetail) -> tuple[BlogOutput, BlogSources]:
     字幕を先に取り、動画があるのに字幕がまだ無い時は、PDF を読まずに MAX_DEFERRALS 回まで待つ
     （それを過ぎたら取れた入力だけで作る）。取った字幕は渡して、取り直さない。
     """
-    transcript = fetch_transcript(detail)
+    from event.services.youtube_service import TranscriptFetchError
+
+    try:
+        transcript = fetch_transcript(detail)
+    except TranscriptFetchError as err:
+        raise ArticleGenerationError(f'transcript_api_error:{err}') from err
     if detail.video_id and not transcript and detail.article_generation_deferrals < MAX_DEFERRALS:
         raise ArticleGenerationDeferred('waiting_for_transcript')
     sources = collect_blog_sources(detail, transcript)
@@ -355,6 +361,8 @@ def _notify_first_time(pk: int) -> None:
                 'article_published_notification_skipped',
                 extra={'event_type': 'article_published_notification_skipped', 'event_detail_id': pk},
             )
+            if detail.status == 'approved':
+                _send_published_notification(detail, None)
             return
         notified_at = timezone.now()
         with transaction.atomic():
@@ -375,22 +383,22 @@ def _notify_first_time(pk: int) -> None:
                 return
             recipient = get_material_reminder_recipient(detail)
             claimed_status = detail.status
-        # 行ロックを外してからメールを送るまでに記事化 NG・却下・削除へ変わることがあるので、
-        # 送る直前にも公開の条件と記事を読み直す。満たさなければ送らずに自分の担当を戻す。
-        # 取得時から承認へ進んでいた時は、承認側が通知日時を引き継いで公開メールと Discord を送るので、
-        # ここでは送らない（取得時の状態で作成メールだけを送る前提が崩れ、Discord が二重になるのを防ぐ）。
-        detail = EventDetail.all_objects.filter(
-            EventDetail.article_notifiable_q(), pk=pk,
-        ).select_related('event__community', 'applicant').first()
-        if (
-            detail is None
-            or detail.article_state() == EventDetail.ArticleState.NONE
-            or detail.status != claimed_status
-        ):
+        try:
+            detail = EventDetail.all_objects.filter(
+                EventDetail.article_notifiable_q(), pk=pk,
+            ).select_related('event__community', 'applicant').first()
+            if (
+                detail is None
+                or detail.article_state() == EventDetail.ArticleState.NONE
+                or detail.status != claimed_status
+            ):
+                _release_claim(pk, notified_at)
+                return
+            if not _send_published_notification(detail, recipient):
+                _release_claim(pk, notified_at)
+        except Exception:
             _release_claim(pk, notified_at)
-            return
-        if not _send_published_notification(detail, recipient):
-            _release_claim(pk, notified_at)
+            raise
     except Exception:
         logger.exception(
             'article_published_notification_failed',
@@ -433,8 +441,8 @@ def _record_unexpected_failure(pk: int, lease_until: datetime, error: Exception)
 
 
 def _retry_at(count: int) -> datetime:
-    """count 回目（1 始まり）の後の再試行の時刻。10・20・40・80 分と間を空ける。"""
-    delay: timedelta = RETRY_BASE_DELAY * (2 ** max(count - 1, 0))
+    """count 回目（1 始まり）の後の再試行の時刻。10・20・40・80... 分（上限 4 時間）。"""
+    delay: timedelta = min(RETRY_BASE_DELAY * (2 ** max(count - 1, 0)), MAX_RETRY_DELAY)
     return timezone.now() + delay
 
 

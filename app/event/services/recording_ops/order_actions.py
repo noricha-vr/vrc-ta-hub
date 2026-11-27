@@ -286,8 +286,13 @@ def cancel_edit_order(
             update_fields=["status", "active_lock_key", "completed_at", "error_message", "updated_at"]
         )
 
+        was_synced = item.worker_synced_revision == item.edl_revision
         item.edl_revision += 1
-        item.save(update_fields=["edl_revision", "updated_at"])
+        save_fields = ["edl_revision", "updated_at"]
+        if was_synced:
+            item.worker_synced_revision = item.edl_revision
+            save_fields.append("worker_synced_revision")
+        item.save(update_fields=save_fields)
 
     logger.info(
         "recording_order_canceled_by_staff",

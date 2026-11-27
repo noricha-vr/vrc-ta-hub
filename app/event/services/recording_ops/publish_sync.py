@@ -205,6 +205,12 @@ def mark_recording_item_published(detail_id: int, *, video_id: str) -> dict[str,
                 item.youtube_draft_privacy = RecordingReviewItem.YouTubePrivacy.PUBLIC
                 item.save(update_fields=["review_status", "youtube_draft_privacy", "updated_at"])
 
+                # EventDetail.youtube_url が未設定なら同期して記事生成キューも自動起票する
+                expected_url = f"https://www.youtube.com/watch?v={normalized_video_id}"
+                if not (detail.youtube_url or "").strip():
+                    detail.youtube_url = expected_url
+                    detail.save()
+
                 logger.info(
                     "recording_ops_mark_published",
                     extra={

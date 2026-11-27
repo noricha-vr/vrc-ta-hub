@@ -1,6 +1,7 @@
 """YouTube字幕取得を担うモジュール."""
 from __future__ import annotations
 
+from contextvars import ContextVar
 import logging
 from typing import Optional
 
@@ -29,7 +30,14 @@ _TRANSCRIPT_ABSENT_ERRORS = (
 )
 
 
-def get_transcript(video_id, language='ja') -> Optional[str]:
+_RAISE_ON_TRANSCRIPT_ERROR: ContextVar[bool] = ContextVar('raise_on_transcript_error', default=False)
+
+
+class TranscriptFetchError(RuntimeError):
+    """YouTube 字幕取得時の API・ネットワーク一時障害（字幕不在と分離する）。"""
+
+
+def get_transcript(video_id, language='ja', *, raise_on_error: bool = False) -> Optional[str]:
     """YouTube動画から文字起こしを取得する関数
 
     Args:
@@ -82,6 +90,8 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         logger.info(f"YouTube字幕が利用できません: video_id={video_id}, reason={type(e).__name__}: {e}")
         return None  # failsafe-ok: 字幕なしでもPDFから生成継続できるため None 続行が正
     except Exception as e:
-        # ネットワーク・API 障害等の想定外。字幕なし扱いで続行するが警告として残す
+        # ネットワーク・API 障害等の想定外。raise_on_error=True（または ContextVar）の場合は字幕不在と分離して再試行可能にする
         logger.warning(f"Youtubeから文字起こしを取得するときにエラーが発生しました: {str(e)}")
+        if raise_on_error or _RAISE_ON_TRANSCRIPT_ERROR.get():
+            raise TranscriptFetchError(type(e).__name__) from e
         return None  # failsafe-ok: 字幕なしでもPDFから生成継続できるため None 続行が正
